@@ -1,4 +1,4 @@
-import type { Element, Job, JobItem, JobKind, JobStatus, Settings, Unit } from '../core/types.ts';
+import type { Element, ElementCategory, Job, JobItem, JobKind, JobStatus, Settings, Supplier, Unit } from '../core/types.ts';
 
 export class ApiError extends Error {
   status: number;
@@ -34,8 +34,22 @@ export interface NewJob {
   title: string;
   kind: JobKind;
   client_name?: string;
+  client_phone?: string;
   site_address?: string;
   description?: string;
+}
+
+export interface ElementDraft {
+  category: ElementCategory;
+  name: string;
+  unit: Unit;
+  unit_cost: number;
+  weight_kg_per_unit: number | null;
+  stock_length_mm: number | null;
+  supplier_id: number | null;
+  /** Set to create a new supplier together with the element */
+  supplier_name?: string;
+  supplier_phone?: string;
 }
 
 export const api = {
@@ -51,6 +65,13 @@ export const api = {
   setJobStatus: (id: number, status: JobStatus) =>
     request<Job>(`/jobs/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   job: (id: number) => request<JobDetail>(`/jobs/${id}`),
+  updateJob: (id: number, job: NewJob) => request<Job>(`/jobs/${id}`, { method: 'PATCH', body: JSON.stringify(job) }),
+  deleteJob: (id: number) => request<{ ok: true }>(`/jobs/${id}`, { method: 'DELETE' }),
+  createElement: (el: ElementDraft) => request<Element>('/elements', { method: 'POST', body: JSON.stringify(el) }),
+  updateElement: (id: number, el: ElementDraft) =>
+    request<Element>(`/elements/${id}`, { method: 'PATCH', body: JSON.stringify(el) }),
+  deleteElement: (id: number) => request<{ ok: true }>(`/elements/${id}`, { method: 'DELETE' }),
+  suppliers: () => request<Supplier[]>('/suppliers'),
   elements: () => request<Element[]>('/elements'),
   createItem: (jobId: number, item: ItemDraft) =>
     request<JobItem>(`/jobs/${jobId}/items`, { method: 'POST', body: JSON.stringify(item) }),
@@ -85,6 +106,8 @@ export function errorMessage(err: unknown): string {
         return 'סיסמה שגויה.';
       case 'too_many_attempts':
         return 'יותר מדי ניסיונות. נסה שוב בעוד רבע שעה.';
+      case 'invalid phone':
+        return 'מספר הטלפון לא נראה תקין.';
       case 'auth_not_configured':
         return 'הכניסה עוד לא הוגדרה בשרת (ראו README).';
       default:

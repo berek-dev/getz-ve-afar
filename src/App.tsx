@@ -3,17 +3,19 @@ import { JobsPage } from './pages/JobsPage.tsx';
 import { JobDetailPage } from './pages/JobDetailPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
+import { PriceListPage } from './pages/PriceListPage.tsx';
 import { AUTH_REQUIRED_EVENT, ApiError, api } from './lib/api.ts';
 import { Icon } from './components/Icon.tsx';
 import type { IconName } from './components/Icon.tsx';
 import { Toaster } from './components/Toast.tsx';
 
-type Tab = 'jobs' | 'pricing';
+type Tab = 'jobs' | 'prices' | 'pricing';
 type Route = { tab: Tab; jobId: number | null };
 
 function routeFromHash(): Route {
   const hash = window.location.hash;
   if (hash === '#/pricing') return { tab: 'pricing', jobId: null };
+  if (hash === '#/prices') return { tab: 'prices', jobId: null };
   const m = hash.match(/^#\/jobs\/(\d+)$/);
   return { tab: 'jobs', jobId: m ? Number(m[1]) : null };
 }
@@ -56,7 +58,7 @@ export function App() {
   if (!authed) return <LoginPage onLoggedIn={() => setAuthed(true)} />;
 
   const go = (t: Tab) => {
-    window.location.hash = t === 'pricing' ? '#/pricing' : '#/jobs';
+    window.location.hash = `#/${t}`;
   };
 
   return (
@@ -77,7 +79,15 @@ export function App() {
       </header>
 
       <main className="flex-1 px-4 pb-44 pt-5">
-        {route.jobId !== null ? <JobDetailPage jobId={route.jobId} /> : tab === 'jobs' ? <JobsPage /> : <SettingsPage />}
+        {route.jobId !== null ? (
+          <JobDetailPage jobId={route.jobId} />
+        ) : tab === 'jobs' ? (
+          <JobsPage />
+        ) : tab === 'prices' ? (
+          <PriceListPage />
+        ) : (
+          <SettingsPage />
+        )}
       </main>
 
       <nav
@@ -86,7 +96,8 @@ export function App() {
       >
         <div className="mx-auto flex max-w-xl">
           <NavButton active={tab === 'jobs'} onClick={() => go('jobs')} icon="jobs" label="עבודות" />
-          <NavButton active={tab === 'pricing'} onClick={() => go('pricing')} icon="gauge" label="תמחור" />
+          <NavButton active={tab === 'prices'} onClick={() => go('prices')} icon="tag" label="מחירון" />
+          <NavButton active={tab === 'pricing'} onClick={() => go('pricing')} icon="gauge" label="הגדרות" />
         </div>
       </nav>
 

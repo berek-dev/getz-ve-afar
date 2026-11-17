@@ -12,6 +12,7 @@ import { Sheet } from '../components/Sheet.tsx';
 import { StageBar, stageColor } from '../components/StageBar.tsx';
 import { ItemForm } from '../components/ItemSheet.tsx';
 import { CutPlanView } from '../components/CutPlanView.tsx';
+import { JobForm } from '../components/JobForm.tsx';
 import { toast } from '../components/Toast.tsx';
 
 const NO_GROUP = 'שונות';
@@ -22,6 +23,8 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
   const [elements, setElements] = useState<Element[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<JobItem | 'new' | null>(null);
+  const [editingJob, setEditingJob] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     setJob(null);
@@ -90,8 +93,20 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
       <BackLink />
 
       <header className="mt-3">
-        <p className="text-sm text-steel-300">{JOB_KIND_LABELS[job.kind]}</p>
-        <h1 className="mt-0.5 text-2xl font-semibold leading-snug">{job.title}</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm text-steel-300">{JOB_KIND_LABELS[job.kind]}</p>
+            <h1 className="mt-0.5 text-2xl font-semibold leading-snug">{job.title}</h1>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditingJob(true)}
+            aria-label="עריכת פרטי העבודה"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-steel-700 text-steel-300"
+          >
+            <Icon name="pencil" size={18} />
+          </button>
+        </div>
         <p className="mt-1 text-steel-300">{where}</p>
         <div className="mt-4">
           <StageBar status={job.status} />
@@ -213,6 +228,49 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
       {totals.weightKg > 0 && (
         <p className="tnum mt-6 text-steel-300">משקל ברזל משוער: {fmtNum(Math.round(totals.weightKg))} ק״ג</p>
       )}
+
+      <Sheet open={editingJob} onClose={() => { setEditingJob(false); setConfirmDelete(false); }} title="פרטי העבודה">
+        {editingJob && (
+          <div className="space-y-5">
+            <JobForm
+              initial={{
+                title: job.title,
+                kind: job.kind,
+                client_name: job.client_name ?? '',
+                client_phone: job.client_phone ?? '',
+                site_address: job.site_address ?? '',
+                description: job.description ?? '',
+              }}
+              submitLabel="שמור שינויים"
+              onSubmit={async (draft) => {
+                const updated = await api.updateJob(job.id, draft);
+                setJob((j) => (j ? { ...j, ...updated } : j));
+                setEditingJob(false);
+                toast('פרטי העבודה עודכנו');
+              }}
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                if (!confirmDelete) return setConfirmDelete(true);
+                try {
+                  await api.deleteJob(job.id);
+                  toast('העבודה נמחקה');
+                  window.location.hash = '#/jobs';
+                } catch (e) {
+                  setError(errorMessage(e));
+                }
+              }}
+              className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border font-semibold ${
+                confirmDelete ? 'border-primer bg-primer text-soapstone' : 'border-steel-700 text-primer-light'
+              }`}
+            >
+              <Icon name="trash" size={20} />
+              {confirmDelete ? 'לחץ שוב: העבודה וכל השורות שלה יימחקו' : 'מחק עבודה'}
+            </button>
+          </div>
+        )}
+      </Sheet>
 
       <Sheet
         open={editing !== null}

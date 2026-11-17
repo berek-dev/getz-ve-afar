@@ -85,7 +85,7 @@ export function SettingsPage() {
 
   return (
     <form onSubmit={save}>
-      <h2 className="font-display text-[2.6rem] leading-none">תמחור</h2>
+      <h2 className="font-display text-[2.6rem] leading-none">הגדרות תמחור</h2>
       <p className="mt-2 max-w-md text-steel-300">
         המספרים האלה קובעים כמה תעלה כל הצעת מחיר. אפשר לשנות אותם בכל רגע, ההצעות החדשות יתעדכנו.
       </p>

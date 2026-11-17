@@ -2,7 +2,11 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Env } from './env.ts';
+import type { AppEnv } from './types.ts';
+import { parseId } from './types.ts';
 import { validateItem } from './items.ts';
+import { normalizePhone } from './elements.ts';
+import { registerCatalog } from './routes/catalog.ts';
 import {
   SESSION_COOKIE,
   SESSION_RENEW_BELOW_MS,
@@ -11,8 +15,6 @@ import {
   verifyPassword,
   verifySession,
 } from './auth.ts';
-
-type AppEnv = { Bindings: Env };
 
 export const app = new Hono<AppEnv>().basePath('/api');
 
@@ -156,7 +158,7 @@ app.post('/clients', async (c) => {
 // --- Jobs
 app.get('/jobs', async (c) => {
   const { results } = await c.env.DB.prepare(
-    `SELECT j.*, cl.name AS client_name
+    `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone
        FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id
       ORDER BY j.updated_at DESC
       LIMIT 200`,
@@ -168,7 +170,7 @@ app.get('/jobs/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isInteger(id)) return c.json({ error: 'bad id' }, 400);
   const job = await c.env.DB.prepare(
-    `SELECT j.*, cl.name AS client_name FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id WHERE j.id = ?`,
+    `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id WHERE j.id = ?`,
   )
     .bind(id)
     .first();
@@ -177,12 +179,6 @@ app.get('/jobs/:id', async (c) => {
     .bind(id)
     .all();
   return c.json({ ...job, items });
-});
-
-// --- Element library
-app.get('/elements', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM elements WHERE active = 1 ORDER BY category, name').all();
-  return c.json(results);
 });
 
 // --- Job lines (bill of quantities)
@@ -256,10 +252,13 @@ app.post('/jobs', async (c) => {
     kind?: string;
     client_id?: number | null;
     client_name?: string;
+    client_phone?: string;
     site_address?: string;
     description?: string;
   }>();
   const title = body.title?.trim();
+  const phone = normalizePhone(body.client_phone);
+  if (phone === 'invalid') return c.json({ error: 'invalid phone' }, 400);
   if (!title) return c.json({ error: 'title is required' }, 400);
   const kind = body.kind ?? 'fabrication';
   if (!(JOB_KINDS as readonly string[]).includes(kind)) return c.json({ error: 'invalid kind' }, 400);
@@ -267,8 +266,8 @@ app.post('/jobs', async (c) => {
   let clientId: number | null = body.client_id ?? null;
   const clientName = body.client_name?.trim();
   if (!clientId && clientName) {
-    const client = await c.env.DB.prepare('INSERT INTO clients (name) VALUES (?) RETURNING id')
-      .bind(clientName)
+    const client = await c.env.DB.prepare('INSERT INTO clients (name, phone) VALUES (?, ?) RETURNING id')
+      .bind(clientName, phone)
       .first<{ id: number }>();
     clientId = client?.id ?? null;
   }
@@ -280,6 +279,62 @@ app.post('/jobs', async (c) => {
     .bind(title, kind, clientId, body.site_address?.trim() || null, body.description?.trim() || null)
     .first();
   return c.json(row, 201);
+});
+
+app.patch('/jobs/:id', async (c) => {
+  const id = parseId(c.req.param('id'));
+  if (!id) return c.json({ error: 'bad id' }, 400);
+  const body = await c.req.json<{
+    title?: string;
+    kind?: string;
+    client_name?: string;
+    client_phone?: string;
+    site_address?: string;
+    description?: string;
+  }>();
+  const title = body.title?.trim();
+  if (!title) return c.json({ error: 'title is required' }, 400);
+  const kind = body.kind ?? 'fabrication';
+  if (!(JOB_KINDS as readonly string[]).includes(kind)) return c.json({ error: 'invalid kind' }, 400);
+  const phone = normalizePhone(body.client_phone);
+  if (phone === 'invalid') return c.json({ error: 'invalid phone' }, 400);
+
+  const job = await c.env.DB.prepare('SELECT client_id FROM jobs WHERE id = ?').bind(id).first<{ client_id: number | null }>();
+  if (!job) return c.json({ error: 'not found' }, 404);
+
+  let clientId = job.client_id;
+  const clientName = body.client_name?.trim();
+  if (clientName && clientId) {
+    await c.env.DB.prepare('UPDATE clients SET name = ?, phone = ? WHERE id = ?').bind(clientName, phone, clientId).run();
+  } else if (clientName) {
+    const client = await c.env.DB.prepare('INSERT INTO clients (name, phone) VALUES (?, ?) RETURNING id')
+      .bind(clientName, phone)
+      .first<{ id: number }>();
+    clientId = client?.id ?? null;
+  } else {
+    clientId = null;
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE jobs SET title = ?, kind = ?, client_id = ?, site_address = ?, description = ?, updated_at = datetime('now')
+      WHERE id = ?`,
+  )
+    .bind(title, kind, clientId, body.site_address?.trim() || null, body.description?.trim() || null, id)
+    .run();
+  const row = await c.env.DB.prepare(
+    `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id WHERE j.id = ?`,
+  )
+    .bind(id)
+    .first();
+  return c.json(row);
+});
+
+app.delete('/jobs/:id', async (c) => {
+  const id = parseId(c.req.param('id'));
+  if (!id) return c.json({ error: 'bad id' }, 400);
+  const row = await c.env.DB.prepare('DELETE FROM jobs WHERE id = ? RETURNING id').bind(id).first();
+  if (!row) return c.json({ error: 'not found' }, 404);
+  return c.json({ ok: true });
 });
 
 app.patch('/jobs/:id/status', async (c) => {
@@ -310,3 +365,5 @@ app.get('/public/quotes/:token', async (c) => {
   if (!quote) return c.json({ error: 'not found' }, 404);
   return c.json(quote);
 });
+
+registerCatalog(app);

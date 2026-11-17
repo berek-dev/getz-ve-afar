@@ -65,7 +65,15 @@ export interface Element {
   weight_kg_per_unit: number | null;
   stock_length_mm: number | null;
   supplier_id: number | null;
+  supplier_name?: string | null;
   active: number;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  phone: string | null;
+  notes: string | null;
 }
 
 /** A line in a job's bill of quantities. Library fields are joined in by the API. */
@@ -114,6 +122,7 @@ export interface Job {
   id: number;
   client_id: number | null;
   client_name?: string | null;
+  client_phone?: string | null;
   title: string;
   site_address: string | null;
   kind: JobKind;

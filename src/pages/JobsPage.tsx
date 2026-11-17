@@ -1,29 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
-import type { NewJob } from '../lib/api.ts';
 import { JOB_KIND_LABELS, JOB_STATUS_LABELS } from '../core/types.ts';
-import type { Job, JobKind, JobStatus } from '../core/types.ts';
+import type { Job, JobStatus } from '../core/types.ts';
 import { STAGES, STAGE_ORDER, isOpen, stageIndex } from '../core/stages.ts';
 import { Icon } from '../components/Icon.tsx';
-import type { IconName } from '../components/Icon.tsx';
 import { Sheet } from '../components/Sheet.tsx';
 import { StageBar, stageColor } from '../components/StageBar.tsx';
 import { toast } from '../components/Toast.tsx';
-
-const KIND_ICON: Record<JobKind, IconName> = {
-  fabrication: 'frame',
-  pipe: 'pipe',
-  service: 'wrench',
-  earthworks: 'excavator',
-};
-
-const KIND_HINT: Record<JobKind, string> = {
-  fabrication: 'שערים, מעקות, פרגולות',
-  pipe: 'קווי מים וצינורות',
-  service: 'תיקון מהיר אצל לקוח',
-  earthworks: 'חפירה, פילוס, פינוי',
-};
+import { JobForm, KIND_ICON } from '../components/JobForm.tsx';
 
 type Filter = 'open' | 'closed' | 'all';
 
@@ -131,8 +115,10 @@ export function JobsPage() {
       </div>
 
       <Sheet open={creating} onClose={() => setCreating(false)} title="עבודה חדשה">
-        <NewJobForm
-          onCreated={(job) => {
+        <JobForm
+          submitLabel="שמור עבודה"
+          onSubmit={async (draft) => {
+            const job = await api.createJob(draft);
             setJobs((prev) => [job, ...(prev ?? [])]);
             setFilter('open');
             setCreating(false);
@@ -271,129 +257,5 @@ function EmptyState({ filter, onCreate }: { filter: Filter; onCreate: () => void
         לרשום עבודה חדשה
       </button>
     </div>
-  );
-}
-
-function NewJobForm({ onCreated }: { onCreated: (job: Job) => void }) {
-  const [form, setForm] = useState<NewJob>({ title: '', kind: 'fabrication' });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [titleMissing, setTitleMissing] = useState(false);
-
-  const set = <K extends keyof NewJob>(key: K, value: NewJob[K]) => setForm((f) => ({ ...f, [key]: value }));
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!form.title.trim()) {
-      setTitleMissing(true);
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      onCreated(await api.createJob(form));
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <form onSubmit={submit} className="space-y-5" noValidate>
-      <fieldset>
-        <legend className="mb-2 font-semibold">סוג העבודה</legend>
-        <div className="grid grid-cols-2 gap-2">
-          {(Object.keys(JOB_KIND_LABELS) as JobKind[]).map((kind) => {
-            const selected = form.kind === kind;
-            return (
-              <button
-                key={kind}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => set('kind', kind)}
-                className={`relative flex min-h-24 flex-col items-start gap-1 rounded-[10px] border-2 p-3 text-start ${
-                  selected ? 'border-hivis bg-steel-950' : 'border-steel-700 bg-steel-900'
-                }`}
-              >
-                <Icon name={KIND_ICON[kind]} size={28} className={selected ? 'text-hivis' : 'text-steel-300'} />
-                <span className="font-semibold">{JOB_KIND_LABELS[kind]}</span>
-                <span className="text-sm leading-tight text-steel-300">{KIND_HINT[kind]}</span>
-                {selected && (
-                  <span className="absolute end-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-hivis text-steel-950">
-                    <Icon name="check" size={16} />
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
-
-      <label className="block">
-        <span className="mb-1.5 block font-semibold">מה העבודה?</span>
-        <input
-          className="field"
-          value={form.title}
-          onChange={(e) => {
-            set('title', e.target.value);
-            if (e.target.value.trim()) setTitleMissing(false);
-          }}
-          placeholder="למשל: שער כנף כפולה 4 מ׳"
-          aria-invalid={titleMissing}
-          aria-describedby={titleMissing ? 'title-error' : undefined}
-        />
-        {titleMissing && (
-          <span id="title-error" className="mt-1.5 block text-sm text-primer-light">
-            כתוב במילה או שתיים מה העבודה, כדי שתזהה אותה ברשימה.
-          </span>
-        )}
-      </label>
-
-      <label className="block">
-        <span className="mb-1.5 block font-semibold">שם הלקוח</span>
-        <input
-          className="field"
-          value={form.client_name ?? ''}
-          onChange={(e) => set('client_name', e.target.value)}
-          placeholder="למשל: משפחת כהן"
-          autoComplete="off"
-        />
-      </label>
-
-      <label className="block">
-        <span className="mb-1.5 block font-semibold">איפה?</span>
-        <input
-          className="field"
-          value={form.site_address ?? ''}
-          onChange={(e) => set('site_address', e.target.value)}
-          placeholder="יישוב או כתובת"
-        />
-      </label>
-
-      <label className="block">
-        <span className="mb-1.5 block font-semibold">פרטים</span>
-        <textarea
-          className="field min-h-28"
-          value={form.description ?? ''}
-          onChange={(e) => set('description', e.target.value)}
-          placeholder="מידות, חומרים, מה הלקוח ביקש"
-        />
-        <span className="mt-1.5 flex items-center gap-1.5 text-sm text-steel-300">
-          <Icon name="mic" size={16} />
-          אפשר להכתיב: לוחצים על המיקרופון במקלדת.
-        </span>
-      </label>
-
-      {error && (
-        <p className="text-primer-light" role="alert">
-          {error}
-        </p>
-      )}
-
-      <button type="submit" disabled={saving} className="btn-primary">
-        {saving ? 'שומר...' : 'שמור עבודה'}
-      </button>
-    </form>
   );
 }
