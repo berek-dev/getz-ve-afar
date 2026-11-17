@@ -1,0 +1,3 @@
+# העתק לקובץ .dev.vars (לא נכנס לגיט) לפיתוח מקומי בלבד.
+# מדלג על בדיקת Cloudflare Access כשמריצים מקומית.
+DEV_BYPASS_AUTH=true

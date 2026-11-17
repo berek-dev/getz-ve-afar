@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Heebo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* גץ – כתום של ניצוץ ריתוך */
+  --color-ember-50: #fff6ed;
+  --color-ember-100: #ffead4;
+  --color-ember-400: #fb923c;
+  --color-ember-500: #f07c1b;
+  --color-ember-600: #d9650c;
+  --color-ember-700: #b44d0c;
+
+  /* עפר – חום אדמה */
+  --color-soil-500: #8b5a2b;
+  --color-soil-700: #5c3b1c;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-stone-100 text-stone-900 antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iPhone: לא לזום על input */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
