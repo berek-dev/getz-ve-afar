@@ -6,7 +6,7 @@ compatibility_date = "2026-10-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "getz-ve-afar"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "3f65d96d-d1ad-4a83-a8c4-18c3411373fc"
 migrations_dir = "migrations"
 
 # Secrets (never in this file!): APP_PASSWORD_HASH and SESSION_SECRET.
