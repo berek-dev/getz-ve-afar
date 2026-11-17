@@ -1,19 +1,36 @@
 @import 'tailwindcss';
 
+/*
+ * "Steel shop floor": colours taken from the trade itself.
+ *  - blued steel plate for surfaces, soapstone (the welder's chalk) for text
+ *  - excavator yellow for the one main action on a screen
+ *  - red-oxide primer for jobs that didn't happen
+ *  - heat tint (the colours steel takes next to a weld) for job progress – the one memorable thing
+ */
 @theme {
-  --font-sans: 'Heebo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Karantina', 'IBM Plex Sans Hebrew', system-ui, sans-serif;
+  --font-sans: 'IBM Plex Sans Hebrew', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  /* גץ – כתום של ניצוץ ריתוך */
-  --color-ember-50: #fff6ed;
-  --color-ember-100: #ffead4;
-  --color-ember-400: #fb923c;
-  --color-ember-500: #f07c1b;
-  --color-ember-600: #d9650c;
-  --color-ember-700: #b44d0c;
+  --color-steel-950: #1b2025;
+  --color-steel-900: #23292f;
+  --color-steel-800: #2e363e;
+  --color-steel-700: #3b444d;
+  --color-steel-500: #6b7682;
+  --color-steel-300: #a9b2bb;
+  --color-soapstone: #edeae3;
 
-  /* עפר – חום אדמה */
-  --color-soil-500: #8b5a2b;
-  --color-soil-700: #5c3b1c;
+  --color-hivis: #f3b61f;
+  --color-hivis-press: #d99e0b;
+  --color-primer: #b4492c;
+  --color-primer-light: #f2a48f;
+
+  --color-heat-1: #e9c46a; /* straw */
+  --color-heat-2: #d4a04a; /* gold */
+  --color-heat-3: #b87333; /* bronze */
+  --color-heat-4: #9a4f3c; /* brown-red */
+  --color-heat-5: #7b4f96; /* purple */
+  --color-heat-6: #3f63a8; /* blue */
+  --color-heat-7: #5b8fd1; /* light blue */
 }
 
 html,
@@ -23,13 +40,108 @@ body,
 }
 
 body {
-  @apply bg-stone-100 text-stone-900 antialiased;
+  background: var(--color-steel-900);
+  color: var(--color-soapstone);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* iPhone: לא לזום על input */
+/* iPhone zooms into inputs below 16px */
 input,
 select,
 textarea {
   font-size: 16px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-hivis);
+  outline-offset: 2px;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A machined steel plate: flat, with a faint bright top edge instead of a drop shadow */
+.plate {
+  background: var(--color-steel-800);
+  border: 1px solid var(--color-steel-700);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+/* Weld bead under the header: heat-tint run with ripples */
+.weld-bead {
+  height: 5px;
+  background-image:
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.22) 0 2px, transparent 2px 7px),
+    linear-gradient(
+      to left,
+      var(--color-heat-1),
+      var(--color-heat-2),
+      var(--color-heat-3),
+      var(--color-heat-4),
+      var(--color-heat-5),
+      var(--color-heat-6),
+      var(--color-heat-7)
+    );
+}
+
+.field {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--color-steel-700);
+  background: var(--color-steel-950);
+  padding: 0.8rem 0.9rem;
+  color: var(--color-soapstone);
+}
+.field::placeholder {
+  color: var(--color-steel-500);
+}
+.field:focus {
+  border-color: var(--color-hivis);
+  outline: none;
+}
+
+.btn-primary {
+  display: flex;
+  width: 100%;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 12px;
+  background: var(--color-hivis);
+  color: var(--color-steel-950);
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.btn-primary:active {
+  background: var(--color-hivis-press);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(32px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.sheet {
+  animation: sheet-up 0.22s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

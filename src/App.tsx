@@ -3,11 +3,14 @@ import { JobsPage } from './pages/JobsPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { AUTH_REQUIRED_EVENT, ApiError, api } from './lib/api.ts';
+import { Icon } from './components/Icon.tsx';
+import type { IconName } from './components/Icon.tsx';
+import { Toaster } from './components/Toast.tsx';
 
-type Tab = 'jobs' | 'settings';
+type Tab = 'jobs' | 'pricing';
 
 function tabFromHash(): Tab {
-  return window.location.hash === '#/settings' ? 'settings' : 'jobs';
+  return window.location.hash === '#/pricing' ? 'pricing' : 'jobs';
 }
 
 export function App() {
@@ -39,54 +42,70 @@ export function App() {
   }, []);
 
   if (authed === null) {
-    return <div className="flex min-h-screen items-center justify-center bg-stone-900 text-stone-400">טוען...</div>;
+    return <div className="min-h-dvh bg-steel-950" aria-busy="true" />;
   }
   if (!authed) return <LoginPage onLoggedIn={() => setAuthed(true)} />;
 
   const go = (t: Tab) => {
-    window.location.hash = t === 'settings' ? '#/settings' : '#/jobs';
+    window.location.hash = t === 'pricing' ? '#/pricing' : '#/jobs';
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-xl flex-col">
-      <header className="sticky top-0 z-10 bg-stone-900 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img src="/icons/icon-192.png" alt="" className="h-9 w-9 rounded-lg" />
-            <div>
-              <h1 className="text-xl font-extrabold leading-none">גץ ועפר</h1>
-              <p className="text-xs text-stone-400">מסגרות · ריתוך · עבודות עפר</p>
-            </div>
+    <div className="mx-auto flex min-h-dvh max-w-xl flex-col">
+      <header className="sticky top-0 z-20 bg-steel-950 pt-[env(safe-area-inset-top)]">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <img src="/icons/icon-192.png" alt="" className="h-9 w-9 rounded-[9px]" />
+            <span className="font-display text-[2.1rem] leading-none tracking-wide">גץ ועפר</span>
           </div>
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs ${
-              online === null ? 'bg-stone-700' : online ? 'bg-emerald-700' : 'bg-red-700'
-            }`}
-          >
-            {online === null ? '...' : online ? 'מחובר' : 'אין חיבור'}
-          </span>
+          {online === false && (
+            <span className="rounded-full border border-primer px-3 py-1 text-sm font-semibold text-primer-light">
+              אין חיבור לשרת
+            </span>
+          )}
         </div>
+        <div className="weld-bead" aria-hidden="true" />
       </header>
 
-      <main className="flex-1 px-4 py-4 pb-24">{tab === 'jobs' ? <JobsPage /> : <SettingsPage />}</main>
+      <main className="flex-1 px-4 pb-44 pt-5">{tab === 'jobs' ? <JobsPage /> : <SettingsPage />}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-stone-200 bg-white pb-[env(safe-area-inset-bottom)]">
+      <nav
+        aria-label="ניווט ראשי"
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-steel-700 bg-steel-950 pb-[env(safe-area-inset-bottom)]"
+      >
         <div className="mx-auto flex max-w-xl">
-          <NavButton active={tab === 'jobs'} onClick={() => go('jobs')} label="עבודות" />
-          <NavButton active={tab === 'settings'} onClick={() => go('settings')} label="הגדרות" />
+          <NavButton active={tab === 'jobs'} onClick={() => go('jobs')} icon="jobs" label="עבודות" />
+          <NavButton active={tab === 'pricing'} onClick={() => go('pricing')} icon="gauge" label="תמחור" />
         </div>
       </nav>
+
+      <Toaster />
     </div>
   );
 }
 
-function NavButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+function NavButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: IconName;
+  label: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex-1 py-3 text-base font-bold ${active ? 'text-ember-600' : 'text-stone-500'}`}
+      aria-current={active ? 'page' : undefined}
+      className={`relative flex min-h-16 flex-1 flex-col items-center justify-center gap-1 text-sm font-semibold ${
+        active ? 'text-hivis' : 'text-steel-300'
+      }`}
     >
+      {active && <span className="absolute inset-x-10 top-0 h-[3px] rounded-b bg-hivis" aria-hidden="true" />}
+      <Icon name={icon} size={26} />
       {label}
     </button>
   );

@@ -26,22 +26,31 @@ export function QuotePublicPage({ token }: { token: string }) {
   }, [token]);
 
   return (
-    <div className="mx-auto max-w-xl p-6">
-      <header className="mb-6 flex items-center gap-3">
-        <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl" />
-        <div>
-          <h1 className="text-2xl font-extrabold">גץ ועפר</h1>
-          <p className="text-sm text-stone-500">הצעת מחיר</p>
+    <div className="min-h-dvh bg-steel-900">
+      <header className="bg-steel-950">
+        <div className="mx-auto flex max-w-xl items-center gap-3 px-5 py-4">
+          <img src="/icons/icon-192.png" alt="" className="h-12 w-12 rounded-xl" />
+          <div>
+            <h1 className="font-display text-[2.4rem] leading-none">גץ ועפר</h1>
+            <p className="text-sm text-steel-300">הצעת מחיר</p>
+          </div>
         </div>
+        <div className="weld-bead" aria-hidden="true" />
       </header>
-      {state === 'loading' && <p className="text-stone-500">טוען...</p>}
-      {state === 'missing' && <p className="rounded-xl bg-white p-4">ההצעה לא נמצאה או שפג תוקפה.</p>}
-      {state === 'ok' && quote && (
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
-          <p className="text-stone-500">סה״כ לתשלום</p>
-          <p className="text-4xl font-extrabold">{quote.total != null ? formatIls(quote.total) : '—'}</p>
-        </div>
-      )}
+      <main className="mx-auto max-w-xl p-5">
+        {state === 'loading' && <p className="text-steel-300">טוען...</p>}
+        {state === 'missing' && (
+          <p className="plate rounded-[10px] p-4">ההצעה לא נמצאה או שפג תוקפה. אפשר לבקש קישור חדש.</p>
+        )}
+        {state === 'ok' && quote && (
+          <div className="plate rounded-[10px] p-5">
+            <p className="text-steel-300">סה״כ לתשלום</p>
+            <p className="tnum font-display text-[3.5rem] leading-none text-hivis">
+              {quote.total != null ? formatIls(quote.total) : '—'}
+            </p>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
