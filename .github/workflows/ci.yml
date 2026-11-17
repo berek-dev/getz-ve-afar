@@ -48,6 +48,35 @@ jobs:
         name: Apply new database migrations
         run: npx wrangler d1 migrations apply getz-ve-afar --remote
       - if: steps.ready.outputs.ok == 'true'
+        name: Photo storage (Workers KV, free tier)
+        # Optional: if this fails (e.g. the token has no KV permission) the app deploys without photos.
+        continue-on-error: true
+        run: |
+          NAME=getz-ve-afar-photos
+          find_id() {
+            npx wrangler kv namespace list 2>/dev/null | node -e '
+              let s = "";
+              process.stdin.on("data", (d) => (s += d)).on("end", () => {
+                const i = s.indexOf("[");
+                if (i < 0) return;
+                const ns = JSON.parse(s.slice(i)).find((n) => n.title === process.argv[1] || n.title.endsWith("-" + process.argv[1]));
+                if (ns) console.log(ns.id);
+              });' "$NAME"
+          }
+          ID=$(find_id || true)
+          if [ -z "$ID" ]; then
+            (cd "$(mktemp -d)" && "$GITHUB_WORKSPACE/node_modules/.bin/wrangler" kv namespace create "$NAME")
+            ID=$(find_id || true)
+          fi
+          if [ -z "$ID" ]; then
+            echo "::warning::Photo storage could not be set up – photos stay off."
+            exit 0
+          fi
+          if ! grep -q 'binding = "PHOTOS"' wrangler.toml; then
+            printf '\n[[kv_namespaces]]\nbinding = "PHOTOS"\nid = "%s"\n' "$ID" >> wrangler.toml
+          fi
+          echo "Photo storage ready ($ID)"
+      - if: steps.ready.outputs.ok == 'true'
         name: Build and deploy
         run: |
           npm run build

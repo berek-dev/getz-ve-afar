@@ -32,7 +32,10 @@ export type IconName =
   | 'sparkles'
   | 'copy'
   | 'layers'
-  | 'download';
+  | 'download'
+  | 'clock'
+  | 'phone'
+  | 'navigate';
 
 const PATHS: Record<IconName, ReactNode> = {
   jobs: (
@@ -174,6 +177,16 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
     </>
   ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  phone: (
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
+  ),
+  navigate: <path d="M3 11 22 2l-9 19-2-8-8-2Z" />,
   download: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />,
   // Chop-saw disc over a bar
   saw: (

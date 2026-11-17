@@ -2,6 +2,7 @@
 -- Load with:  npm run db:seed:local   (or db:seed:remote)
 -- Safe to re-run: deletes the demo rows (ids 9001+) first, then inserts them again.
 
+DELETE FROM templates WHERE id BETWEEN 9001 AND 9099;
 DELETE FROM jobs      WHERE id BETWEEN 9001 AND 9099;
 DELETE FROM clients   WHERE id BETWEEN 9001 AND 9099;
 DELETE FROM elements  WHERE id BETWEEN 9001 AND 9099;
@@ -72,3 +73,11 @@ INSERT INTO job_items (job_id, element_id, group_name, description, quantity, un
 -- Job 3: service call, no items yet
 INSERT INTO jobs (id, client_id, title, kind, status, description) VALUES
   (9003, 9001, 'תיקון ציר שער נפול (דוגמה)', 'service', 'lead', 'הלקוח שלח תמונה בוואטסאפ, צריך לתאם ביקור.');
+
+-- A template made from the demo gate, so "start from a template" has something to show
+INSERT INTO templates (id, name, description, items_json)
+SELECT 9001, 'שער כנף כפולה (דוגמה)', 'שער חניה עם עמודים 80/80, מסגרת 60/40 ומילוי אנכי',
+       json_group_array(json_object(
+         'element_id', element_id, 'group_name', group_name, 'description', description,
+         'quantity', quantity, 'unit', unit, 'unit_cost', unit_cost, 'length_mm', length_mm, 'pieces', pieces))
+  FROM (SELECT * FROM job_items WHERE job_id = 9001 ORDER BY sort_order);

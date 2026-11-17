@@ -94,6 +94,9 @@ export interface JobItem {
   category?: ElementCategory | null;
   weight_kg_per_unit?: number | null;
   stock_length_mm?: number | null;
+  supplier_id?: number | null;
+  supplier_name?: string | null;
+  supplier_phone?: string | null;
 }
 
 export interface Settings {
@@ -149,6 +152,22 @@ export interface QuoteSummary {
   valid_until: string | null;
   approved_at: string | null;
   approved_name: string | null;
+  created_at: string;
+}
+
+export interface Photo {
+  id: number;
+  job_id: number;
+  caption: string | null;
+  kind: string;
+  created_at: string;
+}
+
+export interface Template {
+  id: number;
+  name: string;
+  description: string | null;
+  item_count: number;
   created_at: string;
 }
 

@@ -35,3 +35,37 @@ export function fmtDate(s: string | null | undefined): string {
 export function fmtDateTime(s: string | null | undefined): string {
   return s ? dateTimeFmt.format(parseDbDate(s)) : '';
 }
+
+/** "2026-11-24T08:00" (business local time) → parts, without any time-zone shifting */
+function slotDate(slot: string): Date {
+  const [d, t = '00:00'] = slot.split('T');
+  const [y, m, day] = d.split('-').map(Number);
+  const [h, mi] = t.split(':').map(Number);
+  return new Date(Date.UTC(y, m - 1, day, h, mi));
+}
+
+const slotDayFmt = new Intl.DateTimeFormat('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+const slotTimeFmt = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC' });
+const monthFmt = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+/** "יום שלישי, 24.11" */
+export function fmtSlotDay(slot: string): string {
+  return slotDayFmt.format(slotDate(slot));
+}
+
+/** "08:00" */
+export function fmtSlotTime(slot: string): string {
+  return slotTimeFmt.format(slotDate(slot));
+}
+
+/** "2026-11" → "נובמבר 2026" */
+export function fmtMonth(month: string): string {
+  return monthFmt.format(slotDate(`${month}-01`));
+}
+
+export function fmtHours(h: number): string {
+  if (h === 0.5) return 'חצי שעה';
+  if (h === 1) return 'שעה';
+  if (h === 2) return 'שעתיים';
+  return `${fmtNum(h)} שעות`;
+}

@@ -8,6 +8,7 @@ import { Sheet } from '../components/Sheet.tsx';
 import { StageBar, stageColor } from '../components/StageBar.tsx';
 import { toast } from '../components/Toast.tsx';
 import { JobForm, KIND_ICON } from '../components/JobForm.tsx';
+import { fmtSlotDay, fmtSlotTime } from '../lib/format.ts';
 
 type Filter = 'open' | 'closed' | 'all';
 
@@ -115,16 +116,18 @@ export function JobsPage() {
       </div>
 
       <Sheet open={creating} onClose={() => setCreating(false)} title="עבודה חדשה">
-        <JobForm
-          submitLabel="שמור עבודה"
-          onSubmit={async (draft) => {
-            const job = await api.createJob(draft);
-            setJobs((prev) => [job, ...(prev ?? [])]);
-            setFilter('open');
-            setCreating(false);
-            toast('העבודה נשמרה');
-          }}
-        />
+        {creating && (
+          <JobForm
+            submitLabel="שמור ופתח את העבודה"
+            offerTemplates
+            onSubmit={async (draft) => {
+              const job = await api.createJob(draft);
+              setCreating(false);
+              toast('העבודה נשמרה');
+              window.location.hash = `#/jobs/${job.id}`;
+            }}
+          />
+        )}
       </Sheet>
 
       <Sheet open={stageJob !== null} onClose={() => setStageJob(null)} title="באיזה שלב העבודה?">
@@ -169,6 +172,12 @@ function JobCard({
         <span className="min-w-0 flex-1">
           <span className="block text-lg font-semibold leading-snug">{job.title}</span>
           <span className="mt-0.5 block truncate text-[0.95rem] text-steel-300">{where}</span>
+          {job.scheduled_at && isOpen(job.status) && (
+            <span className="tnum mt-1 flex items-center gap-1.5 text-sm font-semibold text-hivis">
+              <Icon name="calendar" size={16} />
+              {fmtSlotDay(job.scheduled_at)}, {fmtSlotTime(job.scheduled_at)}
+            </span>
+          )}
         </span>
         <Icon name="forward" size={22} className="mt-3 shrink-0 text-steel-500" />
       </a>

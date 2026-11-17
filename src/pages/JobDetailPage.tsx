@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { JobDetail } from '../lib/api.ts';
 import { JOB_KIND_LABELS, JOB_STATUS_LABELS, UNIT_LABELS, UNIT_PER } from '../core/types.ts';
-import type { Element, JobItem, Settings } from '../core/types.ts';
+import type { Element, JobItem, JobStatus, Settings } from '../core/types.ts';
 import { computeJob, isCutLine, lineTotal } from '../core/quantities.ts';
 import { formatIls } from '../core/money.ts';
 import { STAGES } from '../core/stages.ts';
@@ -14,11 +14,40 @@ import { ItemForm } from '../components/ItemSheet.tsx';
 import { CutPlanView } from '../components/CutPlanView.tsx';
 import { JobForm } from '../components/JobForm.tsx';
 import { QuoteSection } from '../components/QuoteSection.tsx';
+import { ScheduleBlock } from '../components/ScheduleBlock.tsx';
+import { OrdersSection } from '../components/OrdersSection.tsx';
+import { PhotosSection } from '../components/PhotosSection.tsx';
+import { JobMoneySection } from '../components/JobMoneySection.tsx';
+import { AiDraft, SaveTemplateForm, TemplatePicker } from '../components/BoqTools.tsx';
 import { toast } from '../components/Toast.tsx';
+import { useFeatures } from '../lib/features.ts';
+import type { IconName } from '../components/Icon.tsx';
 
 const NO_GROUP = 'שונות';
 
-export function JobDetailPage({ jobId }: { jobId: number }) {
+export type JobTab = 'boq' | 'orders' | 'photos' | 'money';
+export const JOB_TABS: readonly JobTab[] = ['boq', 'orders', 'photos', 'money'];
+const TAB_META: Record<JobTab, { label: string; icon: IconName }> = {
+  boq: { label: 'כמויות ומחיר', icon: 'scale' },
+  orders: { label: 'רכש', icon: 'truck' },
+  photos: { label: 'תמונות', icon: 'camera' },
+  money: { label: 'כספים', icon: 'wallet' },
+};
+
+/** Open on the part of the job that matters at its stage. */
+function defaultTab(status: JobStatus): JobTab {
+  if (status === 'approved' || status === 'in_progress') return 'orders';
+  if (status === 'done' || status === 'paid') return 'money';
+  return 'boq';
+}
+
+type BoqSheet = 'template-save' | 'template-add' | 'ai' | null;
+
+export function JobDetailPage({ jobId, initialTab }: { jobId: number; initialTab: JobTab | null }) {
+  const features = useFeatures();
+  const [tab, setTabState] = useState<JobTab | null>(initialTab);
+  const [boqSheet, setBoqSheet] = useState<BoqSheet>(null);
+  const [photoCount, setPhotoCount] = useState<number | null>(null);
   const [job, setJob] = useState<JobDetail | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [elements, setElements] = useState<Element[]>([]);
@@ -39,6 +68,22 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
   }, [jobId]);
 
   const totals = useMemo(() => (job && settings ? computeJob(job.items, settings) : null), [job, settings]);
+
+  const setTab = (t: JobTab) => {
+    setTabState(t);
+    history.replaceState(null, '', `#/jobs/${jobId}/${t}`);
+  };
+  const onPhotoCount = useCallback((n: number) => setPhotoCount(n), []);
+
+  const changeStatus = async (status: JobStatus) => {
+    try {
+      const updated = await api.setJobStatus(jobId, status);
+      setJob((j) => (j ? { ...j, status: updated.status } : j));
+      toast(`עודכן: ${JOB_STATUS_LABELS[status]}`);
+    } catch (e) {
+      toast(errorMessage(e));
+    }
+  };
 
   const groups = useMemo(() => {
     const map = new Map<string, JobItem[]>();
@@ -68,6 +113,7 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
     );
   }
 
+  const activeTab = tab ?? defaultTab(job.status);
   const where = [job.client_name ?? 'בלי לקוח', job.site_address].filter(Boolean).join(', ');
   const next = STAGES[job.status].nextStep;
   const barsBought = totals.cutPlans.reduce((s, p) => s + p.bars.length, 0);
@@ -118,6 +164,11 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
             {next && <span className="text-steel-300">. הצעד הבא: {next}</span>}
           </p>
         </div>
+        <ScheduleBlock
+          job={job}
+          businessName={settings.business_name}
+          onChange={(j) => setJob((prev) => (prev ? { ...prev, ...j, items: prev.items } : prev))}
+        />
         {job.description && (
           <p className="mt-4 whitespace-pre-line rounded-[10px] bg-steel-800 p-3 text-[0.95rem] leading-relaxed text-steel-300">
             {job.description}
@@ -125,6 +176,46 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
         )}
       </header>
 
+      <nav
+        aria-label="חלקי העבודה"
+        className="sticky z-10 -mx-4 mt-6 grid grid-cols-4 border-b border-steel-700 bg-steel-900 px-2"
+        style={{ top: 'calc(env(safe-area-inset-top) + 61px)' }}
+      >
+        {JOB_TABS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            aria-current={activeTab === t ? 'page' : undefined}
+            className={`flex min-h-14 flex-col items-center justify-center gap-0.5 border-b-[3px] pt-1 text-[0.8rem] font-semibold leading-tight ${
+              activeTab === t ? 'border-hivis text-soapstone' : 'border-transparent text-steel-300'
+            }`}
+          >
+            <Icon name={TAB_META[t].icon} size={20} />
+            {TAB_META[t].label}
+            {t === 'photos' && photoCount ? <span className="sr-only">({photoCount})</span> : null}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === 'orders' && (
+        <section aria-label="רכש">
+          <OrdersSection job={job} cutPlans={totals.cutPlans} businessName={settings.business_name} />
+        </section>
+      )}
+      {activeTab === 'photos' && <PhotosSection jobId={job.id} onCount={onPhotoCount} />}
+      {activeTab === 'money' && (
+        <JobMoneySection
+          job={job}
+          currentTotal={totals.price.total}
+          vatPct={settings.vat_pct}
+          businessName={settings.business_name}
+          onStatus={(s) => void changeStatus(s)}
+        />
+      )}
+
+      {activeTab === 'boq' && (
+      <>
       {/* The number the whole screen is about */}
       <section className="plate mt-6 rounded-[10px] p-4" aria-labelledby="price-title">
         <h2 id="price-title" className="text-steel-300">
@@ -177,6 +268,28 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
             שורה
           </button>
         </div>
+        {job.items.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setBoqSheet('template-add')}
+              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-steel-500 px-3 text-sm font-semibold"
+            >
+              <Icon name="layers" size={18} />
+              הוסף מתבנית
+            </button>
+            {features.ai && (
+              <button
+                type="button"
+                onClick={() => setBoqSheet('ai')}
+                className="flex min-h-11 items-center gap-1.5 rounded-lg border border-steel-500 px-3 text-sm font-semibold"
+              >
+                <Icon name="sparkles" size={18} />
+                שורות מתיאור
+              </button>
+            )}
+          </div>
+        )}
 
         {job.items.length === 0 ? (
           <div className="mt-4 rounded-[10px] border-2 border-dashed border-steel-700 px-5 py-8 text-center">
@@ -187,6 +300,26 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
               <Icon name="plus" />
               הוסף שורה ראשונה
             </button>
+            <div className="mt-3 grid gap-2">
+              <button
+                type="button"
+                onClick={() => setBoqSheet('template-add')}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-steel-500 font-semibold"
+              >
+                <Icon name="layers" size={20} />
+                התחל מתבנית של עבודה קודמת
+              </button>
+              {features.ai && (
+                <button
+                  type="button"
+                  onClick={() => setBoqSheet('ai')}
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-steel-500 font-semibold"
+                >
+                  <Icon name="sparkles" size={20} />
+                  תאר במילים, קבל טיוטה
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="mt-3 space-y-4">
@@ -238,6 +371,48 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
       {totals.weightKg > 0 && (
         <p className="tnum mt-6 text-steel-300">משקל ברזל משוער: {fmtNum(Math.round(totals.weightKg))} ק״ג</p>
       )}
+
+      {job.items.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setBoqSheet('template-save')}
+          className="mt-8 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-steel-700 font-semibold text-steel-300"
+        >
+          <Icon name="layers" size={20} />
+          שמור כתבנית לעבודות הבאות
+        </button>
+      )}
+      </>
+      )}
+
+      <Sheet
+        open={boqSheet !== null}
+        onClose={() => setBoqSheet(null)}
+        title={boqSheet === 'template-save' ? 'שמירה כתבנית' : boqSheet === 'ai' ? 'שורות מתיאור' : 'הוספה מתבנית'}
+      >
+        {boqSheet === 'template-save' && <SaveTemplateForm job={job} onDone={() => setBoqSheet(null)} />}
+        {boqSheet === 'template-add' && (
+          <TemplatePicker
+            actionLabel="הוסף"
+            onPick={async (t) => {
+              const items = await api.applyTemplate(job.id, t.id);
+              setJob((j) => (j ? { ...j, items } : j));
+              setBoqSheet(null);
+              toast(`נוספו השורות של "${t.name}". עדכן מידות`);
+            }}
+          />
+        )}
+        {boqSheet === 'ai' && (
+          <AiDraft
+            job={job}
+            elements={elements}
+            onAdded={(items) => {
+              setJob((j) => (j ? { ...j, items } : j));
+              setBoqSheet(null);
+            }}
+          />
+        )}
+      </Sheet>
 
       <Sheet open={editingJob} onClose={() => { setEditingJob(false); setConfirmDelete(false); }} title="פרטי העבודה">
         {editingJob && (

@@ -1,5 +1,7 @@
 import type { Element, ElementCategory, Job, JobItem, JobKind, JobStatus, QuoteSummary, Settings, Supplier, Unit } from '../core/types.ts';
 import type { QuoteSnapshot } from '../core/quote.ts';
+import type { Expense, ExpenseCategory, Payment, PaymentMethod } from '../core/finance.ts';
+import type { Photo, Template } from '../core/types.ts';
 
 export class ApiError extends Error {
   status: number;
@@ -16,7 +18,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
     credentials: 'same-origin',
-    headers: { 'content-type': 'application/json', ...(init.headers ?? {}) },
+    headers: init.body instanceof Blob ? init.headers : { 'content-type': 'application/json', ...(init.headers ?? {}) },
   });
   const isJson = res.headers.get('content-type')?.includes('application/json') ?? false;
   if (!isJson) throw new ApiError(res.status || 502, 'bad_response');
@@ -38,6 +40,7 @@ export interface NewJob {
   client_phone?: string;
   site_address?: string;
   description?: string;
+  template_id?: number | null;
 }
 
 export interface ElementDraft {
@@ -55,7 +58,7 @@ export interface ElementDraft {
 
 export const api = {
   health: () => request<{ ok: boolean; db: boolean }>('/health'),
-  me: () => request<{ loggedIn: boolean }>('/me'),
+  me: () => request<{ loggedIn: boolean; features?: Features }>('/me'),
   login: (password: string) => request<{ ok: true }>('/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => request<{ ok: true }>('/auth/logout', { method: 'POST' }),
   settings: () => request<Settings>('/settings'),
@@ -88,7 +91,93 @@ export const api = {
     request<JobItem>(`/jobs/${jobId}/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(item) }),
   deleteItem: (jobId: number, itemId: number) =>
     request<{ ok: true }>(`/jobs/${jobId}/items/${itemId}`, { method: 'DELETE' }),
+  addItems: (jobId: number, items: ItemDraft[], source: 'ai' | 'manual') =>
+    request<JobItem[]>(`/jobs/${jobId}/items/bulk`, { method: 'POST', body: JSON.stringify({ items, source }) }),
+
+  schedule: (jobId: number, scheduled_at: string | null, scheduled_hours: number | null) =>
+    request<Job>(`/jobs/${jobId}/schedule`, { method: 'PATCH', body: JSON.stringify({ scheduled_at, scheduled_hours }) }),
+
+  jobMoney: (jobId: number) => request<JobMoney>(`/jobs/${jobId}/money`),
+  addPayment: (jobId: number, p: PaymentDraft) =>
+    request<Payment>(`/jobs/${jobId}/payments`, { method: 'POST', body: JSON.stringify(p) }),
+  deletePayment: (id: number) => request<{ ok: true }>(`/payments/${id}`, { method: 'DELETE' }),
+  addExpense: (e: ExpenseDraft) => request<Expense>('/expenses', { method: 'POST', body: JSON.stringify(e) }),
+  deleteExpense: (id: number) => request<{ ok: true }>(`/expenses/${id}`, { method: 'DELETE' }),
+  uploadReceipt: (id: number, image: Blob) => request<Expense>(`/expenses/${id}/receipt`, { method: 'PUT', body: image, headers: { 'content-type': image.type } }),
+  finance: (month: string) => request<FinanceMonth>(`/finance?month=${month}`),
+
+  photos: (jobId: number) => request<Photo[]>(`/jobs/${jobId}/photos`),
+  uploadPhoto: (jobId: number, image: Blob) =>
+    request<Photo>(`/jobs/${jobId}/photos`, { method: 'POST', body: image, headers: { 'content-type': image.type } }),
+  captionPhoto: (id: number, caption: string) =>
+    request<Photo>(`/photos/${id}`, { method: 'PATCH', body: JSON.stringify({ caption }) }),
+  deletePhoto: (id: number) => request<{ ok: true }>(`/photos/${id}`, { method: 'DELETE' }),
+
+  templates: () => request<Template[]>('/templates'),
+  saveTemplate: (jobId: number, name: string, description: string) =>
+    request<Template>('/templates', { method: 'POST', body: JSON.stringify({ job_id: jobId, name, description }) }),
+  deleteTemplate: (id: number) => request<{ ok: true }>(`/templates/${id}`, { method: 'DELETE' }),
+  applyTemplate: (jobId: number, templateId: number) =>
+    request<JobItem[]>(`/jobs/${jobId}/apply-template`, { method: 'POST', body: JSON.stringify({ template_id: templateId }) }),
+
+  aiLines: (jobId: number, text: string) =>
+    request<{ lines: ItemDraft[]; notes: string[] }>('/ai/lines', { method: 'POST', body: JSON.stringify({ job_id: jobId, text }) }),
 };
+
+export const photoUrl = (id: number) => `/api/photos/${id}`;
+export const receiptUrl = (expenseId: number) => `/api/expenses/${expenseId}/receipt`;
+export const icsUrl = (jobId: number) => `/api/jobs/${jobId}/calendar.ics`;
+export const exportUrl = (month: string) => `/api/export?month=${month}`;
+
+export interface Features {
+  photos: boolean;
+  ai: boolean;
+}
+
+export interface JobMoney {
+  /** Total of the approved quote, null until the client approves one */
+  due: number | null;
+  due_version: number | null;
+  payments: Payment[];
+  expenses: Expense[];
+}
+
+export interface PaymentDraft {
+  amount: number;
+  method: PaymentMethod;
+  paid_at: string;
+  notes?: string;
+}
+
+export interface ExpenseDraft {
+  amount: number;
+  has_vat: boolean;
+  category: ExpenseCategory;
+  spent_at: string;
+  job_id: number | null;
+  supplier_id?: number | null;
+  supplier_name?: string;
+  notes?: string;
+}
+
+export interface OpenBalance {
+  id: number;
+  title: string;
+  status: JobStatus;
+  client_name: string | null;
+  client_phone: string | null;
+  due: number;
+  paid: number;
+  balance: number;
+}
+
+export interface FinanceMonth {
+  month: string;
+  payments: Payment[];
+  expenses: Expense[];
+  totals: { income: number; expenses: number; expensesVat: number };
+  open: OpenBalance[];
+}
 
 export interface PublicQuote {
   number: string;
@@ -129,6 +218,24 @@ export function errorMessage(err: unknown): string {
         return 'אין עדיין שורות בכתב הכמויות, אז אין מה לשלוח.';
       case 'invalid phone':
         return 'מספר הטלפון לא נראה תקין.';
+      case 'photos_not_configured':
+        return 'שמירת תמונות עוד לא הופעלה בשרת. היא תופעל אוטומטית בעדכון הבא.';
+      case 'image_too_large':
+        return 'התמונה גדולה מדי.';
+      case 'not_an_image':
+        return 'הקובץ הזה הוא לא תמונה.';
+      case 'invalid amount':
+        return 'הסכום לא תקין.';
+      case 'invalid date':
+        return 'התאריך לא תקין.';
+      case 'ai_not_configured':
+        return 'הטיוטה האוטומטית עוד לא הופעלה (חסר מפתח Gemini).';
+      case 'ai_busy':
+        return 'השירות עמוס כרגע. נסה שוב בעוד דקה.';
+      case 'text_too_short':
+        return 'כתוב קצת יותר על העבודה.';
+      case 'name is required':
+        return 'צריך לתת שם.';
       case 'auth_not_configured':
         return 'הכניסה עוד לא הוגדרה בשרת (ראו README).';
       default:

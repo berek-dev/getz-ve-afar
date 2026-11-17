@@ -1,11 +1,12 @@
 # Getz ve-Afar (גץ ועפר)
 
-Internal work tool for Yaal Hagai's metalwork and welding business: jobs, clients, bill of quantities,
-quotes and payment tracking. It is a web app (PWA) that Yaal installs on his iPhone home screen.
+Internal work tool for Yaal Hagai's metalwork and welding business: jobs, bill of quantities with cut list,
+quotes the client approves from a WhatsApp link, material orders per supplier, calendar, photos, payments,
+expenses and a monthly export for the accountant. It is a web app (PWA) that Yaal installs on his iPhone home screen.
 The app's screens are in Hebrew; the code and docs are in English.
 
 Everything runs on free tiers and **no credit card is needed at any step**: Cloudflare Pages, Workers, D1
-and (later) Workers KV for photos. R2 and Zero Trust/Access are avoided on purpose because they can ask
+and Workers KV for photos (set up automatically by the deploy). R2 and Zero Trust/Access are avoided on purpose because they can ask
 for a payment method.
 
 ## Stack
@@ -34,9 +35,10 @@ No payment method is needed for anything in this project.
 1. In the Cloudflare dashboard tap the profile icon → **My Profile** → **API Tokens** → **Create Token**.
 2. Scroll to **Create Custom Token** → **Get started**.
 3. Token name: `getz-ve-afar`.
-4. Permissions – add two rows:
+4. Permissions – add three rows:
    - **Account** · **D1** · **Edit**
    - **Account** · **Cloudflare Pages** · **Edit**
+   - **Account** · **Workers KV Storage** · **Edit** (photos; without it the app works, just without photos)
 5. Account Resources: **Include** · your account.
 6. **Continue to summary** → **Create Token**, then **copy the token** (it is shown only once).
 
@@ -79,6 +81,20 @@ D1 keeps 7 days of point-in-time history on its own. For longer backups, make th
 (`.github/workflows/backup.yml`) only runs in a private repo, because backup files contain client data.
 It uses the same two Cloudflare secrets and keeps each Sunday's export for 90 days.
 
+### 8. Optional: draft lines from a description (Gemini, free)
+
+The job screen can turn a dictated description ("double gate, 4 m opening, 80/80 posts...") into draft lines
+for review. It stays hidden until a key is set:
+
+1. Open [aistudio.google.com](https://aistudio.google.com) with a Google account → **Get API key** → **Create API key**.
+   No card is needed on the free tier.
+2. Cloudflare dashboard → **Workers & Pages** → **getz-ve-afar** → **Settings** → **Variables and Secrets** →
+   **Add** → type **Secret**, name `GEMINI_API_KEY`, paste the key → **Save**.
+3. The next deploy picks it up (any push, or re-run the last CI run).
+
+On the free tier Google may use the text to improve its models, so the app sends only the job text and the
+price list – never client names or phone numbers. `GEMINI_MODEL` (optional variable) overrides the model.
+
 ### Manual setup from a computer (alternative)
 
 ```bash
@@ -111,17 +127,18 @@ src/            UI (React)
 src/core/       pricing engine – no dependencies, shared by UI and server
 server/         API (Hono) + password login
 functions/      Cloudflare Pages Functions entry point
-migrations/     D1 schema
+migrations/     D1 schema (new numbered file per change)
 seed/           fictional demo data
 scripts/        helpers (password hash)
 ```
 
 ## Roadmap
 
-- **M0 – skeleton** ✅ jobs, clients, pricing settings, login, deployment
-- **M1 – pricing engine:** elements, pricing methods (fabrication / pipe welding / service),
-  bill of quantities, cut list from 6 m bars (price by bars actually bought)
-- **M2 – job builder:** element library, free-form building with groups, photos (compressed on the phone, stored in Workers KV)
-- **M3 – quotes:** client page, WhatsApp sharing, approval
-- **Demo:** + dictation → draft elements (Gemini), visual cut list, 3D gate
-- **M4** purchasing and calendar · **M5** payments and receipts · **M6** templates, offline mode, tablet + laser, earthworks
+- ✅ Jobs, clients, stages, login, deployment
+- ✅ Price list with suppliers, bill of quantities, cut list from stock bars (priced by bars actually bought), weight
+- ✅ Quotes: client page, WhatsApp, approval, print / PDF
+- ✅ Material orders per supplier (WhatsApp), job dates, calendar view, Google Calendar / .ics, Waze
+- ✅ Photos per job and receipt photos (compressed on the phone, Workers KV)
+- ✅ Payments and balances, expenses, monthly CSV for the accountant
+- ✅ Templates, draft lines from a description (Gemini, optional)
+- Next: offline mode, Android tablet + Bluetooth laser, earthworks pricing, 3D preview

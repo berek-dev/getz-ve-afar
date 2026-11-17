@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { errorMessage } from '../lib/api.ts';
+import { api, errorMessage } from '../lib/api.ts';
 import type { NewJob } from '../lib/api.ts';
 import { JOB_KIND_LABELS } from '../core/types.ts';
-import type { JobKind } from '../core/types.ts';
+import type { JobKind, Template } from '../core/types.ts';
 import { Icon } from './Icon.tsx';
 import type { IconName } from './Icon.tsx';
 
@@ -27,11 +27,18 @@ export function JobForm({
   initial,
   submitLabel,
   onSubmit,
+  offerTemplates = false,
 }: {
   initial?: NewJob;
   submitLabel: string;
   onSubmit: (job: NewJob) => Promise<void>;
+  /** New jobs can start from a saved template's lines */
+  offerTemplates?: boolean;
 }) {
+  const [templates, setTemplates] = useState<Template[]>([]);
+  useEffect(() => {
+    if (offerTemplates) api.templates().then(setTemplates, () => undefined);
+  }, [offerTemplates]);
   const [form, setForm] = useState<NewJob>(initial ?? { title: '', kind: 'fabrication' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +93,28 @@ export function JobForm({
           })}
         </div>
       </fieldset>
+
+      {templates.length > 0 && (
+        <label className="block">
+          <span className="mb-1.5 block font-semibold">להתחיל מתבנית?</span>
+          <select
+            className="field"
+            value={form.template_id ?? ''}
+            onChange={(e) => {
+              const id = e.target.value ? Number(e.target.value) : null;
+              const t = templates.find((x) => x.id === id);
+              setForm((f) => ({ ...f, template_id: id, title: f.title || t?.name || '' }));
+            }}
+          >
+            <option value="">בלי תבנית, כתב כמויות ריק</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.item_count} שורות)
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <label className="block">
         <span className="mb-1.5 block font-semibold">מה העבודה?</span>

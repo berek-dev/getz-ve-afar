@@ -8,6 +8,12 @@ import { validateItem } from './items.ts';
 import { normalizePhone } from './elements.ts';
 import { registerCatalog } from './routes/catalog.ts';
 import { registerQuotes } from './routes/quotes.ts';
+import { registerSchedule } from './routes/schedule.ts';
+import { registerMoney } from './routes/money.ts';
+import { deleteJobPhotos, registerPhotos } from './routes/photos.ts';
+import { registerTemplates, templateLines } from './routes/templates.ts';
+import { registerAi } from './routes/ai.ts';
+import { ITEM_SELECT, insertItems, touchJob } from './sql.ts';
 import {
   SESSION_COOKIE,
   SESSION_RENEW_BELOW_MS,
@@ -106,7 +112,9 @@ app.get('/health', async (c) => {
   }
 });
 
-app.get('/me', (c) => c.json({ loggedIn: true }));
+app.get('/me', (c) =>
+  c.json({ loggedIn: true, features: { photos: Boolean(c.env.PHOTOS), ai: Boolean(c.env.GEMINI_API_KEY) } }),
+);
 
 // --- Settings (single row)
 app.get('/settings', async (c) => {
@@ -199,12 +207,6 @@ app.get('/jobs/:id', async (c) => {
 });
 
 // --- Job lines (bill of quantities)
-const ITEM_SELECT = `SELECT ji.*, e.name AS element_name, e.category, e.weight_kg_per_unit, e.stock_length_mm
-  FROM job_items ji LEFT JOIN elements e ON e.id = ji.element_id`;
-
-async function touchJob(db: D1Database, jobId: number): Promise<void> {
-  await db.prepare("UPDATE jobs SET updated_at = datetime('now') WHERE id = ?").bind(jobId).run();
-}
 
 app.post('/jobs/:id/items', async (c) => {
   const jobId = Number(c.req.param('id'));
@@ -272,6 +274,7 @@ app.post('/jobs', async (c) => {
     client_phone?: string;
     site_address?: string;
     description?: string;
+    template_id?: number | null;
   }>();
   const title = body.title?.trim();
   const phone = normalizePhone(body.client_phone);
@@ -294,7 +297,11 @@ app.post('/jobs', async (c) => {
      VALUES (?, ?, ?, ?, ?) RETURNING *`,
   )
     .bind(title, kind, clientId, body.site_address?.trim() || null, body.description?.trim() || null)
-    .first();
+    .first<{ id: number }>();
+  if (row && body.template_id) {
+    const lines = await templateLines(c.env.DB, Number(body.template_id));
+    if (lines) await insertItems(c.env.DB, row.id, lines, 'template');
+  }
   return c.json(row, 201);
 });
 
@@ -349,6 +356,7 @@ app.patch('/jobs/:id', async (c) => {
 app.delete('/jobs/:id', async (c) => {
   const id = parseId(c.req.param('id'));
   if (!id) return c.json({ error: 'bad id' }, 400);
+  await deleteJobPhotos(c.env.DB, c.env.PHOTOS, id);
   const row = await c.env.DB.prepare('DELETE FROM jobs WHERE id = ? RETURNING id').bind(id).first();
   if (!row) return c.json({ error: 'not found' }, 404);
   return c.json({ ok: true });
@@ -373,3 +381,8 @@ app.patch('/jobs/:id/status', async (c) => {
 
 registerCatalog(app);
 registerQuotes(app);
+registerSchedule(app);
+registerMoney(app);
+registerPhotos(app);
+registerTemplates(app);
+registerAi(app);
