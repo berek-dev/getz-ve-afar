@@ -9,8 +9,5 @@ database_name = "getz-ve-afar"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"
 
-# Cloudflare Access – ממלאים אחרי הגדרת האפליקציה ב-Zero Trust (ראו README).
-# אלה לא סודות: הם רק אומרים לשרת מול איזה צוות ואפליקציה לאמת את הטוקן.
-[vars]
-ACCESS_TEAM_DOMAIN = ""
-ACCESS_AUD = ""
+# סודות (לא בקובץ הזה!): APP_PASSWORD_HASH ו-SESSION_SECRET
+# מוגדרים ב-Pages → Settings → Variables and Secrets. ראו README.

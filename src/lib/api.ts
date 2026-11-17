@@ -8,6 +8,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Fired whenever the server says the session is missing or expired; App shows the login screen. */
+export const AUTH_REQUIRED_EVENT = 'gva:auth-required';
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
@@ -15,13 +18,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { 'content-type': 'application/json', ...(init.headers ?? {}) },
   });
   const isJson = res.headers.get('content-type')?.includes('application/json') ?? false;
-  // When the Access session expires, Cloudflare answers with its login page instead of JSON.
-  if (res.redirected || (!isJson && res.status !== 204)) {
-    throw new ApiError(401, 'login_required');
-  }
+  if (!isJson) throw new ApiError(res.status || 502, 'bad_response');
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(res.status, body.error ?? res.statusText);
+    const error = new ApiError(res.status, body.error ?? res.statusText);
+    if (res.status === 401 && error.message === 'unauthorized') {
+      window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+    }
+    throw error;
   }
   return (await res.json()) as T;
 }
@@ -36,7 +40,9 @@ export interface NewJob {
 
 export const api = {
   health: () => request<{ ok: boolean; db: boolean }>('/health'),
-  me: () => request<{ email: string }>('/me'),
+  me: () => request<{ loggedIn: boolean }>('/me'),
+  login: (password: string) => request<{ ok: true }>('/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  logout: () => request<{ ok: true }>('/auth/logout', { method: 'POST' }),
   settings: () => request<Settings>('/settings'),
   updateSettings: (patch: Partial<Settings>) =>
     request<Settings>('/settings', { method: 'PUT', body: JSON.stringify(patch) }),
@@ -48,9 +54,18 @@ export const api = {
 
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.status === 401) return 'צריך להתחבר מחדש – רענן את הדף.';
-    if (err.message === 'auth_not_configured') return 'ההתחברות עוד לא הוגדרה בשרת (ראו README).';
-    return `שגיאה מהשרת: ${err.message}`;
+    switch (err.message) {
+      case 'unauthorized':
+        return 'צריך להתחבר מחדש.';
+      case 'wrong_password':
+        return 'סיסמה שגויה.';
+      case 'too_many_attempts':
+        return 'יותר מדי ניסיונות. נסה שוב בעוד רבע שעה.';
+      case 'auth_not_configured':
+        return 'הכניסה עוד לא הוגדרה בשרת (ראו README).';
+      default:
+        return `שגיאה מהשרת: ${err.message}`;
+    }
   }
   return 'אין חיבור לשרת. בדוק קליטה ונסה שוב.';
 }

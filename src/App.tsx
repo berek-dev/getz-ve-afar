@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { JobsPage } from './pages/JobsPage.tsx';
+import { LoginPage } from './pages/LoginPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
-import { api } from './lib/api.ts';
+import { AUTH_REQUIRED_EVENT, ApiError, api } from './lib/api.ts';
 
 type Tab = 'jobs' | 'settings';
 
@@ -12,11 +13,18 @@ function tabFromHash(): Tab {
 export function App() {
   const [tab, setTab] = useState<Tab>(tabFromHash);
   const [online, setOnline] = useState<boolean | null>(null);
+  // null = checking, true = logged in (or offline – pages show their own errors), false = show login
+  const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
     const onHash = () => setTab(tabFromHash());
+    const onAuthRequired = () => setAuthed(false);
     window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
+    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    return () => {
+      window.removeEventListener('hashchange', onHash);
+      window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    };
   }, []);
 
   useEffect(() => {
@@ -24,7 +32,16 @@ export function App() {
       .health()
       .then((h) => setOnline(h.ok))
       .catch(() => setOnline(false));
+    api
+      .me()
+      .then(() => setAuthed(true))
+      .catch((e: unknown) => setAuthed(!(e instanceof ApiError && e.status === 401)));
   }, []);
+
+  if (authed === null) {
+    return <div className="flex min-h-screen items-center justify-center bg-stone-900 text-stone-400">טוען...</div>;
+  }
+  if (!authed) return <LoginPage onLoggedIn={() => setAuthed(true)} />;
 
   const go = (t: Tab) => {
     window.location.hash = t === 'settings' ? '#/settings' : '#/jobs';

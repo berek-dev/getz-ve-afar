@@ -77,6 +77,18 @@ export function SettingsPage() {
       >
         {saving ? 'שומר...' : 'שמור'}
       </button>
+      <button
+        type="button"
+        onClick={() => {
+          api
+            .logout()
+            .catch(() => undefined)
+            .finally(() => window.location.reload());
+        }}
+        className="w-full rounded-xl border border-stone-300 py-3 font-medium text-stone-600"
+      >
+        התנתק
+      </button>
     </form>
   );
 }

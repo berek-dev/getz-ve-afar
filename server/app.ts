@@ -1,35 +1,90 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
+import type { Context } from 'hono';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Env } from './env.ts';
-import { verifyAccessJwt } from './access.ts';
+import {
+  SESSION_COOKIE,
+  SESSION_RENEW_BELOW_MS,
+  SESSION_TTL_MS,
+  createSession,
+  verifyPassword,
+  verifySession,
+} from './auth.ts';
 
-type AppEnv = { Bindings: Env; Variables: { userEmail: string } };
+type AppEnv = { Bindings: Env };
 
 export const app = new Hono<AppEnv>().basePath('/api');
 
 const JOB_KINDS = ['fabrication', 'pipe', 'service', 'earthworks'] as const;
 const JOB_STATUSES = ['lead', 'visit', 'quoted', 'approved', 'in_progress', 'done', 'paid', 'lost'] as const;
 
+const MAX_FAILED_LOGINS = 10; // per IP
+const FAILED_LOGIN_WINDOW = '-15 minutes';
+
 function isPublicPath(pathname: string): boolean {
-  return pathname === '/api/health' || pathname.startsWith('/api/public/');
+  return (
+    pathname === '/api/health' ||
+    pathname === '/api/auth/login' ||
+    pathname === '/api/auth/logout' ||
+    pathname.startsWith('/api/public/')
+  );
 }
 
-// --- Auth: every route except /api/health and /api/public/* requires a valid Cloudflare Access token.
+function authConfigured(env: Env): env is Env & { APP_PASSWORD_HASH: string; SESSION_SECRET: string } {
+  return Boolean(env.APP_PASSWORD_HASH && env.SESSION_SECRET && env.SESSION_SECRET.length >= 32);
+}
+
+async function issueSessionCookie(c: Context<AppEnv>, secret: string): Promise<void> {
+  const { token } = await createSession(secret, Date.now(), SESSION_TTL_MS);
+  setCookie(c, SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: Math.floor(SESSION_TTL_MS / 1000),
+  });
+}
+
+// --- Auth: every route except the public ones requires a valid session cookie.
 app.use('*', async (c, next) => {
   if (isPublicPath(new URL(c.req.url).pathname)) return next();
+  if (c.env.DEV_BYPASS_AUTH === 'true') return next();
+  if (!authConfigured(c.env)) return c.json({ error: 'auth_not_configured' }, 503);
 
-  if (c.env.DEV_BYPASS_AUTH === 'true') {
-    c.set('userEmail', 'dev@local');
-    return next();
-  }
-  if (!c.env.ACCESS_TEAM_DOMAIN || !c.env.ACCESS_AUD) {
-    return c.json({ error: 'auth_not_configured' }, 503);
-  }
-  const token = c.req.header('Cf-Access-Jwt-Assertion') ?? getCookie(c, 'CF_Authorization');
-  const result = await verifyAccessJwt(token, { teamDomain: c.env.ACCESS_TEAM_DOMAIN, aud: c.env.ACCESS_AUD });
-  if (!result.ok) return c.json({ error: 'unauthorized' }, 401);
-  c.set('userEmail', result.email);
+  const now = Date.now();
+  const exp = await verifySession(getCookie(c, SESSION_COOKIE), c.env.SESSION_SECRET, now);
+  if (exp === null) return c.json({ error: 'unauthorized' }, 401);
+  if (exp - now < SESSION_RENEW_BELOW_MS) await issueSessionCookie(c, c.env.SESSION_SECRET);
   return next();
+});
+
+app.post('/auth/login', async (c) => {
+  if (!authConfigured(c.env)) return c.json({ error: 'auth_not_configured' }, 503);
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const db = c.env.DB;
+
+  await db.prepare("DELETE FROM login_attempts WHERE attempted_at < datetime('now', '-1 day')").run();
+  const recent = await db
+    .prepare('SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ? AND attempted_at > datetime(\'now\', ?)')
+    .bind(ip, FAILED_LOGIN_WINDOW)
+    .first<{ n: number }>();
+  if ((recent?.n ?? 0) >= MAX_FAILED_LOGINS) return c.json({ error: 'too_many_attempts' }, 429);
+
+  const body = await c.req.json<{ password?: unknown }>().catch(() => ({ password: undefined }));
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (!password || !(await verifyPassword(password, c.env.APP_PASSWORD_HASH))) {
+    await db.prepare('INSERT INTO login_attempts (ip) VALUES (?)').bind(ip).run();
+    return c.json({ error: 'wrong_password' }, 401);
+  }
+
+  await db.prepare('DELETE FROM login_attempts WHERE ip = ?').bind(ip).run();
+  await issueSessionCookie(c, c.env.SESSION_SECRET);
+  return c.json({ ok: true });
+});
+
+app.post('/auth/logout', (c) => {
+  deleteCookie(c, SESSION_COOKIE, { path: '/', secure: true });
+  return c.json({ ok: true });
 });
 
 app.onError((err, c) => {
@@ -47,7 +102,7 @@ app.get('/health', async (c) => {
   }
 });
 
-app.get('/me', (c) => c.json({ email: c.get('userEmail') }));
+app.get('/me', (c) => c.json({ loggedIn: true }));
 
 // --- Settings (single row)
 app.get('/settings', async (c) => {

@@ -6,8 +6,10 @@ Private internal tool for "גץ ועפר" (Yael Hagai's metalwork/welding busine
 - UI: Vite + React 19 + TypeScript + Tailwind v4. Hebrew, `dir="rtl"`, mobile-first (iPhone PWA).
 - API: Hono on Cloudflare Pages Functions. Entry `functions/api/[[route]].ts` → `server/app.ts`.
 - DB: Cloudflare D1. Schema changes = new numbered file in `migrations/` (never edit applied migrations).
-- Auth: Cloudflare Access at the edge + `server/access.ts` verifies the JWT on every non-public API route.
-  Public routes: `/api/health`, `/api/public/*`, and the client quote page `/q/:token`.
+- Auth: one app password (PBKDF2 hash in secret `APP_PASSWORD_HASH`) → HMAC-signed session cookie (`SESSION_SECRET`),
+  see `server/auth.ts`; failed logins throttled per IP in D1. Public routes: `/api/health`, `/api/auth/*`,
+  `/api/public/*`, and the client quote page `/q/:token`.
+- No service that needs a credit card (so no R2, no Zero Trust/Access). Photos go to Workers KV (M2).
 
 ## Conventions
 - Relative imports include the `.ts`/`.tsx` extension; only erasable TS syntax (no enums, no parameter properties) –

@@ -10,7 +10,7 @@ interface PublicQuote {
   approved_at: string | null;
 }
 
-/** The page the client opens from WhatsApp. Lives outside Access. Fully built in M3. */
+/** The page the client opens from WhatsApp. Public: no login. Fully built in M3. */
 export function QuotePublicPage({ token }: { token: string }) {
   const [quote, setQuote] = useState<PublicQuote | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'missing'>('loading');
