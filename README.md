@@ -104,8 +104,9 @@ out? Run the script again with a new password and replace both secrets.
 
 ### 6. Install on Yaal's iPhone
 
-Open the site in **Safari** → **Share** → **Add to Home Screen**. Open the app from the home screen and log in
-with the password. The login lasts 90 days and renews itself while the app is in use.
+Open the site in **Chrome** (or Safari) → tap the **Share** button in the address bar → **Add to Home Screen**
+(needs iOS 16.4 or newer). Open the app from the home-screen icon and log in with the password. The login lasts
+90 days and renews itself while the app is in use.
 
 ### 7. Backups (recommended)
 
