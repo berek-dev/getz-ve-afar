@@ -11,7 +11,7 @@ function line(partial: Partial<QuantityLine> & Pick<QuantityLine, 'description' 
 }
 const GATE: QuantityLine[] = [
   line({ element_id: 9001, description: 'עמוד 80×80×3', quantity: 4.6, unit: 'm', unit_cost: 55, length_mm: 2300, pieces: 2, category: 'profile', weight_kg_per_unit: 7.25, stock_length_mm: 6000 }),
-  line({ element_id: 9002, description: 'מסגרת 60×40×2 – אנכיים', quantity: 7.0, unit: 'm', unit_cost: 22, length_mm: 1750, pieces: 4, category: 'profile', weight_kg_per_unit: 3.01, stock_length_mm: 6000 }),
+  line({ element_id: 9002, element_name: 'פרופיל 60×40×2', description: 'מסגרת 60×40×2 – אנכיים', quantity: 7.0, unit: 'm', unit_cost: 22, length_mm: 1750, pieces: 4, category: 'profile', weight_kg_per_unit: 3.01, stock_length_mm: 6000 }),
   line({ element_id: 9002, description: 'מסגרת 60×40×2 – אופקיים', quantity: 7.44, unit: 'm', unit_cost: 22, length_mm: 1860, pieces: 4, category: 'profile', weight_kg_per_unit: 3.01, stock_length_mm: 6000 }),
   line({ element_id: 9003, description: 'מילוי 40×20×1.5', quantity: 50.1, unit: 'm', unit_cost: 10, length_mm: 1670, pieces: 30, category: 'profile', weight_kg_per_unit: 1.34, stock_length_mm: 6000 }),
   line({ element_id: 9004, description: 'ציר כבד', quantity: 4, unit: 'unit', unit_cost: 45, category: 'hardware' }),
@@ -59,6 +59,7 @@ test('demo gate: cut list, bars bought, weight and price', () => {
 
   const bars = Object.fromEntries(t.cutPlans.map((p) => [p.key, p.bars.length]));
   assert.deepEqual(bars, { e9001: 1, e9002: 3, e9003: 10 }); // 14 bars, 84 m bought for 69.14 m net
+  assert.equal(t.cutPlans[1]?.name, 'פרופיל 60×40×2'); // library name, not the first line's description
 
   // Profiles by bars: 6m×55 + 18m×22 + 60m×10 = 1326; other materials 1315
   assert.equal(t.materials, 2641);

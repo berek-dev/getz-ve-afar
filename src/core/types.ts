@@ -82,6 +82,7 @@ export interface JobItem {
   pieces: number | null;
   source: 'manual' | 'template' | 'ai';
   sort_order: number;
+  element_name?: string | null;
   category?: ElementCategory | null;
   weight_kg_per_unit?: number | null;
   stock_length_mm?: number | null;

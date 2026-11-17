@@ -186,7 +186,7 @@ app.get('/elements', async (c) => {
 });
 
 // --- Job lines (bill of quantities)
-const ITEM_SELECT = `SELECT ji.*, e.category, e.weight_kg_per_unit, e.stock_length_mm
+const ITEM_SELECT = `SELECT ji.*, e.name AS element_name, e.category, e.weight_kg_per_unit, e.stock_length_mm
   FROM job_items ji LEFT JOIN elements e ON e.id = ji.element_id`;
 
 async function touchJob(db: D1Database, jobId: number): Promise<void> {

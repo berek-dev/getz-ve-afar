@@ -13,7 +13,7 @@ export type QuantityLine = Pick<
   JobItem,
   'element_id' | 'description' | 'quantity' | 'unit' | 'unit_cost' | 'length_mm' | 'pieces'
 > &
-  Partial<Pick<JobItem, 'category' | 'weight_kg_per_unit' | 'stock_length_mm'>>;
+  Partial<Pick<JobItem, 'element_name' | 'category' | 'weight_kg_per_unit' | 'stock_length_mm'>>;
 
 export type PricingSettings = Pick<Settings, 'overhead_pct' | 'margin_pct' | 'vat_pct' | 'bar_length_mm' | 'kerf_mm'>;
 
@@ -128,7 +128,7 @@ export function computeJob(lines: QuantityLine[], settings: PricingSettings): Jo
     let group = groups.get(key);
     if (!group) {
       group = {
-        name: line.description,
+        name: line.element_name || line.description,
         pieces: [],
         stock: line.stock_length_mm || settings.bar_length_mm,
         price: line.unit_cost,
