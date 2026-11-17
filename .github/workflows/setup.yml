@@ -84,7 +84,17 @@ jobs:
         run: npx wrangler d1 execute "$PROJECT" --remote --file seed/demo.sql
 
       - name: Create the Pages project
-        run: npx wrangler pages project create "$PROJECT" --production-branch main || echo "Project probably exists already – continuing"
+        run: |
+          if npx wrangler pages project list --json | node -e '
+              let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
+                const found = JSON.parse(s).some(p => (p["Project Name"] ?? p.name) === process.argv[1]);
+                process.exit(found ? 0 : 1);
+              });' "$PROJECT"; then
+            echo "Pages project $PROJECT already exists"
+          elif ! npx wrangler pages project create "$PROJECT" --production-branch main; then
+            echo "::error::Could not create the Pages project. On a brand-new account, create it once in the dashboard: Workers & Pages → Create → Pages → Drag and drop your files → name: $PROJECT → Create project. Then run Setup again."
+            exit 1
+          fi
 
       - name: Set the password secrets
         run: |
