@@ -172,7 +172,7 @@ function JobCard({
 
   return (
     <li className="plate rounded-[10px] p-4">
-      <div className="flex items-start gap-3">
+      <a href={`#/jobs/${job.id}`} className="-m-1 flex items-start gap-3 rounded-lg p-1">
         <span
           className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-steel-700 text-soapstone"
           title={JOB_KIND_LABELS[job.kind]}
@@ -180,11 +180,12 @@ function JobCard({
           <Icon name={KIND_ICON[job.kind]} size={26} />
           <span className="sr-only">{JOB_KIND_LABELS[job.kind]}</span>
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-lg font-semibold leading-snug">{job.title}</p>
-          <p className="mt-0.5 truncate text-[0.95rem] text-steel-300">{where}</p>
-        </div>
-      </div>
+        <span className="min-w-0 flex-1">
+          <span className="block text-lg font-semibold leading-snug">{job.title}</span>
+          <span className="mt-0.5 block truncate text-[0.95rem] text-steel-300">{where}</span>
+        </span>
+        <Icon name="forward" size={22} className="mt-3 shrink-0 text-steel-500" />
+      </a>
 
       <button
         type="button"

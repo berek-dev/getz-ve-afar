@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import type { Env } from './env.ts';
+import { validateItem } from './items.ts';
 import {
   SESSION_COOKIE,
   SESSION_RENEW_BELOW_MS,
@@ -172,12 +173,81 @@ app.get('/jobs/:id', async (c) => {
     .bind(id)
     .first();
   if (!job) return c.json({ error: 'not found' }, 404);
-  const { results: items } = await c.env.DB.prepare(
-    'SELECT * FROM job_items WHERE job_id = ? ORDER BY sort_order, id',
-  )
+  const { results: items } = await c.env.DB.prepare(`${ITEM_SELECT} WHERE ji.job_id = ? ORDER BY ji.sort_order, ji.id`)
     .bind(id)
     .all();
   return c.json({ ...job, items });
+});
+
+// --- Element library
+app.get('/elements', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT * FROM elements WHERE active = 1 ORDER BY category, name').all();
+  return c.json(results);
+});
+
+// --- Job lines (bill of quantities)
+const ITEM_SELECT = `SELECT ji.*, e.category, e.weight_kg_per_unit, e.stock_length_mm
+  FROM job_items ji LEFT JOIN elements e ON e.id = ji.element_id`;
+
+async function touchJob(db: D1Database, jobId: number): Promise<void> {
+  await db.prepare("UPDATE jobs SET updated_at = datetime('now') WHERE id = ?").bind(jobId).run();
+}
+
+app.post('/jobs/:id/items', async (c) => {
+  const jobId = Number(c.req.param('id'));
+  if (!Number.isInteger(jobId)) return c.json({ error: 'bad id' }, 400);
+  const job = await c.env.DB.prepare('SELECT id FROM jobs WHERE id = ?').bind(jobId).first();
+  if (!job) return c.json({ error: 'not found' }, 404);
+
+  const v = validateItem(await c.req.json<Record<string, unknown>>());
+  if (!v.ok) return c.json({ error: v.error }, 400);
+  const it = v.item;
+
+  const inserted = await c.env.DB.prepare(
+    `INSERT INTO job_items (job_id, element_id, group_name, description, quantity, unit, unit_cost, length_mm, pieces, source, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual',
+             (SELECT COALESCE(MAX(sort_order), 0) + 10 FROM job_items WHERE job_id = ?))
+     RETURNING id`,
+  )
+    .bind(jobId, it.element_id, it.group_name, it.description, it.quantity, it.unit, it.unit_cost, it.length_mm, it.pieces, jobId)
+    .first<{ id: number }>();
+  await touchJob(c.env.DB, jobId);
+  const row = await c.env.DB.prepare(`${ITEM_SELECT} WHERE ji.id = ?`).bind(inserted?.id).first();
+  return c.json(row, 201);
+});
+
+app.patch('/jobs/:id/items/:itemId', async (c) => {
+  const jobId = Number(c.req.param('id'));
+  const itemId = Number(c.req.param('itemId'));
+  if (!Number.isInteger(jobId) || !Number.isInteger(itemId)) return c.json({ error: 'bad id' }, 400);
+
+  const v = validateItem(await c.req.json<Record<string, unknown>>());
+  if (!v.ok) return c.json({ error: v.error }, 400);
+  const it = v.item;
+
+  const updated = await c.env.DB.prepare(
+    `UPDATE job_items
+        SET element_id = ?, group_name = ?, description = ?, quantity = ?, unit = ?, unit_cost = ?, length_mm = ?, pieces = ?
+      WHERE id = ? AND job_id = ?
+      RETURNING id`,
+  )
+    .bind(it.element_id, it.group_name, it.description, it.quantity, it.unit, it.unit_cost, it.length_mm, it.pieces, itemId, jobId)
+    .first();
+  if (!updated) return c.json({ error: 'not found' }, 404);
+  await touchJob(c.env.DB, jobId);
+  const row = await c.env.DB.prepare(`${ITEM_SELECT} WHERE ji.id = ?`).bind(itemId).first();
+  return c.json(row);
+});
+
+app.delete('/jobs/:id/items/:itemId', async (c) => {
+  const jobId = Number(c.req.param('id'));
+  const itemId = Number(c.req.param('itemId'));
+  const deleted = await c.env.DB.prepare('DELETE FROM job_items WHERE id = ? AND job_id = ? RETURNING id')
+    .bind(itemId, jobId)
+    .first();
+  if (!deleted) return c.json({ error: 'not found' }, 404);
+  await touchJob(c.env.DB, jobId);
+  return c.json({ ok: true });
 });
 
 app.post('/jobs', async (c) => {

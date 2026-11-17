@@ -12,7 +12,11 @@ export type IconName =
   | 'excavator'
   | 'mic'
   | 'eye'
-  | 'spark';
+  | 'spark'
+  | 'forward'
+  | 'back'
+  | 'trash'
+  | 'saw';
 
 const PATHS: Record<IconName, ReactNode> = {
   jobs: (
@@ -67,6 +71,18 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
       <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  // RTL: "forward" points left, "back" points right
+  forward: <path d="m15 18-6-6 6-6" />,
+  back: <path d="m9 18 6-6-6-6" />,
+  trash: <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />,
+  // Chop-saw disc over a bar
+  saw: (
+    <>
+      <circle cx="12" cy="9" r="6" />
+      <circle cx="12" cy="9" r="1.5" />
+      <path d="M2 19h20M2 22h20" />
     </>
   ),
   spark: (

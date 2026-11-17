@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { JobsPage } from './pages/JobsPage.tsx';
+import { JobDetailPage } from './pages/JobDetailPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { AUTH_REQUIRED_EVENT, ApiError, api } from './lib/api.ts';
@@ -8,19 +9,27 @@ import type { IconName } from './components/Icon.tsx';
 import { Toaster } from './components/Toast.tsx';
 
 type Tab = 'jobs' | 'pricing';
+type Route = { tab: Tab; jobId: number | null };
 
-function tabFromHash(): Tab {
-  return window.location.hash === '#/pricing' ? 'pricing' : 'jobs';
+function routeFromHash(): Route {
+  const hash = window.location.hash;
+  if (hash === '#/pricing') return { tab: 'pricing', jobId: null };
+  const m = hash.match(/^#\/jobs\/(\d+)$/);
+  return { tab: 'jobs', jobId: m ? Number(m[1]) : null };
 }
 
 export function App() {
-  const [tab, setTab] = useState<Tab>(tabFromHash);
+  const [route, setRoute] = useState<Route>(routeFromHash);
+  const tab = route.tab;
   const [online, setOnline] = useState<boolean | null>(null);
   // null = checking, true = logged in (or offline – pages show their own errors), false = show login
   const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const onHash = () => setTab(tabFromHash());
+    const onHash = () => {
+      setRoute(routeFromHash());
+      window.scrollTo(0, 0);
+    };
     const onAuthRequired = () => setAuthed(false);
     window.addEventListener('hashchange', onHash);
     window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
@@ -67,7 +76,9 @@ export function App() {
         <div className="weld-bead" aria-hidden="true" />
       </header>
 
-      <main className="flex-1 px-4 pb-44 pt-5">{tab === 'jobs' ? <JobsPage /> : <SettingsPage />}</main>
+      <main className="flex-1 px-4 pb-44 pt-5">
+        {route.jobId !== null ? <JobDetailPage jobId={route.jobId} /> : tab === 'jobs' ? <JobsPage /> : <SettingsPage />}
+      </main>
 
       <nav
         aria-label="ניווט ראשי"

@@ -1,4 +1,4 @@
-import type { Job, JobKind, JobStatus, Settings } from '../core/types.ts';
+import type { Element, Job, JobItem, JobKind, JobStatus, Settings, Unit } from '../core/types.ts';
 
 export class ApiError extends Error {
   status: number;
@@ -50,7 +50,31 @@ export const api = {
   createJob: (job: NewJob) => request<Job>('/jobs', { method: 'POST', body: JSON.stringify(job) }),
   setJobStatus: (id: number, status: JobStatus) =>
     request<Job>(`/jobs/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  job: (id: number) => request<JobDetail>(`/jobs/${id}`),
+  elements: () => request<Element[]>('/elements'),
+  createItem: (jobId: number, item: ItemDraft) =>
+    request<JobItem>(`/jobs/${jobId}/items`, { method: 'POST', body: JSON.stringify(item) }),
+  updateItem: (jobId: number, itemId: number, item: ItemDraft) =>
+    request<JobItem>(`/jobs/${jobId}/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(item) }),
+  deleteItem: (jobId: number, itemId: number) =>
+    request<{ ok: true }>(`/jobs/${jobId}/items/${itemId}`, { method: 'DELETE' }),
 };
+
+export interface JobDetail extends Job {
+  items: JobItem[];
+}
+
+/** What the line editor sends; the server derives quantity from pieces × length for metre lines. */
+export interface ItemDraft {
+  element_id: number | null;
+  group_name: string | null;
+  description: string;
+  quantity: number;
+  unit: Unit;
+  unit_cost: number;
+  length_mm: number | null;
+  pieces: number | null;
+}
 
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {
