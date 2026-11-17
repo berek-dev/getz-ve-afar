@@ -14,3 +14,24 @@ export function fmtPct(share: number): string {
 export function fmtMeters(mm: number): string {
   return `${num.format(mm / 1000)} מ׳`;
 }
+
+/** SQLite "YYYY-MM-DD HH:MM:SS" (UTC) or "YYYY-MM-DD" → Date */
+export function parseDbDate(s: string): Date {
+  return s.length <= 10 ? new Date(`${s}T00:00:00`) : new Date(`${s.replace(' ', 'T')}Z`);
+}
+
+const dateFmt = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'numeric', year: 'numeric' });
+const dateTimeFmt = new Intl.DateTimeFormat('he-IL', {
+  day: 'numeric',
+  month: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+export function fmtDate(s: string | null | undefined): string {
+  return s ? dateFmt.format(parseDbDate(s)) : '';
+}
+
+export function fmtDateTime(s: string | null | undefined): string {
+  return s ? dateTimeFmt.format(parseDbDate(s)) : '';
+}

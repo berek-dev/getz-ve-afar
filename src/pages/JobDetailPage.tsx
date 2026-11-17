@@ -13,6 +13,7 @@ import { StageBar, stageColor } from '../components/StageBar.tsx';
 import { ItemForm } from '../components/ItemSheet.tsx';
 import { CutPlanView } from '../components/CutPlanView.tsx';
 import { JobForm } from '../components/JobForm.tsx';
+import { QuoteSection } from '../components/QuoteSection.tsx';
 import { toast } from '../components/Toast.tsx';
 
 const NO_GROUP = 'שונות';
@@ -152,6 +153,15 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
           </p>
         )}
       </section>
+
+      <QuoteSection
+        job={job}
+        currentTotal={totals.price.total}
+        businessName={settings.business_name}
+        onJobStatusMaybeChanged={() => {
+          void api.job(job.id).then((j) => setJob((prev) => (prev ? { ...prev, status: j.status } : prev)));
+        }}
+      />
 
       <section className="mt-8" aria-labelledby="boq-title">
         <div className="flex items-center justify-between">

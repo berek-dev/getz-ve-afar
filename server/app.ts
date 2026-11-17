@@ -7,6 +7,7 @@ import { parseId } from './types.ts';
 import { validateItem } from './items.ts';
 import { normalizePhone } from './elements.ts';
 import { registerCatalog } from './routes/catalog.ts';
+import { registerQuotes } from './routes/quotes.ts';
 import {
   SESSION_COOKIE,
   SESSION_RENEW_BELOW_MS,
@@ -128,7 +129,23 @@ app.put('/settings', async (c) => {
   }
   if (typeof body.business_name === 'string' && body.business_name.trim()) {
     sets.push('business_name = ?');
-    values.push(body.business_name.trim());
+    values.push(body.business_name.trim().slice(0, 80));
+  }
+  if (body.business_phone !== undefined) {
+    const phone = normalizePhone(body.business_phone);
+    if (phone === 'invalid') return c.json({ error: 'invalid phone' }, 400);
+    sets.push('business_phone = ?');
+    values.push(phone ?? '');
+  }
+  if (typeof body.quote_terms === 'string') {
+    sets.push('quote_terms = ?');
+    values.push(body.quote_terms.trim().slice(0, 1500));
+  }
+  if (body.quote_valid_days !== undefined) {
+    const days = Number(body.quote_valid_days);
+    if (!Number.isInteger(days) || days < 1 || days > 365) return c.json({ error: 'invalid quote_valid_days' }, 400);
+    sets.push('quote_valid_days = ?');
+    values.push(days);
   }
   if (sets.length === 0) return c.json({ error: 'nothing to update' }, 400);
   sets.push("updated_at = datetime('now')");
@@ -352,18 +369,7 @@ app.patch('/jobs/:id/status', async (c) => {
   return c.json(row);
 });
 
-// --- Public: quote page for the client (filled in M3)
-app.get('/public/quotes/:token', async (c) => {
-  const token = c.req.param('token');
-  if (!/^[A-Za-z0-9_-]{20,}$/.test(token)) return c.json({ error: 'not found' }, 404);
-  const quote = await c.env.DB.prepare(
-    `SELECT token, status, subtotal, vat, total, snapshot_json, valid_until, approved_at
-       FROM quotes WHERE token = ? AND status != 'draft'`,
-  )
-    .bind(token)
-    .first();
-  if (!quote) return c.json({ error: 'not found' }, 404);
-  return c.json(quote);
-});
+
 
 registerCatalog(app);
+registerQuotes(app);

@@ -105,6 +105,9 @@ export interface Settings {
   vat_pct: number;
   bar_length_mm: number;
   kerf_mm: number;
+  business_phone: string | null;
+  quote_terms: string | null;
+  quote_valid_days: number;
   updated_at: string;
 }
 
@@ -128,8 +131,25 @@ export interface Job {
   kind: JobKind;
   status: JobStatus;
   description: string | null;
+  scheduled_at: string | null;
+  scheduled_hours: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface QuoteSummary {
+  id: number;
+  job_id: number;
+  version: number;
+  token: string;
+  status: 'sent' | 'approved' | 'rejected' | 'expired' | 'draft';
+  subtotal: number | null;
+  vat: number | null;
+  total: number | null;
+  valid_until: string | null;
+  approved_at: string | null;
+  approved_name: string | null;
+  created_at: string;
 }
 
 export const JOB_KIND_LABELS: Record<JobKind, string> = {

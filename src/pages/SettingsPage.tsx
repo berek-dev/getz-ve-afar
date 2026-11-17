@@ -41,13 +41,17 @@ const EXAMPLE = { materials: 1000, hours: 5 };
 
 export function SettingsPage() {
   const [draft, setDraft] = useState<Record<NumericKey, string> | null>(null);
+  const [quoteDraft, setQuoteDraft] = useState({ business_phone: '', quote_terms: '', quote_valid_days: '14' });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     api
       .settings()
-      .then((s) => setDraft(toDraft(s)))
+      .then((s) => {
+        setDraft(toDraft(s));
+        setQuoteDraft(toQuoteDraft(s));
+      })
       .catch((e: unknown) => setError(errorMessage(e)));
   }, []);
 
@@ -69,8 +73,15 @@ export function SettingsPage() {
     setSaving(true);
     setError(null);
     try {
-      const patch = Object.fromEntries(ALL_FIELDS.map((f) => [f.key, Number(draft[f.key])])) as Partial<Settings>;
-      setDraft(toDraft(await api.updateSettings(patch)));
+      const patch = {
+        ...(Object.fromEntries(ALL_FIELDS.map((f) => [f.key, Number(draft[f.key])])) as Partial<Settings>),
+        business_phone: quoteDraft.business_phone,
+        quote_terms: quoteDraft.quote_terms,
+        quote_valid_days: Number(quoteDraft.quote_valid_days) || 14,
+      };
+      const saved = await api.updateSettings(patch);
+      setDraft(toDraft(saved));
+      setQuoteDraft(toQuoteDraft(saved));
       toast('התמחור נשמר');
     } catch (err) {
       setError(errorMessage(err));
@@ -120,6 +131,47 @@ export function SettingsPage() {
           </div>
         </fieldset>
       ))}
+
+      <fieldset className="mt-6">
+        <legend className="mb-2 text-lg font-semibold">הצעת מחיר ללקוח</legend>
+        <div className="plate space-y-4 rounded-[10px] p-4">
+          <label className="block">
+            <span className="block font-semibold">טלפון של העסק</span>
+            <span className="mb-1.5 block text-sm text-steel-300">מופיע בראש ההצעה, כדי שהלקוח יוכל להתקשר.</span>
+            <input
+              className="field"
+              type="tel"
+              dir="ltr"
+              value={quoteDraft.business_phone}
+              onChange={(e) => setQuoteDraft((q) => ({ ...q, business_phone: e.target.value }))}
+              placeholder="050-0000000"
+            />
+          </label>
+          <label className="block">
+            <span className="block font-semibold">תוקף ההצעה (ימים)</span>
+            <input
+              className="field tnum mt-1.5 w-32"
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max="365"
+              dir="ltr"
+              value={quoteDraft.quote_valid_days}
+              onChange={(e) => setQuoteDraft((q) => ({ ...q, quote_valid_days: e.target.value }))}
+            />
+          </label>
+          <label className="block">
+            <span className="block font-semibold">תנאים בסוף ההצעה</span>
+            <span className="mb-1.5 block text-sm text-steel-300">מקדמה, זמני אספקה, אחריות. מה שתכתוב כאן יופיע בכל הצעה.</span>
+            <textarea
+              className="field min-h-28"
+              value={quoteDraft.quote_terms}
+              onChange={(e) => setQuoteDraft((q) => ({ ...q, quote_terms: e.target.value }))}
+              placeholder="למשל: מקדמה באישור ההצעה, יתרה בסיום ההתקנה. אחריות שנה על ריתוכים."
+            />
+          </label>
+        </div>
+      </fieldset>
 
       {example && (
         <section className="mt-6 rounded-[10px] border border-steel-700 p-4" aria-labelledby="example-title">
@@ -180,4 +232,12 @@ function Row({ label, value }: { label: string; value: number }) {
 
 function toDraft(s: Settings): Record<NumericKey, string> {
   return Object.fromEntries(ALL_FIELDS.map((f) => [f.key, String(s[f.key])])) as Record<NumericKey, string>;
+}
+
+function toQuoteDraft(s: Settings) {
+  return {
+    business_phone: s.business_phone ?? '',
+    quote_terms: s.quote_terms ?? '',
+    quote_valid_days: String(s.quote_valid_days ?? 14),
+  };
 }

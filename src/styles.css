@@ -145,3 +145,27 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Quotes print as clean black-on-white documents (Save as PDF) */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  body {
+    background: #fff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-doc,
+  .print-doc *:not(.weld-bead) {
+    color: #111 !important;
+    background: transparent !important;
+    border-color: #bbb !important;
+    box-shadow: none !important;
+  }
+  .print-doc .weld-bead {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

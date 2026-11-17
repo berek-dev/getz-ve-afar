@@ -1,6 +1,9 @@
 /** Validation for price-list entries and suppliers. Pure, unit-tested. */
 import { UNITS } from '../src/core/types.ts';
 import type { ElementCategory, Unit } from '../src/core/types.ts';
+import { normalizePhone } from '../src/core/phone.ts';
+
+export { normalizePhone, whatsappNumber } from '../src/core/phone.ts';
 
 export const ELEMENT_CATEGORIES: readonly ElementCategory[] = [
   'profile',
@@ -69,17 +72,6 @@ export interface SupplierInput {
   notes: string | null;
 }
 
-/** Keeps digits and a leading +; empty → null. */
-export function normalizePhone(v: unknown): string | null | 'invalid' {
-  if (v === null || v === undefined) return null;
-  if (typeof v !== 'string') return 'invalid';
-  const trimmed = v.trim();
-  if (!trimmed) return null;
-  const cleaned = trimmed.replace(/[\s\-().]/g, '');
-  if (!/^\+?\d{7,15}$/.test(cleaned)) return 'invalid';
-  return cleaned;
-}
-
 export function validateSupplier(body: Record<string, unknown>): Result<SupplierInput> {
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!name || name.length > 120) return { ok: false, error: 'name is required' };
@@ -87,13 +79,4 @@ export function validateSupplier(body: Record<string, unknown>): Result<Supplier
   if (phone === 'invalid') return { ok: false, error: 'invalid phone' };
   const notes = typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 500) : null;
   return { ok: true, value: { name, phone, notes } };
-}
-
-/** wa.me wants the number with country code and no +. Israeli 05x → 9725x. */
-export function whatsappNumber(phone: string | null): string | null {
-  if (!phone) return null;
-  let digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('00')) digits = digits.slice(2);
-  else if (digits.startsWith('0')) digits = `972${digits.slice(1)}`;
-  return digits.length >= 9 ? digits : null;
 }

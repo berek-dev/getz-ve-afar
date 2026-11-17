@@ -1,4 +1,5 @@
-import type { Element, ElementCategory, Job, JobItem, JobKind, JobStatus, Settings, Supplier, Unit } from '../core/types.ts';
+import type { Element, ElementCategory, Job, JobItem, JobKind, JobStatus, QuoteSummary, Settings, Supplier, Unit } from '../core/types.ts';
+import type { QuoteSnapshot } from '../core/quote.ts';
 
 export class ApiError extends Error {
   status: number;
@@ -72,6 +73,14 @@ export const api = {
     request<Element>(`/elements/${id}`, { method: 'PATCH', body: JSON.stringify(el) }),
   deleteElement: (id: number) => request<{ ok: true }>(`/elements/${id}`, { method: 'DELETE' }),
   suppliers: () => request<Supplier[]>('/suppliers'),
+  quotes: (jobId: number) => request<QuoteSummary[]>(`/jobs/${jobId}/quotes`),
+  createQuote: (jobId: number) => request<QuoteSummary>(`/jobs/${jobId}/quotes`, { method: 'POST' }),
+  publicQuote: (token: string) => request<PublicQuote>(`/public/quotes/${encodeURIComponent(token)}`),
+  approveQuote: (token: string, name: string) =>
+    request<{ ok: true; approved_at: string; approved_name: string }>(
+      `/public/quotes/${encodeURIComponent(token)}/approve`,
+      { method: 'POST', body: JSON.stringify({ name }) },
+    ),
   elements: () => request<Element[]>('/elements'),
   createItem: (jobId: number, item: ItemDraft) =>
     request<JobItem>(`/jobs/${jobId}/items`, { method: 'POST', body: JSON.stringify(item) }),
@@ -80,6 +89,16 @@ export const api = {
   deleteItem: (jobId: number, itemId: number) =>
     request<{ ok: true }>(`/jobs/${jobId}/items/${itemId}`, { method: 'DELETE' }),
 };
+
+export interface PublicQuote {
+  number: string;
+  status: QuoteSummary['status'];
+  valid_until: string | null;
+  approved_at: string | null;
+  approved_name: string | null;
+  created_at: string;
+  quote: QuoteSnapshot;
+}
 
 export interface JobDetail extends Job {
   items: JobItem[];
@@ -106,6 +125,8 @@ export function errorMessage(err: unknown): string {
         return 'סיסמה שגויה.';
       case 'too_many_attempts':
         return 'יותר מדי ניסיונות. נסה שוב בעוד רבע שעה.';
+      case 'no_items':
+        return 'אין עדיין שורות בכתב הכמויות, אז אין מה לשלוח.';
       case 'invalid phone':
         return 'מספר הטלפון לא נראה תקין.';
       case 'auth_not_configured':
