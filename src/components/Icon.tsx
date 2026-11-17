@@ -38,11 +38,12 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 5v15M3 20l9-15M12 20l9-15" />
     </>
   ),
-  // Pipe run with two flanges
+  // Pipe run with a bolted flange joint and a weld bead
   pipe: (
     <>
-      <path d="M2 10h6M2 14h6M16 10h6M16 14h6" />
-      <path d="M8 7v10M16 7v10M8 10h8M8 14h8" />
+      <path d="M2 9h8v6H2M22 9h-8v6h8" />
+      <rect x="10" y="6" width="4" height="12" rx="1" />
+      <path d="M12 6v12" />
     </>
   ),
   wrench: (
