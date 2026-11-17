@@ -1,0 +1,107 @@
+name: Setup (one time)
+
+# Creates everything on Cloudflare from GitHub, so no computer is needed:
+#   D1 database → tables → (optional) demo data → Pages project → password secrets → first deploy.
+# Needs repository secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, APP_PASSWORD.
+# Safe to run again: existing database/project are reused. Running it again also replaces the
+# password secrets, which logs everyone out (use that to change the password).
+
+on:
+  workflow_dispatch:
+    inputs:
+      load_demo_data:
+        description: 'Load fictional demo jobs'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write # to commit the D1 database id into wrangler.toml
+
+concurrency:
+  group: cloudflare-deploy
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+      PROJECT: getz-ve-afar
+    steps:
+      - name: Check secrets
+        run: |
+          missing=""
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          [ -n "$APP_PASSWORD" ] || missing="$missing APP_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing (see README → Setup)"
+            exit 1
+          fi
+          if [ ${#APP_PASSWORD} -lt 12 ]; then
+            echo "::error::APP_PASSWORD must be at least 12 characters"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-audit --no-fund
+
+      - name: Create or find the D1 database
+        run: |
+          find_id() {
+            npx wrangler d1 list --json | node -e '
+              let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
+                const db = JSON.parse(s).find(d => d.name === process.argv[1]);
+                process.stdout.write(db ? db.uuid : "");
+              });' "$PROJECT"
+          }
+          DB_ID="$(find_id)"
+          if [ -z "$DB_ID" ]; then
+            # Run from an empty dir so wrangler doesn't try to edit wrangler.toml itself.
+            (cd "$(mktemp -d)" && "$GITHUB_WORKSPACE/node_modules/.bin/wrangler" d1 create "$PROJECT")
+            DB_ID="$(find_id)"
+          fi
+          if [ -z "$DB_ID" ]; then echo "::error::Could not create or find the D1 database"; exit 1; fi
+          echo "D1 database id: $DB_ID"
+          if grep -q 'REPLACE_WITH_D1_DATABASE_ID' wrangler.toml; then
+            sed -i "s/REPLACE_WITH_D1_DATABASE_ID/$DB_ID/" wrangler.toml
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -am "Set D1 database id"
+            git push
+          fi
+
+      - name: Create tables
+        run: npx wrangler d1 migrations apply "$PROJECT" --remote
+
+      - name: Load demo data
+        if: ${{ inputs.load_demo_data }}
+        run: npx wrangler d1 execute "$PROJECT" --remote --file seed/demo.sql
+
+      - name: Create the Pages project
+        run: npx wrangler pages project create "$PROJECT" --production-branch main || echo "Project probably exists already – continuing"
+
+      - name: Set the password secrets
+        run: |
+          OUT="$(node scripts/hash-password.ts "$APP_PASSWORD")"
+          HASH="$(printf '%s\n' "$OUT" | sed -n 's/^APP_PASSWORD_HASH=//p')"
+          SESSION="$(printf '%s\n' "$OUT" | sed -n 's/^SESSION_SECRET=//p')"
+          echo "::add-mask::$HASH"
+          echo "::add-mask::$SESSION"
+          printf '%s' "$HASH" | npx wrangler pages secret put APP_PASSWORD_HASH --project-name "$PROJECT"
+          printf '%s' "$SESSION" | npx wrangler pages secret put SESSION_SECRET --project-name "$PROJECT"
+
+      - name: Build and deploy
+        run: |
+          npm run build
+          npx wrangler pages deploy --project-name "$PROJECT" --branch main --commit-dirty=true
+
+      - name: Done
+        run: |
+          echo "### Setup finished" >> "$GITHUB_STEP_SUMMARY"
+          echo "Open https://$PROJECT.pages.dev (or the address shown in the deploy step above) and log in with APP_PASSWORD." >> "$GITHUB_STEP_SUMMARY"

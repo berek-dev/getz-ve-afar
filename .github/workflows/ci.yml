@@ -17,3 +17,38 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+
+  # Deploys every push to main once the one-time Setup workflow has run.
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-deploy
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: ready
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] && ! grep -q 'REPLACE_WITH_D1_DATABASE_ID' wrangler.toml; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Not set up yet (run the Setup workflow) – skipping deploy."
+          fi
+      - if: steps.ready.outputs.ok == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - if: steps.ready.outputs.ok == 'true'
+        run: npm install --no-audit --no-fund
+      - if: steps.ready.outputs.ok == 'true'
+        name: Apply new database migrations
+        run: npx wrangler d1 migrations apply getz-ve-afar --remote
+      - if: steps.ready.outputs.ok == 'true'
+        name: Build and deploy
+        run: |
+          npm run build
+          npx wrangler pages deploy --project-name getz-ve-afar --branch main --commit-dirty=true

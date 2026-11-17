@@ -19,88 +19,52 @@ for a payment method.
 | Login | One app password + signed session cookie for 90 days (`server/auth.ts`), failed attempts throttled per IP |
 | Pricing engine | `src/core/` – plain TypeScript with `node:test` tests |
 
-## One-time setup
+## One-time setup (from a phone, no computer needed)
 
-You need Node.js 22.18 or newer on your computer.
+A GitHub Action does all the Cloudflare work. You only create the account, an access key, and three GitHub secrets.
+About 10 minutes in a mobile browser.
 
 ### 1. Create a free Cloudflare account
 
-Sign up at <https://dash.cloudflare.com/sign-up>. If you are asked to pick a plan, choose **Free**.
-You do not need to add a payment method for anything in this project.
+Sign up at <https://dash.cloudflare.com/sign-up> and confirm your email. If asked to pick a plan, choose **Free**.
+No payment method is needed for anything in this project.
 
-### 2. Install and log in
+### 2. Create an API token (the "access key" the Action uses)
 
-```bash
-git clone https://github.com/berek-dev/getz-ve-afar.git
-cd getz-ve-afar
-npm install
-npx wrangler login        # opens the browser – approve access to your Cloudflare account
-```
+1. In the Cloudflare dashboard tap the profile icon → **My Profile** → **API Tokens** → **Create Token**.
+2. Scroll to **Create Custom Token** → **Get started**.
+3. Token name: `getz-ve-afar`.
+4. Permissions – add two rows:
+   - **Account** · **D1** · **Edit**
+   - **Account** · **Cloudflare Pages** · **Edit**
+5. Account Resources: **Include** · your account.
+6. **Continue to summary** → **Create Token**, then **copy the token** (it is shown only once).
 
-### 3. Create the database
+### 3. Copy your Account ID
 
-```bash
-npx wrangler d1 create getz-ve-afar
-```
+It is the 32-character code in the dashboard address bar right after `dash.cloudflare.com/`,
+and is also shown as **Account ID** on the **Workers & Pages** page.
 
-The output includes a line like `database_id = "1234abcd-..."`. Open `wrangler.toml`, replace
-`REPLACE_WITH_D1_DATABASE_ID` with that id, then create the tables and push:
+### 4. Add three secrets to the GitHub repo
 
-```bash
-npm run db:migrate:remote
-git commit -am "Set D1 database id"
-git push
-```
+Open <https://github.com/berek-dev/getz-ve-afar/settings/secrets/actions> → **New repository secret**, three times:
 
-Optional – load the fictional demo jobs (a gate, a pipe repair and a service call):
+| Name | Value |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | the token from step 2 |
+| `CLOUDFLARE_ACCOUNT_ID` | the id from step 3 |
+| `APP_PASSWORD` | the password Yaal will use to log in (at least 12 characters; a short sentence works well) |
 
-```bash
-npm run db:seed:remote
-```
+GitHub keeps secrets encrypted and hides them in logs. The app itself stores only a hash of the password.
 
-### 4. Connect the repo to Cloudflare Pages
+### 5. Run the Setup workflow
 
-1. In the Cloudflare dashboard open **Workers & Pages** → **Create** → **Pages** → **Connect to Git**.
-2. Authorize GitHub and pick the `getz-ve-afar` repository.
-3. Build settings:
-   - Framework preset: **None**
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-4. Click **Save and Deploy**. The site will be at `https://getz-ve-afar.pages.dev`
-   (Cloudflare may add a suffix if the name is taken – use whatever address it shows).
+Open <https://github.com/berek-dev/getz-ve-afar/actions/workflows/setup.yml> → **Run workflow** → **Run workflow**.
+It creates the database and tables, loads the fictional demo jobs, creates the Pages project, sets the password and
+deploys. When it turns green the app is live at `https://getz-ve-afar.pages.dev` (the run summary shows the address).
 
-The database connection comes from `wrangler.toml`, so there is nothing else to configure here.
-
-### 5. Set the app password
-
-Pick a long password (at least 12 characters; a short sentence works well) and run:
-
-```bash
-node scripts/hash-password.ts "your long password here"
-```
-
-It prints two lines:
-
-```
-APP_PASSWORD_HASH=pbkdf2-sha256$20000$...
-SESSION_SECRET=...
-```
-
-Store both as secrets in the Pages project. Either from the command line (paste the value after the `=` when asked):
-
-```bash
-npx wrangler pages secret put APP_PASSWORD_HASH --project-name getz-ve-afar
-npx wrangler pages secret put SESSION_SECRET --project-name getz-ve-afar
-```
-
-or in the dashboard: **Workers & Pages** → `getz-ve-afar` → **Settings** → **Variables and Secrets** → **Add**,
-type **Secret**, environment **Production**.
-
-Then redeploy so the secrets take effect: **Deployments** → latest deployment → **Retry deployment**
-(or just push any commit).
-
-The password itself is never stored anywhere – only its hash. Forgot the password, or want to log everyone
-out? Run the script again with a new password and replace both secrets.
+From then on every push to `main` deploys automatically (the **CI** workflow).
+To change the password: update the `APP_PASSWORD` secret and run Setup again (this also logs everyone out).
 
 ### 6. Install on Yaal's iPhone
 
@@ -110,15 +74,23 @@ Open the site in **Chrome** (or Safari) → tap the **Share** button in the addr
 
 ### 7. Backups (recommended)
 
-D1 keeps 7 days of point-in-time history on its own. For longer backups:
+D1 keeps 7 days of point-in-time history on its own. For longer backups, make the repo private
+(GitHub → **Settings** → **General** → **Danger Zone** → **Change visibility**). The weekly backup workflow
+(`.github/workflows/backup.yml`) only runs in a private repo, because backup files contain client data.
+It uses the same two Cloudflare secrets and keeps each Sunday's export for 90 days.
 
-1. Make the repo private: GitHub → **Settings** → **General** → **Danger Zone** → **Change visibility**.
-   (The weekly backup only runs in a private repo, because backup files contain client data.)
-2. Create a Cloudflare API token with **D1 Edit** permission (My Profile → API Tokens → Create Token).
-3. In GitHub → **Settings** → **Secrets and variables** → **Actions**, add `CLOUDFLARE_API_TOKEN` and
-   `CLOUDFLARE_ACCOUNT_ID` (the account id is shown on the right side of the Cloudflare dashboard home page).
+### Manual setup from a computer (alternative)
 
-The workflow in `.github/workflows/backup.yml` then saves a database export every Sunday (kept 90 days).
+```bash
+npm install && npx wrangler login
+npx wrangler d1 create getz-ve-afar           # paste the database_id into wrangler.toml, commit, push
+npm run db:migrate:remote && npm run db:seed:remote
+node scripts/hash-password.ts "your long password"   # prints APP_PASSWORD_HASH and SESSION_SECRET
+npx wrangler pages project create getz-ve-afar --production-branch main
+npx wrangler pages secret put APP_PASSWORD_HASH --project-name getz-ve-afar
+npx wrangler pages secret put SESSION_SECRET --project-name getz-ve-afar
+npm run deploy
+```
 
 ## Local development
 
