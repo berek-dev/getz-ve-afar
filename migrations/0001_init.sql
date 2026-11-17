@@ -1,5 +1,5 @@
--- גץ ועפר – סכמה ראשונית
--- סכומים בש"ח (REAL), אורכים במ"מ (INTEGER), תאריכים כ-ISO text.
+-- Getz ve-Afar – initial schema
+-- Amounts in ILS (REAL), lengths in mm (INTEGER), dates as ISO text.
 
 CREATE TABLE settings (
   id              INTEGER PRIMARY KEY CHECK (id = 1),
@@ -32,7 +32,7 @@ CREATE TABLE suppliers (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ספריית אלמנטים: פרופילים, צינורות, אביזרים, שעות עבודה...
+-- Element library: profiles, pipes, fittings, labor hours...
 CREATE TABLE elements (
   id                  INTEGER PRIMARY KEY AUTOINCREMENT,
   category            TEXT NOT NULL CHECK (category IN
@@ -47,7 +47,7 @@ CREATE TABLE elements (
   created_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- תבנית = רשימת אלמנטים ממולאת מראש (JSON), נשמרת מעבודה קיימת
+-- Template = pre-filled element list (JSON), saved from an existing job
 CREATE TABLE templates (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   name         TEXT NOT NULL,
@@ -88,7 +88,7 @@ CREATE TABLE job_items (
 );
 CREATE INDEX idx_job_items_job ON job_items(job_id);
 
--- הצעת מחיר: צילום מצב (snapshot) של העבודה + טוקן ללינק ללקוח
+-- Quote: snapshot of the job + token for the client link
 CREATE TABLE quotes (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   job_id         INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,

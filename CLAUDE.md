@@ -1,6 +1,6 @@
 # Notes for AI coding sessions
 
-Private internal tool for "גץ ועפר" (Yael Hagai's metalwork/welding business). Single business, 1–2 users. Free tiers only.
+Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding business). Single business, 1–2 users. Free tiers only.
 
 ## Stack
 - UI: Vite + React 19 + TypeScript + Tailwind v4. Hebrew, `dir="rtl"`, mobile-first (iPhone PWA).
@@ -15,7 +15,7 @@ Private internal tool for "גץ ועפר" (Yael Hagai's metalwork/welding busine
 - Relative imports include the `.ts`/`.tsx` extension; only erasable TS syntax (no enums, no parameter properties) –
   tests run directly with `node --test` (Node ≥ 22.18 type stripping), no test framework.
 - `src/core/` is pure and dependency-free (pricing, quantities, cut lists). Put business logic there, with tests.
-- UI strings are Hebrew; code and comments in English unless user-facing.
+- UI strings are Hebrew; code, comments and docs (README, setup instructions) in English.
 - Never commit secrets, real client data or real price lists – the repo may be public.
 
 ## Commands

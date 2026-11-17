@@ -7,7 +7,7 @@ import { QuotePublicPage } from './pages/QuotePublicPage.tsx';
 const root = document.getElementById('root');
 if (!root) throw new Error('#root missing');
 
-// /q/<token> הוא הדף הציבורי ללקוח (בלי כניסה). כל השאר – האפליקציה של יעל.
+// /q/<token> is the public page for the client (no login). Everything else is Yaal's app.
 const quoteMatch = window.location.pathname.match(/^\/q\/([A-Za-z0-9_-]+)\/?$/);
 
 createRoot(root).render(

@@ -1,4 +1,4 @@
--- ניסיונות כניסה שנכשלו – להגבלת ניחוש סיסמה לפי IP
+-- Failed logins – used to throttle password guessing per IP
 CREATE TABLE login_attempts (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   ip            TEXT NOT NULL,

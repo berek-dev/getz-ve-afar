@@ -2,12 +2,12 @@ name = "getz-ve-afar"
 pages_build_output_dir = "./dist"
 compatibility_date = "2026-10-01"
 
-# מסד הנתונים (D1). אחרי `npx wrangler d1 create getz-ve-afar` – להדביק כאן את ה-database_id.
+# Database (D1). After `npx wrangler d1 create getz-ve-afar`, paste the database_id it prints here.
 [[d1_databases]]
 binding = "DB"
 database_name = "getz-ve-afar"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"
 
-# סודות (לא בקובץ הזה!): APP_PASSWORD_HASH ו-SESSION_SECRET
-# מוגדרים ב-Pages → Settings → Variables and Secrets. ראו README.
+# Secrets (never in this file!): APP_PASSWORD_HASH and SESSION_SECRET.
+# Set them as Pages secrets – see README step 5.

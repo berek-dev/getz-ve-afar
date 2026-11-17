@@ -1,13 +1,13 @@
--- נתוני דוגמה בלבד – לקוחות, ספקים ומחירים בדויים. לא מחירון אמיתי.
--- טעינה:  npm run db:seed:local   (או db:seed:remote)
--- אפשר להריץ שוב: מוחק קודם את רשומות הדוגמה (מזהים 9001+) וטוען מחדש.
+-- Demo data only – fictional clients, suppliers and prices. Not a real price list.
+-- Load with:  npm run db:seed:local   (or db:seed:remote)
+-- Safe to re-run: deletes the demo rows (ids 9001+) first, then inserts them again.
 
 DELETE FROM jobs      WHERE id BETWEEN 9001 AND 9099;
 DELETE FROM clients   WHERE id BETWEEN 9001 AND 9099;
 DELETE FROM elements  WHERE id BETWEEN 9001 AND 9099;
 DELETE FROM suppliers WHERE id BETWEEN 9001 AND 9099;
 
--- הגדרות תמחור – רק אם עוד לא הוגדרו (לא דורס הגדרות אמיתיות)
+-- Pricing settings – only if never set (does not overwrite real settings)
 UPDATE settings
    SET hourly_rate = 180, overhead_pct = 10, margin_pct = 20, vat_pct = 18,
        bar_length_mm = 6000, kerf_mm = 3, updated_at = datetime('now')
@@ -18,7 +18,7 @@ INSERT INTO suppliers (id, name, phone, notes) VALUES
   (9002, 'חנות פרזול לדוגמה', NULL, 'צירים, מנעולים, מתכלים'),
   (9003, 'צביעה בתנור לדוגמה', NULL, NULL);
 
--- ספריית אלמנטים. משקל לפרופיל מלבני = 2t(b+h)-4t² מ״מ² × 7.85 ק״ג/דמ״ק
+-- Element library. Rectangular tube weight = (2t(b+h) - 4t²) mm² × 7.85 kg/dm³
 INSERT INTO elements (id, category, name, unit, unit_cost, weight_kg_per_unit, stock_length_mm, supplier_id) VALUES
   (9001, 'profile',  'פרופיל 80×80×3',            'm',     55,  7.25, 6000, 9001),
   (9002, 'profile',  'פרופיל 60×40×2',            'm',     22,  3.01, 6000, 9001),
@@ -38,7 +38,7 @@ INSERT INTO clients (id, name, phone, address, notes) VALUES
   (9001, 'משפחת כהן (דוגמה)', NULL, 'מושב לדוגמה 12', 'לקוח בדוי לבדיקות'),
   (9002, 'אגודת מים לדוגמה',  NULL, NULL,            'לקוח בדוי לבדיקות');
 
--- עבודה 1: שער כנף כפולה 4 מ׳ × 1.75 מ׳, מסגרת 60/40, מילוי אנכי 40/20 כל ~12 ס״מ
+-- Job 1: double-leaf gate 4 m × 1.75 m, 60/40 frame, vertical 40/20 infill every ~12 cm
 INSERT INTO jobs (id, client_id, title, site_address, kind, status, description) VALUES
   (9001, 9001, 'שער כנף כפולה 4 מ׳ (דוגמה)', 'מושב לדוגמה 12', 'fabrication', 'visit',
    'שער כנף כפולה לכניסה לחניה. פתח 4 מ׳, גובה 1.75 מ׳. שני עמודים 80/80 עם יסוד בטון, מסגרת 60/40, מילוי אנכי 40/20 כל 12 ס״מ בערך, צביעה בתנור באפור גרפיט.');
@@ -58,7 +58,7 @@ INSERT INTO job_items (job_id, element_id, group_name, description, quantity, un
   (9001, 9010, 'עבודה',   'ייצור במסגרייה',                        14,    'hour', 180, NULL, NULL, 'manual', 120),
   (9001, 9010, 'עבודה',   'התקנה בשטח',                            5,     'hour', 180, NULL, NULL, 'manual', 130);
 
--- עבודה 2: ריתוך צנרת – שונה לגמרי בתמחור (לפי תפרים ויום ציוד)
+-- Job 2: pipe welding – priced completely differently (per joint and per equipment day)
 INSERT INTO jobs (id, client_id, title, kind, status, description) VALUES
   (9002, 9002, 'תיקון קו מים 8" – החלפת קטע (דוגמה)', 'pipe', 'lead',
    'החלפת קטע של 12 מ׳ בקו מים 8" פלדה. 6 תפרי ריתוך בשטח, יום רתכת נגררת.');
@@ -69,6 +69,6 @@ INSERT INTO job_items (job_id, element_id, group_name, description, quantity, un
   (9002, 9009, 'מתכלים', 'אלקטרודות, דיסקים',            1, 'unit',  120, NULL, NULL, 'manual', 30),
   (9002, 9011, 'הגעה',   'הגעה לאתר',                    1, 'unit',  250, NULL, NULL, 'manual', 40);
 
--- עבודה 3: קריאת שירות בלי פריטים עדיין
+-- Job 3: service call, no items yet
 INSERT INTO jobs (id, client_id, title, kind, status, description) VALUES
   (9003, 9001, 'תיקון ציר שער נפול (דוגמה)', 'service', 'lead', 'הלקוח שלח תמונה בוואטסאפ, צריך לתאם ביקור.');

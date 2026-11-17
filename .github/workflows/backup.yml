@@ -1,12 +1,12 @@
 name: Weekly DB backup
 
-# גיבוי שבועי של D1 כ-artifact (נשמר 90 יום).
-# רץ רק כשהריפו פרטי – בריפו ציבורי artifacts נגישים לכל מי שרואה את הריפו, וזה מידע של לקוחות.
-# בנוסף, ל-D1 יש Time Travel מובנה: שחזור לכל נקודה ב-7 הימים האחרונים.
+# Weekly D1 export saved as a workflow artifact (kept 90 days).
+# Runs only when the repo is private: artifacts of a public repo are visible to anyone, and this is client data.
+# D1 also has built-in Time Travel: restore to any point in the last 7 days.
 
 on:
   schedule:
-    - cron: '23 1 * * 0' # ראשון 01:23 UTC
+    - cron: '23 1 * * 0' # Sundays 01:23 UTC
   workflow_dispatch:
 
 jobs:

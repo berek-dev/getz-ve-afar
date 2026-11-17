@@ -1,4 +1,4 @@
-// Usage: node scripts/hash-password.ts "סיסמה ארוכה וקשה לניחוש"
+// Usage: node scripts/hash-password.ts "a long password that is hard to guess"
 // Prints the two Cloudflare secrets to set: APP_PASSWORD_HASH and SESSION_SECRET.
 import { hashPassword } from '../server/auth.ts';
 
