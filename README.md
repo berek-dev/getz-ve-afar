@@ -47,6 +47,7 @@
 ```bash
 cp .dev.vars.example .dev.vars   # מדלג על Access מקומית
 npm run db:migrate:local
+npm run db:seed:local            # נתוני דוגמה: שער כנף כפולה, תיקון קו מים, קריאת שירות (בדויים)
 npm run build                    # פעם אחת, כדי ש-pages dev ימצא את dist
 npm run dev:api                  # טרמינל 1: API + D1 מקומי על 8788
 npm run dev                      # טרמינל 2: ממשק עם hot reload על 5173
