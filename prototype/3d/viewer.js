@@ -51,6 +51,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffe
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 view.prepend(renderer.domElement);
@@ -408,7 +409,7 @@ function buildDims() {
   disposeTree(dimsGroup);
   dimsGroup = new THREE.Group();
   const { scene: sc } = state.prepared;
-  const b = C.metalBounds(sc);
+  const b = C.workBounds(sc);
   const zFront = b.max[2] + 350;
   dimsGroup.add(dimLine(v3([b.min[0], 15, zFront]), v3([b.max[0], 15, zFront]), new THREE.Vector3(0, 1, 0), `${fmt(b.max[0] - b.min[0])} מ״מ`));
   dimsGroup.add(dimLine(v3([b.max[0] + 350, 0, 0]), v3([b.max[0] + 350, b.max[1], 0]), new THREE.Vector3(1, 0, 0), `${fmt(b.max[1])} מ״מ`));
@@ -428,12 +429,13 @@ function metres(bounds) {
   return { min: v3(bounds.min), max: v3(bounds.max) };
 }
 function frame(kind = '3d') {
-  const b = metres(C.metalBounds(state.prepared.scene));
+  const b = metres(C.workBounds(state.prepared.scene));
   const center = b.min.clone().add(b.max).multiplyScalar(0.5);
   center.y = Math.max(center.y, (b.max.y - Math.max(b.min.y, 0)) / 2);
   const size = b.max.clone().sub(b.min);
   const fov = (camera.fov * Math.PI) / 180;
-  const need = Math.max(size.y * 1.15, (size.x * 1.15) / camera.aspect);
+  // Room for the dimension labels and the swing of open leaves
+  const need = Math.max(size.y * 1.45, (size.x * 1.3) / camera.aspect);
   const dist = need / 2 / Math.tan(fov / 2) + size.z;
   const dir = kind === 'front' ? new THREE.Vector3(0, 0.05, 1) : new THREE.Vector3(0.55, 0.32, 1);
   camera.position.copy(center).addScaledVector(dir.normalize(), dist * (kind === 'front' ? 1.05 : 1.12));

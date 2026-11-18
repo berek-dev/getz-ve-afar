@@ -688,6 +688,12 @@ export function metalBounds(scene: ResolvedScene): { min: Vec3; max: Vec3 } {
   return boundsOf(scene.members, scene.plates);
 }
 
+/** The fabricated work: moving leaves and anything standing up. A long ground track is left out. */
+export function workBounds(scene: ResolvedScene): { min: Vec3; max: Vec3 } {
+  const focus = scene.members.filter((m) => m.group || Math.max(m.from[1], m.to[1], m.via?.[1] ?? -Infinity) > 100);
+  return boundsOf(focus.length > 0 ? focus : scene.members, scene.plates);
+}
+
 /** Extent of some members (and plates), padded across each member only. */
 export function boundsOf(members: Member[], plates: Pick<Plate, 'center' | 'size'>[] = []): { min: Vec3; max: Vec3 } {
   const scene = { members, plates };

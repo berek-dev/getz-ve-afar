@@ -3,7 +3,7 @@
  * and the cut list, on an A3 sheet. Pure string output (SVG), so it works in the app, on the server and
  * in tests. A fabrication aid, not an engineered drawing.
  */
-import { add, arcPoint, arcThrough, boundsOf, cutList, memberLength, norm, scale, sectionAxes, sub } from './scene.ts';
+import { add, arcPoint, arcThrough, boundsOf, cutList, memberLength, norm, scale, sectionAxes, sub, workBounds } from './scene.ts';
 import type { CutList, ResolvedMember, ResolvedScene, Vec3 } from './scene.ts';
 import { BEAMS } from './sections.ts';
 
@@ -103,10 +103,9 @@ export interface DrawingOptions {
 
 export function shopDrawingSvg(scene: ResolvedScene, opts: DrawingOptions = {}): string {
   const cut = opts.cut ?? cutList(scene);
-  // Frame the fabricated work: moving leaves and anything standing up. A long ground track or rail would
-  // otherwise shrink the drawing; it stays in the cut list and is clipped at the sheet's edge.
-  const focus = scene.members.filter((m) => m.group || Math.max(m.from[1], m.to[1], m.via?.[1] ?? -Infinity) > 100);
-  const b = boundsOf(focus.length > 0 ? focus : scene.members, scene.plates);
+  // Frame the fabricated work. A long ground track would otherwise shrink the drawing; it stays in the
+  // cut list and is clipped at the sheet's edge.
+  const b = workBounds(scene);
   const footings = scene.parts.filter(
     (p) => p.kind === 'footing' && p.at[0] > b.min[0] - 500 && p.at[0] < b.max[0] + 500 && (p.size?.[0] ?? 0) < 3000,
   );
