@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "title": "שער כנף כפולה לחניה, 4.9 מ׳",
+  "material": "black",
+  "finish": { "color": "#3b4045", "name": "צביעה בתנור אפור גרפיט" },
+  "members": [
+    { "id": "post-l", "label": "עמוד שמאל", "profile": "rect_tube", "size": [100, 100, 4], "from": [50, -600, 0], "to": [50, 1900, 0], "end_cap": "cap" },
+    { "id": "post-r", "label": "עמוד ימין", "profile": "rect_tube", "size": [100, 100, 4], "from": [5072, -600, 0], "to": [5072, 1900, 0], "end_cap": "cap" },
+
+    { "id": "l-hinge-stile", "label": "עמוד כנף (צירים)", "group": "leaf-l", "profile": "rect_tube", "size": [50, 50, 3], "from": [140, 60, 0], "to": [140, 1860, 0] },
+    { "id": "l-latch-stile", "label": "עמוד כנף (סגירה)", "group": "leaf-l", "profile": "rect_tube", "size": [50, 50, 3], "from": [2530, 60, 0], "to": [2530, 1860, 0] },
+    { "id": "l-bottom", "label": "משקוף תחתון", "group": "leaf-l", "profile": "rect_tube", "size": [50, 50, 3], "from": [165, 85, 0], "to": [2505, 85, 0] },
+    { "id": "l-top", "label": "משקוף עליון", "group": "leaf-l", "profile": "rect_tube", "size": [50, 50, 3], "from": [165, 1835, 0], "to": [2505, 1835, 0] },
+    { "id": "l-pickets", "label": "שבכה", "group": "leaf-l", "profile": "rect_tube", "size": [20, 20, 1.5], "from": [0, 110, 0], "to": [0, 1810, 0], "repeat": { "count": 19, "between": [165, 2505], "axis": "x" } },
+
+    { "id": "r-latch-stile", "label": "עמוד כנף (סגירה)", "group": "leaf-r", "profile": "rect_tube", "size": [50, 50, 3], "from": [2592, 60, 0], "to": [2592, 1860, 0] },
+    { "id": "r-hinge-stile", "label": "עמוד כנף (צירים)", "group": "leaf-r", "profile": "rect_tube", "size": [50, 50, 3], "from": [4982, 60, 0], "to": [4982, 1860, 0] },
+    { "id": "r-bottom", "label": "משקוף תחתון", "group": "leaf-r", "profile": "rect_tube", "size": [50, 50, 3], "from": [2617, 85, 0], "to": [4957, 85, 0] },
+    { "id": "r-top", "label": "משקוף עליון", "group": "leaf-r", "profile": "rect_tube", "size": [50, 50, 3], "from": [2617, 1835, 0], "to": [4957, 1835, 0] },
+    { "id": "r-pickets", "label": "שבכה", "group": "leaf-r", "profile": "rect_tube", "size": [20, 20, 1.5], "from": [0, 110, 0], "to": [0, 1810, 0], "repeat": { "count": 19, "between": [2617, 4957], "axis": "x" } }
+  ],
+  "parts": [
+    { "kind": "hinge", "at": [107.5, 250, 0], "group": "leaf-l", "repeat": { "count": 2, "step": [0, 1400, 0] } },
+    { "kind": "hinge", "at": [5014.5, 250, 0], "group": "leaf-r", "repeat": { "count": 2, "step": [0, 1400, 0] } },
+    { "kind": "lock", "at": [2530, 1000, -45], "group": "leaf-l" },
+    { "kind": "handle", "at": [2490, 1000, 45], "group": "leaf-l" },
+    { "kind": "drop_bolt", "at": [2650, 300, -35], "group": "leaf-r" },
+    { "kind": "footing", "at": [50, -350, 0], "size": [400, 700, 400] },
+    { "kind": "footing", "at": [5072, -350, 0], "size": [400, 700, 400] }
+  ],
+  "solids": [
+    { "kind": "stone", "label": "קיר אבן", "center": [-900, 750, 0], "size": [1800, 1500, 300] },
+    { "kind": "stone", "label": "קיר אבן", "center": [6022, 750, 0], "size": [1800, 1500, 300] },
+    { "kind": "paving", "label": "שביל גישה", "center": [2561, -25, 0], "size": [5022, 50, 6000] }
+  ],
+  "groups": [
+    { "id": "leaf-l", "label": "כנף שמאל", "motion": { "type": "swing", "pivot": [107.5, 0, 0], "angle": 90 } },
+    { "id": "leaf-r", "label": "כנף ימין", "motion": { "type": "swing", "pivot": [5014.5, 0, 0], "angle": -90 } }
+  ],
+  "notes": [
+    "שתי כנפיים של 2.44 מ׳ (8 רגל) לפי הפרויקט",
+    "מסגרת 50/50/3 ושבכה 20/20/1.5 לפי ההמלצה בדיון",
+    "גובה 1.80 מ׳ לא צוין ונבחר גובה מקובל",
+    "עמודים 100/100/4, 60 ס״מ בתוך יסוד בטון"
+  ],
+  "source": { "title": "Garage Journal: steel driveway gate, two 8 ft leaves", "url": "https://www.garagejournal.com/forum/posts/11638319/" }
+}

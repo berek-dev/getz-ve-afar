@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "title": "שער הזזה לחניה, 6.13 מ׳",
+  "material": "black",
+  "finish": { "color": "#383e42", "name": "יסוד אבץ וצבע תעשייתי אפור (RAL 7016)" },
+  "members": [
+    { "id": "stile-l", "label": "עמוד קצה", "group": "leaf", "profile": "rect_tube", "size": [80, 40, 3], "from": [40, 110, 0], "to": [40, 1949, 0] },
+    { "id": "stile-r", "label": "עמוד קצה", "group": "leaf", "profile": "rect_tube", "size": [80, 40, 3], "from": [6088, 110, 0], "to": [6088, 1949, 0] },
+    { "id": "bottom", "label": "קורה תחתונה", "group": "leaf", "profile": "rect_tube", "size": [80, 40, 3], "from": [80, 150, 0], "to": [6048, 150, 0] },
+    { "id": "top", "label": "קורה עליונה", "group": "leaf", "profile": "rect_tube", "size": [80, 40, 3], "from": [80, 1909, 0], "to": [6048, 1909, 0] },
+    { "id": "middle", "label": "עמוד אמצעי", "group": "leaf", "profile": "rect_tube", "size": [80, 40, 3], "from": [3064, 190, 0], "to": [3064, 1869, 0] },
+    { "id": "infill", "label": "מילוי", "group": "leaf", "profile": "rect_tube", "size": [50, 25, 2], "from": [0, 190, 0], "to": [0, 1869, 0], "repeat": { "count": 24, "between": [80, 6048], "axis": "x" } },
+
+    { "id": "track", "label": "מסילה", "profile": "angle", "size": [40, 40, 4], "from": [-6400, 20, 0], "to": [6300, 20, 0], "roll": 225 },
+    { "id": "post-close", "label": "עמוד סגירה", "profile": "rect_tube", "size": [150, 150, 5], "from": [6223, -800, 0], "to": [6223, 1950, 0], "end_cap": "cap" },
+    { "id": "post-guide", "label": "עמוד מוביל", "profile": "rect_tube", "size": [100, 100, 4], "from": [-150, -600, -120], "to": [-150, 2050, -120], "end_cap": "cap" }
+  ],
+  "plates": [
+    { "label": "פח תחתון", "group": "leaf", "center": [1552, 759.5, -16], "size": [2944, 1139], "normal": "z", "thickness": 2 },
+    { "label": "פח תחתון", "group": "leaf", "center": [4576, 759.5, -16], "size": [2944, 1139], "normal": "z", "thickness": 2 }
+  ],
+  "parts": [
+    { "kind": "wheel", "at": [600, 55, 0], "size": [100, 30], "axis": "z", "group": "leaf", "repeat": { "count": 4, "step": [1640, 0, 0] } },
+    { "kind": "guide_roller", "at": [-150, 1985, 0] },
+    { "kind": "stopper", "at": [6150, 1000, 0] },
+    { "kind": "motor", "at": [-500, 200, -260] },
+    { "kind": "footing", "at": [6223, -450, 0], "size": [450, 900, 450] },
+    { "kind": "footing", "at": [-150, -350, -120], "size": [400, 700, 400] },
+    { "kind": "footing", "label": "קורת בטון למסילה", "at": [-50, -150, 0], "size": [12800, 300, 400] }
+  ],
+  "solids": [
+    { "kind": "plaster", "label": "קיר", "center": [-3500, 900, -320], "size": [6400, 1800, 200] },
+    { "kind": "plaster", "label": "קיר", "center": [7048, 900, 0], "size": [1500, 1800, 250] },
+    { "kind": "paving", "label": "שביל גישה", "center": [3064, -25, 900], "size": [6128, 50, 4000] }
+  ],
+  "groups": [{ "id": "leaf", "label": "שער", "motion": { "type": "slide", "offset": [-6250, 0, 0] } }],
+  "notes": [
+    "6128 על 1839 מ״מ לפי התכנון",
+    "מסגרת 80/40/3 כקרוב לפרופיל של 3 אינץ׳ שבמקור",
+    "24 פרופילי מילוי 50/25/2 לכל הגובה ופח 2 מ״מ עד 1.22 מ׳",
+    "האלכסון לא צויר; הפח התחתון מקשיח את המסגרת",
+    "4 גלגלי V בקוטר 100 על מסילה מזוויתן מעל קורת בטון"
+  ],
+  "source": { "title": "KN Metal Welding Fabrication: 6 ft sliding gate design", "url": "https://knmetalweldingfabrication.blogspot.com/2025/09/engineering-grand-sliding-gate.html" }
+}

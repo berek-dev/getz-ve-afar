@@ -6,6 +6,7 @@
  * To add sizes: add them to the lists below. Keys must stay stable once released.
  */
 import { kgFor } from './steel.ts';
+import { BEAMS, beamSizes } from './sections.ts';
 import type { SteelShape } from './steel.ts';
 import type { ElementCategory, Unit } from './types.ts';
 
@@ -133,7 +134,7 @@ const ROUND_BAR_STAINLESS = [6, 8, 10, 12, 16, 20];
 const SQUARE_BAR = [10, 12, 14, 16, 20, 25];
 
 /** Outside diameter → nominal size in inches (צול) */
-const INCH: Record<string, string> = {
+export const INCH: Record<string, string> = {
   '21.3': '0.5', '26.9': '0.75', '33.7': '1', '42.4': '1.25', '48.3': '1.5', '60.3': '2', '76.1': '2.5', '88.9': '3',
   '101.6': '3.5', '114.3': '4', '168.3': '6', '219.1': '8', '273': '10', '323.9': '12', '355.6': '14',
   '406.4': '16', '508': '20', '609.6': '24',
@@ -149,9 +150,10 @@ const WATER_PIPE: [number, number][] = [
 ];
 
 /** Table weights (kg/m) for rolled sections */
-const UPN: [number, number][] = [[50, 5.59], [65, 7.09], [80, 8.64], [100, 10.6], [120, 13.4], [140, 16.0], [160, 18.8], [180, 22.0], [200, 25.3]];
-const IPE: [number, number][] = [[80, 6.0], [100, 8.1], [120, 10.4], [140, 12.9], [160, 15.8], [180, 18.8], [200, 22.4], [220, 26.2], [240, 30.7], [270, 36.1], [300, 42.2]];
-const HEA: [number, number][] = [[100, 16.7], [120, 19.9], [140, 24.7], [160, 30.4], [180, 35.5], [200, 42.3], [220, 50.5], [240, 60.3]];
+const table = (t: 'upn' | 'ipe' | 'hea'): [number, number][] => beamSizes(t).map((h) => [h, BEAMS[t][h].kg]);
+const UPN = table('upn');
+const IPE = table('ipe');
+const HEA = table('hea');
 
 const PLATE: Record<MaterialKey, number[]> = {
   black: [1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25],

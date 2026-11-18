@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>גץ ועפר: הדמיה ושרטוט</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;600;700&family=Karantina:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --steel-950: #1b2025; --steel-900: #23292f; --steel-800: #2e363e; --steel-700: #3b444d; --steel-500: #6b7682;
+    --steel-300: #a9b2bb; --soap: #edeae3; --hivis: #f3b61f; --hivis-press: #d99e0b; --primer: #b4492c; --primer-light: #f2a48f;
+    --heat-7: #5b8fd1;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--steel-900); color: var(--soap); font-family: 'IBM Plex Sans Hebrew', system-ui, sans-serif; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+  body.no-scroll { overflow: hidden; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  textarea, input { font-size: 16px; }
+  :focus-visible { outline: 2px solid var(--hivis); outline-offset: 2px; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px 48px; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  header.top { background: var(--steel-950); padding-top: env(safe-area-inset-top); }
+  header.top .bar { max-width: 980px; margin: 0 auto; display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; }
+  .brand { font-family: Karantina, sans-serif; font-size: 2.3rem; line-height: 1; letter-spacing: .02em; }
+  .tag { color: var(--steel-300); }
+  .weld { height: 5px; background-image: repeating-linear-gradient(90deg, rgb(255 255 255 / .22) 0 2px, transparent 2px 7px), linear-gradient(90deg, #e9c46a, #d4a04a, #b87333, #9a4f3c, #7b4f96, #3f63a8, #5b8fd1); }
+  h1 { font-family: Karantina, sans-serif; font-size: 2.6rem; line-height: 1; margin: 18px 0 4px; font-weight: 700; }
+  h2 { font-size: 1.15rem; margin: 0 0 8px; }
+  p { line-height: 1.6; }
+  .muted { color: var(--steel-300); }
+  .small { font-size: .875rem; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 14px 0 4px; scrollbar-width: none; }
+  .chip { flex: none; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--steel-700); background: none; color: var(--steel-300); font-weight: 600; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--hivis); border-color: var(--hivis); color: var(--steel-950); }
+
+  .stage { position: relative; margin-top: 12px; border-radius: 12px; overflow: hidden; background: #d9dee2; border: 1px solid var(--steel-700); }
+  .stage .view { position: relative; height: min(62vh, 560px); min-height: 320px; touch-action: none; }
+  .stage canvas { display: block; width: 100%; height: 100%; }
+  .labels { position: absolute; inset: 0; pointer-events: none; }
+  .dim { background: rgb(27 32 37 / .82); color: #fff; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 6px; white-space: nowrap; direction: rtl; }
+  .stage.is-full { position: fixed; inset: 0; z-index: 50; margin: 0; border-radius: 0; border: 0; }
+  .stage.is-full .view { height: calc(100dvh - 64px - env(safe-area-inset-bottom)); }
+  .placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: var(--steel-700); font-weight: 600; }
+  .tools { display: flex; gap: 4px; padding: 8px; background: var(--steel-950); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .tool { flex: 1; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: none; border: 0; border-radius: 8px; color: var(--steel-300); font-size: .75rem; font-weight: 600; cursor: pointer; }
+  .tool svg { width: 22px; height: 22px; }
+  .tool[aria-pressed="true"] { color: var(--hivis); }
+  .tool:disabled { opacity: .35; }
+  .open-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--steel-950); border-top: 1px solid var(--steel-800); }
+  .open-row input[type=range] { flex: 1; accent-color: var(--hivis); height: 32px; }
+  .btn { min-height: 48px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--steel-500); background: none; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-primary { background: var(--hivis); border-color: var(--hivis); color: var(--steel-950); }
+  .btn-primary:active { background: var(--hivis-press); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn-small { min-height: 40px; padding: 0 12px; font-size: .9rem; border-radius: 10px; }
+  .info { position: absolute; top: 10px; inset-inline: 10px; display: flex; gap: 8px; align-items: center; background: rgb(27 32 37 / .92); border-radius: 10px; padding: 8px 12px; font-size: .95rem; }
+  .info b { color: var(--hivis); }
+  .info button { margin-inline-start: auto; background: none; border: 0; color: var(--steel-300); min-width: 36px; min-height: 36px; cursor: pointer; }
+  .busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(27 32 37 / .55); }
+  .busy div { background: var(--steel-950); padding: 14px 18px; border-radius: 12px; font-weight: 600; text-align: center; }
+
+  .plate { background: var(--steel-800); border: 1px solid var(--steel-700); border-radius: 12px; box-shadow: inset 0 1px 0 rgb(255 255 255 / .05); }
+  .card { padding: 16px; margin-top: 16px; }
+  .field { width: 100%; border-radius: 10px; border: 1px solid var(--steel-700); background: var(--steel-950); padding: 12px; color: var(--soap); }
+  .field:focus { border-color: var(--hivis); outline: none; }
+  textarea.field { min-height: 110px; resize: vertical; line-height: 1.5; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .grow { flex: 1; }
+  .history { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .history span { background: var(--steel-950); border: 1px solid var(--steel-700); border-radius: 8px; padding: 4px 10px; font-size: .85rem; color: var(--steel-300); }
+  .warn { color: var(--hivis); font-size: .9rem; }
+  .err { color: var(--primer-light); }
+
+  .tabs { display: flex; gap: 6px; margin-top: 20px; border-bottom: 1px solid var(--steel-700); }
+  .tab { min-height: 48px; padding: 0 14px; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--steel-300); font-weight: 700; cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--soap); border-color: var(--hivis); }
+  .panel { padding-top: 14px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: start; padding: 9px 8px; border-bottom: 1px solid var(--steel-700); vertical-align: top; }
+  th { color: var(--steel-300); font-size: .85rem; font-weight: 600; }
+  td.mark { font-weight: 700; color: var(--hivis); width: 3em; }
+  td.num { text-align: end; white-space: nowrap; }
+  .drawing { background: #fff; border-radius: 10px; overflow: hidden; }
+  .drawing svg { display: block; width: 100%; height: auto; }
+  .notes li { margin: 4px 0; color: var(--steel-300); }
+  details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+  pre.instructions { white-space: pre-wrap; direction: ltr; text-align: left; font-size: .8rem; line-height: 1.5; background: var(--steel-950); padding: 12px; border-radius: 10px; color: var(--steel-300); max-height: 360px; overflow: auto; }
+  ol.steps { padding-inline-start: 22px; line-height: 1.7; }
+  .source a { color: var(--steel-300); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .toast { position: fixed; bottom: calc(20px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); background: var(--soap); color: var(--steel-950); padding: 10px 16px; border-radius: 10px; font-weight: 600; z-index: 80; box-shadow: 0 6px 24px rgb(0 0 0 / .35); }
+  @media (prefers-reduced-motion: no-preference) { .toast { animation: up .2s ease-out; } @keyframes up { from { transform: translate(-50%, 8px); opacity: 0; } } }
+</style>
+</head>
+<body>
+<header class="top"><div class="bar"><span class="brand">גץ ועפר</span><span class="tag">הדמיה ושרטוט ייצור</span></div><div class="weld" aria-hidden="true"></div></header>
+
+<main class="wrap">
+  <nav class="chips" id="examples" aria-label="דוגמאות"></nav>
+
+  <section class="stage" id="stage" aria-label="מודל תלת־ממד">
+    <div class="view" id="view">
+      <div class="placeholder" id="placeholder">טוען תלת־ממד...</div>
+      <div class="info" id="info" hidden><span id="info-text"></span><button type="button" id="info-close" aria-label="סגור">✕</button></div>
+      <div class="busy" id="busy" hidden><div><div id="busy-text">חושב...</div><button type="button" class="btn btn-small" id="stop" style="margin-top:10px">עצור</button></div></div>
+    </div>
+    <div class="open-row" id="open-row" hidden>
+      <span class="small muted">סגור</span>
+      <input type="range" id="open" min="0" max="100" value="0" aria-label="פתיחת השער">
+      <span class="small muted">פתוח</span>
+      <button type="button" class="btn btn-small" id="open-btn">פתח</button>
+    </div>
+    <div class="tools" role="toolbar" aria-label="תצוגה">
+      <button type="button" class="tool" id="t-dims" aria-pressed="true">@@ICON_DIMS@@<span>מידות</span></button>
+      <button type="button" class="tool" id="t-front">@@ICON_FRONT@@<span>חזית</span></button>
+      <button type="button" class="tool" id="t-reset">@@ICON_RESET@@<span>איפוס</span></button>
+      <button type="button" class="tool" id="t-under" aria-pressed="false">@@ICON_UNDER@@<span>יסודות</span></button>
+      <button type="button" class="tool" id="t-shot" hidden>@@ICON_CAMERA@@<span>תמונה</span></button>
+      <button type="button" class="tool" id="t-full">@@ICON_FULL@@<span id="t-full-label">מסך מלא</span></button>
+    </div>
+  </section>
+
+  <h1 id="title"></h1>
+  <p class="muted small" id="summary"></p>
+  <ul class="notes small" id="notes"></ul>
+  <p class="warn" id="warnings" hidden></p>
+  <p class="source small" id="source"></p>
+
+  <section class="plate card" id="chat" aria-labelledby="chat-title">
+    <h2 id="chat-title">ספר על העבודה, או בקש שינוי</h2>
+    <p class="muted small" id="chat-hint">הצ׳אט נטען...</p>
+    <div id="chat-body" hidden>
+      <label class="sr-only" for="ask">בקשה</label>
+      <textarea class="field" id="ask"></textarea>
+      <p class="small muted" id="image-name" hidden></p>
+      <div class="row">
+        <button type="button" class="btn btn-primary grow" id="send">צור הדמיה</button>
+        <button type="button" class="btn" id="mic" hidden aria-pressed="false">@@ICON_MIC@@<span id="mic-label">הכתבה</span></button>
+        <label class="btn" id="photo-label" hidden>@@ICON_CAMERA@@<span>תמונה או סקיצה</span><input type="file" id="photo" accept="image/*" class="sr-only"></label>
+      </div>
+      <div class="row">
+        <button type="button" class="btn btn-small" id="undo" hidden>בטל שינוי אחרון</button>
+        <button type="button" class="btn btn-small" id="new">עבודה חדשה</button>
+      </div>
+      <div class="history" id="history"></div>
+      <p class="err small" id="chat-error" role="alert" hidden></p>
+    </div>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab" role="tab" id="tab-cut" aria-selected="true" aria-controls="panel-cut">רשימת חיתוך</button>
+    <button type="button" class="tab" role="tab" id="tab-draw" aria-selected="false" aria-controls="panel-draw">שרטוט</button>
+    <button type="button" class="tab" role="tab" id="tab-json" aria-selected="false" aria-controls="panel-json">פריסה (JSON)</button>
+  </div>
+  <section class="panel" role="tabpanel" id="panel-cut" aria-labelledby="tab-cut"></section>
+  <section class="panel" role="tabpanel" id="panel-draw" aria-labelledby="tab-draw" hidden>
+    <div class="row" style="margin-top:0;margin-bottom:12px">
+      <button type="button" class="btn btn-primary" id="dl-svg" hidden>הורד שרטוט (SVG)</button>
+      <button type="button" class="btn" id="dl-csv" hidden>הורד רשימת חיתוך (CSV)</button>
+    </div>
+    <div class="drawing" id="drawing"></div>
+    <p class="small muted">שרטוט ייצור אוטומטי מהמודל: חזית, מידות כלליות, סימון חלקים ורשימת חיתוך. לבדוק לפני חיתוך; זה לא שרטוט הנדסי.</p>
+  </section>
+  <section class="panel" role="tabpanel" id="panel-json" aria-labelledby="tab-json" hidden>
+    <p class="small muted">הפריסה היא הנתונים שהמודל, השרטוט ורשימת החיתוך נבנים מהם. אפשר להדביק כאן תשובה מ־Gemini או מ־Claude אחר.</p>
+    <label class="sr-only" for="json">פריסה</label>
+    <textarea class="field" id="json" style="min-height:260px;direction:ltr;text-align:left;font-family:ui-monospace,monospace;font-size:13px"></textarea>
+    <div class="row">
+      <button type="button" class="btn btn-primary" id="json-apply">הצג את הפריסה</button>
+      <button type="button" class="btn" id="json-copy">העתק</button>
+    </div>
+    <p class="err small" id="json-error" role="alert" hidden></p>
+  </section>
+
+  <section class="plate card" aria-labelledby="gem-title">
+    <h2 id="gem-title">לעבוד עם Gemini או עם Claude אחר</h2>
+    <ol class="steps">
+      <li>מעתיקים את ההנחיות.</li>
+      <li>ב־Gemini: יוצרים Gem חדש ומדביקים אותן בהוראות. ב־Claude: יוצרים Project ומדביקים אותן בהוראות הפרויקט.</li>
+      <li>כותבים שם את תיאור העבודה (ואם יש, כתב כמויות). התשובה היא JSON.</li>
+      <li>מעתיקים את התשובה, ובלשונית ״פריסה״ כאן לוחצים ״הצג״. כדי לתקן: מבקשים שם שינוי ומדביקים שוב.</li>
+    </ol>
+    <button type="button" class="btn btn-primary" id="copy-instructions">העתק הנחיות</button>
+    <details style="margin-top:8px"><summary>להציג את ההנחיות</summary><pre class="instructions" id="instructions"></pre></details>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+/*@@CORE@@*/
+</script>
+<script>
+window.GVA_EXAMPLES = /*@@EXAMPLES@@*/;
+window.GVA_INSTRUCTIONS = /*@@INSTRUCTIONS@@*/;
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+/*@@VIEWER@@*/
+</script>
+</body>
+</html>
