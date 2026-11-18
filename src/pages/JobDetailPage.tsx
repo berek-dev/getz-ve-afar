@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { JobDetail } from '../lib/api.ts';
 import { JOB_KIND_LABELS, JOB_STATUS_LABELS, UNIT_LABELS, UNIT_PER } from '../core/types.ts';
@@ -25,10 +25,14 @@ import type { IconName } from '../components/Icon.tsx';
 
 const NO_GROUP = 'שונות';
 
-export type JobTab = 'boq' | 'orders' | 'photos' | 'money';
-export const JOB_TABS: readonly JobTab[] = ['boq', 'orders', 'photos', 'money'];
+// three.js and the layout code load only when the tab opens
+const ModelSection = lazy(() => import('../components/ModelSection.tsx'));
+
+export type JobTab = 'boq' | 'model' | 'orders' | 'photos' | 'money';
+export const JOB_TABS: readonly JobTab[] = ['boq', 'model', 'orders', 'photos', 'money'];
 const TAB_META: Record<JobTab, { label: string; icon: IconName }> = {
   boq: { label: 'כמויות ומחיר', icon: 'scale' },
+  model: { label: 'הדמיה', icon: 'cube' },
   orders: { label: 'רכש', icon: 'truck' },
   photos: { label: 'תמונות', icon: 'camera' },
   money: { label: 'כספים', icon: 'wallet' },
@@ -178,7 +182,7 @@ export function JobDetailPage({ jobId, initialTab }: { jobId: number; initialTab
 
       <nav
         aria-label="חלקי העבודה"
-        className="sticky z-10 -mx-4 mt-6 grid grid-cols-4 border-b border-steel-700 bg-steel-900 px-2"
+        className="sticky z-10 -mx-4 mt-6 grid grid-cols-5 border-b border-steel-700 bg-steel-900 px-1"
         style={{ top: 'calc(env(safe-area-inset-top) + 61px)' }}
       >
         {JOB_TABS.map((t) => (
@@ -202,6 +206,16 @@ export function JobDetailPage({ jobId, initialTab }: { jobId: number; initialTab
         <section aria-label="רכש">
           <OrdersSection job={job} cutPlans={totals.cutPlans} businessName={settings.business_name} />
         </section>
+      )}
+      {activeTab === 'model' && (
+        <Suspense fallback={<p className="mt-6 text-steel-300">טוען את ההדמיה...</p>}>
+          <ModelSection
+            job={job}
+            businessName={settings.business_name}
+            onItems={(items) => setJob((j) => (j ? { ...j, items } : j))}
+            onVersions={(n) => setJob((j) => (j ? { ...j, model_versions: n } : j))}
+          />
+        </Suspense>
       )}
       {activeTab === 'photos' && <PhotosSection jobId={job.id} onCount={onPhotoCount} />}
       {activeTab === 'money' && (

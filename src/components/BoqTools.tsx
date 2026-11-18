@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { ItemDraft, JobDetail } from '../lib/api.ts';
@@ -9,6 +9,7 @@ import { fmtNum } from '../lib/format.ts';
 import { Icon } from './Icon.tsx';
 import { toast } from './Toast.tsx';
 import { DeleteButton } from './JobMoneySection.tsx';
+import { appendText, useDictation } from '../lib/speech.ts';
 
 /** Save this job's lines as a template. */
 export function SaveTemplateForm({ job, onDone }: { job: JobDetail; onDone: () => void }) {
@@ -139,21 +140,6 @@ export function TemplatePicker({
   );
 }
 
-interface SpeechRecognitionLike {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
-function speechRecognition(): (new () => SpeechRecognitionLike) | null {
-  const w = window as unknown as Record<string, unknown>;
-  return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as (new () => SpeechRecognitionLike) | null;
-}
-
 /** Describe the job in plain words (or dictate it) → draft lines to review and add. */
 export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: Element[]; onAdded: (items: JobItem[]) => void }) {
   const [text, setText] = useState('');
@@ -161,10 +147,8 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
   const [notes, setNotes] = useState<string[]>([]);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const rec = useRef<SpeechRecognitionLike | null>(null);
-  const Speech = speechRecognition();
+  const mic = useDictation((said) => setText((t) => appendText(t, said)));
 
   const byId = new Map(elements.map((e) => [e.id, e]));
 
@@ -195,28 +179,6 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
       setError(errorMessage(e));
       setBusy(false);
     }
-  };
-
-  const toggleMic = () => {
-    if (!Speech) return;
-    if (listening) {
-      rec.current?.stop();
-      return;
-    }
-    const r = new Speech();
-    r.lang = 'he-IL';
-    r.interimResults = false;
-    r.continuous = true;
-    r.onresult = (e) => {
-      const said = Array.from(e.results)
-        .map((res) => res[0]?.transcript ?? '')
-        .join(' ');
-      setText((t) => `${t}${t && !t.endsWith(' ') ? ' ' : ''}${said}`.trim());
-    };
-    r.onend = () => setListening(false);
-    rec.current = r;
-    setListening(true);
-    r.start();
   };
 
   if (drafts && drafts.length > 0) {
@@ -302,16 +264,16 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
           placeholder="שער כנף כפולה, פתח 4 מטר, גובה מטר שבעים וחמש. עמודים 80 על 80, מסגרת 60 על 40, מילוי 40 על 20 כל 12 סנטימטר. 4 צירים, בריח ומנעול. צביעה בתנור והתקנה."
         />
       </label>
-      {Speech && (
+      {mic.supported && (
         <button
           type="button"
-          onClick={toggleMic}
+          onClick={mic.toggle}
           className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border font-semibold ${
-            listening ? 'border-primer bg-primer text-soapstone' : 'border-steel-500'
+            mic.listening ? 'border-primer bg-primer text-soapstone' : 'border-steel-500'
           }`}
         >
           <Icon name="mic" size={20} />
-          {listening ? 'מקשיב... לחץ לסיום' : 'הכתבה'}
+          {mic.listening ? 'מקשיב... לחץ לסיום' : 'הכתבה'}
         </button>
       )}
       <p className="text-sm text-steel-500">הטקסט והמחירון נשלחים לשירות של Google. בלי שמות וטלפונים של לקוחות.</p>

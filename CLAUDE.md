@@ -21,8 +21,10 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
 - Never commit secrets, real client data or real price lists – the repo may be public.
 
 ## 3D
-- The AI writes layout JSON only (`src/core/scene.ts`); the viewer (`prototype/3d/viewer.js`), cut list and shop
-  drawing (`src/core/drawing.ts`) are deterministic code. `npm run build:3d` inlines `src/core` into the page.
+- The AI writes layout JSON only (`src/core/scene.ts`); the viewer (`src/viewer3d/viewer.js`, plain JS shared with the
+  prototype, types in `viewer.d.ts`), cut list and shop drawing (`src/core/drawing.ts`) are deterministic code.
+  AI instructions: `src/core/layoutPrompt.ts`. `npm run build:3d` inlines `src/core` and the viewer into the prototype.
+- three.js is loaded lazily (job tab, client quote page); keep it out of the main bundle.
 - Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).
 
 ## Commands

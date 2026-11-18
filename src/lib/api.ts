@@ -5,9 +5,12 @@ import type { Material, Photo, Template } from '../core/types.ts';
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** Extra detail some errors carry (e.g. what is wrong with a 3D layout) */
+  details: string[];
+  constructor(status: number, message: string, details: string[] = []) {
     super(message);
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -23,8 +26,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isJson = res.headers.get('content-type')?.includes('application/json') ?? false;
   if (!isJson) throw new ApiError(res.status || 502, 'bad_response');
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    const error = new ApiError(res.status, body.error ?? res.statusText);
+    const body = (await res.json().catch(() => ({}))) as { error?: string; details?: unknown };
+    const details = Array.isArray(body.details) ? body.details.filter((d): d is string => typeof d === 'string') : [];
+    const error = new ApiError(res.status, body.error ?? res.statusText, details);
     if (res.status === 401 && error.message === 'unauthorized') {
       window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
     }
@@ -86,7 +90,8 @@ export const api = {
   catalogStatus: () => request<{ total: number; missing: number }>('/catalog/status'),
   importCatalog: () => request<{ linked: number; added: number }>('/catalog/import', { method: 'POST' }),
   quotes: (jobId: number) => request<QuoteSummary[]>(`/jobs/${jobId}/quotes`),
-  createQuote: (jobId: number) => request<QuoteSummary>(`/jobs/${jobId}/quotes`, { method: 'POST' }),
+  createQuote: (jobId: number, includeModel = true) =>
+    request<QuoteSummary>(`/jobs/${jobId}/quotes`, { method: 'POST', body: JSON.stringify({ include_model: includeModel }) }),
   publicQuote: (token: string) => request<PublicQuote>(`/public/quotes/${encodeURIComponent(token)}`),
   approveQuote: (token: string, name: string) =>
     request<{ ok: true; approved_at: string; approved_name: string }>(
@@ -129,6 +134,14 @@ export const api = {
   applyTemplate: (jobId: number, templateId: number) =>
     request<JobItem[]>(`/jobs/${jobId}/apply-template`, { method: 'POST', body: JSON.stringify({ template_id: templateId }) }),
 
+  model: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model`),
+  saveModel: (jobId: number, layout: unknown, opts: { source?: 'paste' | 'demo'; request?: string; mode?: 'new' | 'edit' } = {}) =>
+    request<JobModel>(`/jobs/${jobId}/model`, { method: 'POST', body: JSON.stringify({ layout, ...opts }) }),
+  undoModel: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model/undo`, { method: 'POST' }),
+  aiModel: (jobId: number, body: { request: string; mode: 'new' | 'edit'; image?: { mime: string; data: string } | null }, signal?: AbortSignal) =>
+    request<JobModel>(`/jobs/${jobId}/model/ai`, { method: 'POST', body: JSON.stringify(body), signal }),
+  modelToBoq: (jobId: number) => request<{ lines: number; unpriced: number }>(`/jobs/${jobId}/model/boq`, { method: 'POST' }),
+
   aiLines: (jobId: number, text: string) =>
     request<{ lines: ItemDraft[]; notes: string[] }>('/ai/lines', { method: 'POST', body: JSON.stringify({ job_id: jobId, text }) }),
 };
@@ -137,6 +150,21 @@ export const photoUrl = (id: number) => `/api/photos/${id}`;
 export const receiptUrl = (expenseId: number) => `/api/expenses/${expenseId}/receipt`;
 export const icsUrl = (jobId: number) => `/api/jobs/${jobId}/calendar.ics`;
 export const exportUrl = (month: string) => `/api/export?month=${month}`;
+
+export interface ModelVersion {
+  id: number;
+  request: string | null;
+  mode: 'new' | 'edit';
+  source: 'ai' | 'paste' | 'demo';
+  created_at: string;
+}
+
+/** The job's 3D layout (src/core/scene.ts) and its versions, newest first */
+export interface JobModel {
+  layout: unknown;
+  history: ModelVersion[];
+  warnings?: string[];
+}
 
 export interface Features {
   photos: boolean;
@@ -238,9 +266,18 @@ export function errorMessage(err: unknown): string {
       case 'invalid date':
         return 'התאריך לא תקין.';
       case 'ai_not_configured':
-        return 'הטיוטה האוטומטית עוד לא הופעלה (חסר מפתח Gemini).';
+        return 'הבינה המלאכותית עוד לא הופעלה בשרת (חסר מפתח Gemini).';
       case 'ai_busy':
         return 'השירות עמוס כרגע. נסה שוב בעוד דקה.';
+      case 'ai_empty':
+      case 'ai_bad_output':
+        return 'לא התקבלה תשובה שימושית. נסה שוב או נסח אחרת.';
+      case 'ai_bad_layout':
+        return 'המודל שהתקבל לא תקין. נסה לנסח אחרת או לפרט מידות.';
+      case 'invalid_layout':
+        return `הפריסה לא תקינה${err.details.length ? `: ${err.details.slice(0, 3).join(', ')}` : ''}.`;
+      case 'no_model':
+        return 'עוד אין הדמיה לעבודה הזו.';
       case 'text_too_short':
         return 'כתוב קצת יותר על העבודה.';
       case 'by_kg_needs_weight':

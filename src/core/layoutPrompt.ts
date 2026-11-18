@@ -1,4 +1,9 @@
-You turn a metalwork job (gate, fence, railing, pergola, stairs, pipe work) into a 3D layout that a viewer draws.
+/**
+ * Instructions that turn a description (+ bill of quantities, photo or sketch) into layout JSON
+ * (see scene.ts), and the prompt around them. Shared by the app (Gemini) and the prototype (Claude).
+ */
+
+export const LAYOUT_INSTRUCTIONS = `You turn a metalwork job (gate, fence, railing, pergola, stairs, pipe work) into a 3D layout that a viewer draws.
 The input is a description, usually in Hebrew and often dictated, and sometimes a bill of quantities.
 Reply with ONE JSON object and nothing else: no prose, no code fences.
 
@@ -60,4 +65,77 @@ TOP LEVEL
 
 CHANGES
 If you get a current layout and a request, apply the request and return the COMPLETE updated layout under the same
-rules, keeping everything else as it was. Recompute whatever depends on the change (positions, lengths, repeats, trims).
+rules, keeping everything else as it was. Recompute whatever depends on the change (positions, lengths, repeats, trims).`;
+
+export interface PromptBoqLine {
+  description: string;
+  element_name?: string | null;
+  quantity: number;
+  unit: string;
+  pieces?: number | null;
+  length_mm?: number | null;
+}
+
+export interface LayoutPromptInput {
+  job?: { title: string; kind?: string; description?: string | null };
+  boq?: PromptBoqLine[];
+  /** The model as it is now (to change it), or nothing (to start one) */
+  current?: unknown;
+  /** Changes already applied, oldest first */
+  requests?: string[];
+  /** What the user asked now (Hebrew) */
+  request: string;
+  hasImage?: boolean;
+}
+
+function boqLine(l: PromptBoqLine): string {
+  const what = l.element_name && l.element_name !== l.description ? `${l.description} [${l.element_name}]` : l.description;
+  if (l.pieces && l.length_mm) return `- ${what}: ${l.pieces} pieces of ${l.length_mm} mm`;
+  return `- ${what}: ${l.quantity} ${l.unit}`;
+}
+
+/** The whole prompt: instructions, job, bill of quantities, current layout, the request. Never client details. */
+export function buildLayoutPrompt(input: LayoutPromptInput): string {
+  const parts = [LAYOUT_INSTRUCTIONS];
+  if (input.job) {
+    parts.push(
+      [`JOB: ${input.job.title}`, input.job.kind ? `Type: ${input.job.kind}` : '', input.job.description ? `Notes: ${input.job.description}` : '']
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+  if (input.boq && input.boq.length > 0) {
+    parts.push(`BILL OF QUANTITIES (use these profiles and sizes):\n${input.boq.slice(0, 80).map(boqLine).join('\n')}`);
+  }
+  if (input.current) {
+    parts.push(`CURRENT LAYOUT:\n${JSON.stringify(input.current)}`);
+    const reqs = (input.requests ?? []).slice(-10);
+    if (reqs.length > 0) parts.push(`Changes already applied, oldest first:\n${reqs.map((r) => `- ${r}`).join('\n')}`);
+    parts.push(`REQUEST (Hebrew):\n${input.request}`);
+  } else {
+    parts.push(`DESCRIPTION (Hebrew):\n${input.request}`);
+  }
+  if (input.hasImage) {
+    parts.push('An image is attached: a photo or a hand sketch of the work. Follow its design and proportions; measurements in the text win.');
+  }
+  parts.push('Reply with the complete layout as ONE JSON object, nothing else.');
+  return parts.join('\n\n');
+}
+
+/** Requests that built the current design, oldest first: newest version back to the one that started it. */
+export function designRequests(history: { request: string | null; mode: 'new' | 'edit' }[]): string[] {
+  const out: string[] = [];
+  for (const v of history) {
+    if (v.request) out.unshift(v.request);
+    if (v.mode === 'new') break;
+  }
+  return out;
+}
+
+/** Pulls the JSON object out of a model reply (code fences or a sentence around it are tolerated). */
+export function parseLayoutReply(text: string): unknown {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end <= start) throw new Error('no_json');
+  return JSON.parse(text.slice(start, end + 1));
+}

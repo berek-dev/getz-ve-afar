@@ -35,9 +35,61 @@ export type IconName =
   | 'download'
   | 'clock'
   | 'phone'
-  | 'navigate';
+  | 'navigate'
+  | 'cube'
+  | 'share'
+  | 'undo'
+  | 'expand'
+  | 'shrink'
+  | 'ruler'
+  | 'facade'
+  | 'rotate'
+  | 'ground';
 
 const PATHS: Record<IconName, ReactNode> = {
+  cube: (
+    <>
+      <path d="M12 2 3 7v10l9 5 9-5V7z" />
+      <path d="m3 7 9 5 9-5M12 12v10" />
+    </>
+  ),
+  share: (
+    <>
+      <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" />
+      <path d="m16 6-4-4-4 4M12 2v13" />
+    </>
+  ),
+  undo: (
+    <>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h11a5 5 0 0 1 0 10h-3" />
+    </>
+  ),
+  expand: <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />,
+  shrink: <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />,
+  // Dimension line with ticks
+  ruler: <path d="M3 7h18M3 4v6M21 4v6M7 17h10M7 14v6M17 14v6" />,
+  // Straight-on view of a gate
+  facade: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="1" />
+      <path d="M8 4v16M12 4v16M16 4v16" />
+    </>
+  ),
+  rotate: (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+    </>
+  ),
+  // Post going into the ground
+  ground: (
+    <>
+      <path d="M2 12h20" />
+      <path d="M7 12v7h4v-7M15 12v7" />
+      <path d="m5 4 3 3M12 3v4M19 4l-3 3" />
+    </>
+  ),
   jobs: (
     <>
       <rect x="8" y="2" width="8" height="4" rx="1" />

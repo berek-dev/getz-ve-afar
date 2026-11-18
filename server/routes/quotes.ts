@@ -56,6 +56,14 @@ export function registerQuotes(app: App): void {
     if (!settings) return c.json({ error: 'server_error' }, 500);
 
     const snapshot = buildQuoteSnapshot(job, lines, settings);
+    const body = await c.req.json<{ include_model?: unknown }>().catch(() => ({ include_model: undefined }));
+    if (body.include_model !== false) {
+      const model = await db
+        .prepare('SELECT layout_json FROM job_models WHERE job_id = ? ORDER BY id DESC LIMIT 1')
+        .bind(jobId)
+        .first<{ layout_json: string }>();
+      if (model) snapshot.model = JSON.parse(model.layout_json);
+    }
     const validDays = Math.max(1, Math.min(365, settings.quote_valid_days ?? 14));
     const token = newToken();
 

@@ -30,6 +30,8 @@ export function QuoteSection({
   const [quotes, setQuotes] = useState<QuoteSummary[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasModel = (job.model_versions ?? 0) > 0;
+  const [withModel, setWithModel] = useState(true);
 
   useEffect(() => {
     api
@@ -42,7 +44,7 @@ export function QuoteSection({
     setBusy(true);
     setError(null);
     try {
-      const q = await api.createQuote(job.id);
+      const q = await api.createQuote(job.id, hasModel && withModel);
       setQuotes((prev) => [q, ...(prev ?? []).map((p) => (p.status === 'sent' ? { ...p, status: 'expired' as const } : p))]);
       toast('ההצעה מוכנה לשליחה');
       onJobStatusMaybeChanged();
@@ -59,6 +61,16 @@ export function QuoteSection({
   const message = `שלום${job.client_name ? ` ${job.client_name}` : ''}, זו הצעת המחיר של ${businessName} עבור "${job.title}". אפשר לעבור עליה ולאשר כאן:\n${url}`;
   const outdated = latest && latest.total != null && Math.abs(latest.total - currentTotal) > 0.5;
 
+  const modelToggle = hasModel && (!latest || latest.status !== 'approved') && (
+    <label className="mt-3 flex min-h-11 items-center gap-3">
+      <input type="checkbox" className="h-6 w-6 accent-hivis" checked={withModel} onChange={(e) => setWithModel(e.target.checked)} />
+      <span>
+        לצרף את ההדמיה בתלת־ממד
+        <span className="block text-sm text-steel-300">הלקוח יוכל לסובב את המודל ולפתוח את השער.</span>
+      </span>
+    </label>
+  );
+
   return (
     <section className="mt-8" aria-labelledby="quote-title">
       <h2 id="quote-title" className="font-display text-[2.2rem] leading-none">
@@ -73,6 +85,7 @@ export function QuoteSection({
             הלקוח מקבל לינק עם מה שכלול בעבודה והמחיר הסופי, בלי העלויות שלך. הוא יכול לאשר בלחיצה, וזה מסמן את העבודה
             כמאושרת.
           </p>
+          {modelToggle}
           <button type="button" onClick={create} disabled={busy || job.items.length === 0} className="btn-primary mt-4">
             <Icon name="link" />
             {busy ? 'מכין...' : 'הכן הצעה לשליחה'}
@@ -138,6 +151,7 @@ export function QuoteSection({
             </div>
           )}
 
+          {modelToggle}
           {latest.status !== 'approved' && (
             <button
               type="button"

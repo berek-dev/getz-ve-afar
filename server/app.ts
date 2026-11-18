@@ -13,6 +13,7 @@ import { registerMoney } from './routes/money.ts';
 import { deleteJobPhotos, registerPhotos } from './routes/photos.ts';
 import { registerTemplates, templateLines } from './routes/templates.ts';
 import { registerAi } from './routes/ai.ts';
+import { registerModel } from './routes/model.ts';
 import { ITEM_SELECT, insertItems, touchJob } from './sql.ts';
 import {
   SESSION_COOKIE,
@@ -195,7 +196,9 @@ app.get('/jobs/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isInteger(id)) return c.json({ error: 'bad id' }, 400);
   const job = await c.env.DB.prepare(
-    `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id WHERE j.id = ?`,
+    `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone,
+            (SELECT COUNT(*) FROM job_models m WHERE m.job_id = j.id) AS model_versions
+       FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id WHERE j.id = ?`,
   )
     .bind(id)
     .first();
@@ -386,3 +389,4 @@ registerMoney(app);
 registerPhotos(app);
 registerTemplates(app);
 registerAi(app);
+registerModel(app);

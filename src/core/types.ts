@@ -155,6 +155,8 @@ export interface Job {
   scheduled_hours: number | null;
   created_at: string;
   updated_at: string;
+  /** Saved 3D layout versions (job detail only) */
+  model_versions?: number;
 }
 
 export interface QuoteSummary {

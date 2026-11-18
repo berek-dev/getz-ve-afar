@@ -81,10 +81,11 @@ D1 keeps 7 days of point-in-time history on its own. For longer backups, make th
 (`.github/workflows/backup.yml`) only runs in a private repo, because backup files contain client data.
 It uses the same two Cloudflare secrets and keeps each Sunday's export for 90 days.
 
-### 8. Optional: draft lines from a description (Gemini, free)
+### 8. Optional: AI from a description (Gemini, free)
 
-The job screen can turn a dictated description ("double gate, 4 m opening, 80/80 posts...") into draft lines
-for review. It stays hidden until a key is set:
+With a key, the job screen turns a dictated description ("double gate, 4 m opening, 80/80 posts...") into draft
+BOQ lines for review, and the 3D tab builds and changes the model from text (and a photo or sketch). Without a key,
+the BOQ draft is hidden and the 3D tab works by copy and paste through your own Claude or Gemini chat. To turn it on:
 
 1. Open [aistudio.google.com](https://aistudio.google.com) with a Google account → **Get API key** → **Create API key**.
    No card is needed on the free tier.
@@ -92,8 +93,9 @@ for review. It stays hidden until a key is set:
    **Add** → type **Secret**, name `GEMINI_API_KEY`, paste the key → **Save**.
 3. The next deploy picks it up (any push, or re-run the last CI run).
 
-On the free tier Google may use the text to improve its models, so the app sends only the job text and the
-price list – never client names or phone numbers. `GEMINI_MODEL` (optional variable) overrides the model.
+On the free tier Google may use the text to improve its models, so the app sends only the job title and notes, the
+bill of quantities, the price list and the photo you attach – never client names or phone numbers.
+`GEMINI_MODEL` (optional variable) overrides the model.
 
 ### Manual setup from a computer (alternative)
 
@@ -144,10 +146,11 @@ scripts/        helpers (password hash)
 - ✅ Photos per job and receipt photos (compressed on the phone, Workers KV)
 - ✅ Payments and balances, expenses, monthly CSV for the accountant
 - ✅ Templates, draft lines from a description (Gemini, optional)
-- 🧪 3D visualization, phase 1 (prototype): see below
-- Next: 3D in the app and in the client's quote, offline mode, Android tablet + Bluetooth laser, earthworks pricing
+- ✅ 3D model per job: built and changed by talking to it, undo, check against the BOQ, lines from the model,
+  shop drawing to share, and the model in the client's quote
+- Next: offline mode, Android tablet + Bluetooth laser, earthworks pricing
 
-## 3D visualization (phase 1 prototype)
+## 3D visualization
 
 An AI turns a description (and optionally the bill of quantities, a photo or a sketch) into a **layout**: JSON data,
 not code. Everything else is drawn from that data by our own code, so it is consistent and can be corrected:
@@ -155,7 +158,13 @@ not code. Everything else is drawn from that data by our own code, so it is cons
 - `src/core/scene.ts`: the layout format (members on centre lines with catalog sections, arcs, repeats, trims,
   plates, hardware, surroundings, swing/slide groups), validation, cut list with piece marks.
 - `src/core/drawing.ts`: A3 shop drawing (front view, dimensions, marks, cut list).
-- `docs/3d/layout-instructions.md`: the instructions for the AI (paste into a Gemini Gem or Claude Project).
-- `prototype/3d/`: a three.js viewer page with four gate examples from DIY builds. `npm run build:3d` writes it to
+- `src/core/layoutPrompt.ts`: the instructions for the AI and the prompt around them (job, BOQ, current layout,
+  earlier changes). `src/core/modelBoq.ts`: model against the BOQ, and BOQ lines from the model.
+- `src/viewer3d/viewer.js`: the three.js viewer, shared by the app and the prototype page.
+- In the app, the job's **הדמיה** tab (`src/components/ModelSection.tsx`): every change is a saved version
+  (`job_models`, last 30), so undo is one tap. `server/routes/model.ts` sends the prompt to Gemini, checks the reply
+  with `prepareScene` and gives the errors back to the model once if it is invalid. A quote carries the newest model
+  unless the box is cleared, and the client's page shows it (three.js loads only there and in the tab).
+- `prototype/3d/`: a standalone page with four gate examples from DIY builds. `npm run build:3d` writes it to
   `public/3d/index.html`; it is served at `/3d/` and also published as a Claude artifact, where its chat asks Claude
   to build and edit the model (the chat only works inside Claude).

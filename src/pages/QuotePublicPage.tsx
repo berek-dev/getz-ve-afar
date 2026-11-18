@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, api } from '../lib/api.ts';
 import type { PublicQuote } from '../lib/api.ts';
 import { formatIls } from '../core/money.ts';
 import { fmtDate, fmtNum } from '../lib/format.ts';
 import { Icon } from '../components/Icon.tsx';
+
+const ClientModel = lazy(() => import('../components/ClientModel.tsx'));
 
 /** The page the client opens from WhatsApp. Public: no login. Prints as a clean document. */
 export function QuotePublicPage({ token }: { token: string }) {
@@ -70,6 +72,12 @@ export function QuotePublicPage({ token }: { token: string }) {
               <h2 className="text-xl font-semibold">{q.job.title}</h2>
               {q.job.description && <p className="mt-2 whitespace-pre-line leading-relaxed text-steel-300">{q.job.description}</p>}
             </section>
+
+            {q.model != null && (
+              <Suspense fallback={null}>
+                <ClientModel layout={q.model} />
+              </Suspense>
+            )}
 
             <section className="mt-6" aria-labelledby="scope-title">
               <h2 id="scope-title" className="text-lg font-semibold">

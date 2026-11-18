@@ -22,6 +22,8 @@ export interface QuoteSnapshot {
   totals: { beforeVat: number; vat: number; total: number; vatPct: number };
   terms: string | null;
   validDays: number;
+  /** 3D layout of the work (src/core/scene.ts), when the quote was sent with it */
+  model?: unknown;
 }
 
 export interface QuoteJobInput {

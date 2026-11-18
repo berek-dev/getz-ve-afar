@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "title": "שער כנף כפולה 4 מ׳ (דוגמה)",
+  "material": "black",
+  "finish": { "color": "#3b4045", "name": "צביעה בתנור, אפור גרפיט" },
+  "members": [
+    { "id": "post-l", "label": "עמוד", "profile": "rect_tube", "size": [80, 80, 3], "from": [-40, -500, 0], "to": [-40, 1800, 0], "end_cap": "cap" },
+    { "id": "post-r", "label": "עמוד", "profile": "rect_tube", "size": [80, 80, 3], "from": [4040, -500, 0], "to": [4040, 1800, 0], "end_cap": "cap" },
+
+    { "id": "l-hinge-stile", "label": "מסגרת, אנכי", "group": "leaf-l", "profile": "rect_tube", "size": [60, 40, 2], "roll": 90, "from": [65, 50, 0], "to": [65, 1800, 0] },
+    { "id": "l-latch-stile", "label": "מסגרת, אנכי", "group": "leaf-l", "profile": "rect_tube", "size": [60, 40, 2], "roll": 90, "from": [1965, 50, 0], "to": [1965, 1800, 0] },
+    { "id": "l-bottom", "label": "מסגרת, אופקי", "group": "leaf-l", "profile": "rect_tube", "size": [60, 40, 2], "roll": 90, "from": [85, 70, 0], "to": [1945, 70, 0] },
+    { "id": "l-top", "label": "מסגרת, אופקי", "group": "leaf-l", "profile": "rect_tube", "size": [60, 40, 2], "roll": 90, "from": [85, 1780, 0], "to": [1945, 1780, 0] },
+    { "id": "l-infill", "label": "מילוי אנכי", "group": "leaf-l", "profile": "rect_tube", "size": [40, 20, 1.5], "from": [0, 90, 0], "to": [0, 1760, 0], "repeat": { "count": 15, "between": [85, 1945], "axis": "x" } },
+
+    { "id": "r-latch-stile", "label": "מסגרת, אנכי", "group": "leaf-r", "profile": "rect_tube", "size": [60, 40, 2], "roll": 90, "from": [2035, 50, 0], "to": [2035, 1800, 0] },
+    { "id": "r-hinge-stile", "label": "מסגרת, אנכי", "group": "leaf-r", "profile": "rect_tube", "size": [60, 40, 2], "roll": 90, "from": [3935, 50, 0], "to": [3935, 1800, 0] },
+    { "id": "r-bottom", "label": "מסגרת, אופקי", "group": "leaf-r", "profile": "rect_tube", "size": [60, 40, 2], "roll": 90, "from": [2055, 70, 0], "to": [3915, 70, 0] },
+    { "id": "r-top", "label": "מסגרת, אופקי", "group": "leaf-r", "profile": "rect_tube", "size": [60, 40, 2], "roll": 90, "from": [2055, 1780, 0], "to": [3915, 1780, 0] },
+    { "id": "r-infill", "label": "מילוי אנכי", "group": "leaf-r", "profile": "rect_tube", "size": [40, 20, 1.5], "from": [0, 90, 0], "to": [0, 1760, 0], "repeat": { "count": 15, "between": [2055, 3915], "axis": "x" } }
+  ],
+  "parts": [
+    { "kind": "hinge", "label": "ציר כבד", "at": [22.5, 250, 0], "group": "leaf-l", "repeat": { "count": 2, "step": [0, 1300, 0] } },
+    { "kind": "hinge", "label": "ציר כבד", "at": [3977.5, 250, 0], "group": "leaf-r", "repeat": { "count": 2, "step": [0, 1300, 0] } },
+    { "kind": "lock", "label": "מנעול + ידית", "at": [1965, 1000, -50], "group": "leaf-l" },
+    { "kind": "drop_bolt", "at": [2075, 300, -40], "group": "leaf-r" },
+    { "kind": "footing", "at": [-40, -300, 0], "size": [350, 600, 350] },
+    { "kind": "footing", "at": [4040, -300, 0], "size": [350, 600, 350] }
+  ],
+  "solids": [
+    { "kind": "plaster", "label": "קיר קיים", "center": [-1080, 800, 0], "size": [2000, 1600, 200] },
+    { "kind": "plaster", "label": "קיר קיים", "center": [5080, 800, 0], "size": [2000, 1600, 200] },
+    { "kind": "paving", "label": "חניה", "center": [2000, -25, 0], "size": [4000, 50, 6000] }
+  ],
+  "groups": [
+    { "id": "leaf-l", "label": "כנף שמאל", "motion": { "type": "swing", "pivot": [22.5, 0, 0], "angle": 90 } },
+    { "id": "leaf-r", "label": "כנף ימין", "motion": { "type": "swing", "pivot": [3977.5, 0, 0], "angle": -90 } }
+  ],
+  "notes": [
+    "לפי כתב הכמויות של העבודה: עמודים 80/80/3, מסגרת 60/40/2, מילוי 40/20/1.5",
+    "פתח 4 מ׳ בין העמודים, גובה 1.80 מ׳, 5 ס״מ מעל הריצוף",
+    "העמודים נכנסים 50 ס״מ ליסוד בטון"
+  ]
+}

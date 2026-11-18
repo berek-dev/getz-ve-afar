@@ -2,7 +2,7 @@
  * Builds the standalone 3D prototype page into public/3d/index.html (served at /3d/ with the app,
  * and published as a Claude artifact where the AI chat works).
  * The pure core modules (src/core) are type-stripped and inlined, so the page draws from the exact same
- * layout, cut-list and drawing code the app will use. Run: node scripts/build-3d-prototype.ts
+ * layout, cut-list, drawing and viewer code as the app. Run: node scripts/build-3d-prototype.ts
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
@@ -10,7 +10,7 @@ import { stripTypeScriptTypes } from 'node:module';
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
 // Core modules in dependency order; each becomes an IIFE returning its exports.
-const MODULES = ['steel', 'sections', 'catalog', 'scene', 'drawing'];
+const MODULES = ['steel', 'sections', 'catalog', 'scene', 'drawing', 'layoutPrompt'];
 let core = '';
 for (const name of MODULES) {
   let js = stripTypeScriptTypes(read(`src/core/${name}.ts`));
@@ -63,8 +63,10 @@ const put = (marker: string, value: string) => {
 const safe = (s: string) => s.replace(/<\/script/gi, '<\\/script');
 put('/*@@CORE@@*/', safe(core));
 put('/*@@EXAMPLES@@*/', safe(JSON.stringify(examples)));
-put('/*@@INSTRUCTIONS@@*/', safe(JSON.stringify(read('docs/3d/layout-instructions.md'))));
-put('/*@@VIEWER@@*/', safe(read('prototype/3d/viewer.js')));
+// The shared viewer (its `export` dropped) followed by the page UI, in one module script
+const viewer = read('src/viewer3d/viewer.js').replace(/^export function createViewer/m, 'function createViewer');
+if (/^export\s/m.test(viewer)) throw new Error('viewer.js: unhandled export');
+put('/*@@VIEWER@@*/', safe(`${viewer}\n${read('prototype/3d/app.js')}`));
 for (const [k, svg] of Object.entries(ICONS)) put(`@@ICON_${k}@@`, svg);
 
 mkdirSync(new URL('../public/3d/', import.meta.url), { recursive: true });
