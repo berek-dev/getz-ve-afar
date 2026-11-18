@@ -87,11 +87,13 @@ With a key, the job screen turns a dictated description ("double gate, 4 m openi
 BOQ lines for review, and the 3D tab builds and changes the model from text (and a photo or sketch). Without a key,
 the BOQ draft is hidden and the 3D tab works by copy and paste through your own Claude or Gemini chat. To turn it on:
 
-1. Open [aistudio.google.com](https://aistudio.google.com) with a Google account → **Get API key** → **Create API key**.
+1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey) with a Google account → **Create API key**.
    No card is needed on the free tier.
-2. Cloudflare dashboard → **Workers & Pages** → **getz-ve-afar** → **Settings** → **Variables and Secrets** →
-   **Add** → type **Secret**, name `GEMINI_API_KEY`, paste the key → **Save**.
-3. The next deploy picks it up (any push, or re-run the last CI run).
+2. GitHub → this repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**,
+   name `GEMINI_API_KEY`, paste the key → **Add secret**. (Or set it directly as a Secret in the Cloudflare Pages
+   project's **Variables and Secrets**.)
+3. The next deploy copies it to Cloudflare and turns the AI on: any push, or **Actions** → **CI** → the last run →
+   **Re-run all jobs**.
 
 On the free tier Google may use the text to improve its models, so the app sends only the job title and notes, the
 bill of quantities, the price list and the photo you attach – never client names or phone numbers.

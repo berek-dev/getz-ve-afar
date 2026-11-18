@@ -77,6 +77,18 @@ jobs:
           fi
           echo "Photo storage ready ($ID)"
       - if: steps.ready.outputs.ok == 'true'
+        name: Gemini key (optional)
+        # The GEMINI_API_KEY repository secret is copied to the Pages project, so the key is kept in one place.
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "No GEMINI_API_KEY repository secret – AI features stay off."
+            exit 0
+          fi
+          printf '%s' "$GEMINI_API_KEY" | npx wrangler pages secret put GEMINI_API_KEY --project-name getz-ve-afar
+      - if: steps.ready.outputs.ok == 'true'
         name: Build and deploy
         run: |
           npm run build
