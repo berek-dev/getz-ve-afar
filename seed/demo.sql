@@ -32,7 +32,7 @@ INSERT INTO elements (id, category, name, unit, unit_cost, weight_kg_per_unit, s
   (9009, 'other',    'מתכלים: חוט ריתוך, דיסקים, גז', 'unit', 120, NULL, NULL, 9002),
   (9010, 'labor',    'שעת עבודה',                 'hour', 180,  NULL, NULL, NULL),
   (9011, 'other',    'הובלה',                     'unit', 250,  NULL, NULL, NULL),
-  (9012, 'weld',     'ריתוך תפר צנרת 8" (לפי אינץ׳-קוטר)', 'joint', 480, NULL, NULL, NULL),
+  (9012, 'weld',     'תפר ריתוך צנרת 8 צול', 'joint', 480, NULL, NULL, NULL),
   (9013, 'equipment','רתכת נגררת + גנרטור – יום',  'day',  400,  NULL, NULL, NULL);
 
 INSERT INTO clients (id, name, phone, address, notes) VALUES
@@ -61,11 +61,11 @@ INSERT INTO job_items (job_id, element_id, group_name, description, quantity, un
 
 -- Job 2: pipe welding – priced completely differently (per joint and per equipment day)
 INSERT INTO jobs (id, client_id, title, kind, status, description) VALUES
-  (9002, 9002, 'תיקון קו מים 8" – החלפת קטע (דוגמה)', 'pipe', 'lead',
-   'החלפת קטע של 12 מ׳ בקו מים 8" פלדה. 6 תפרי ריתוך בשטח, יום רתכת נגררת.');
+  (9002, 9002, 'תיקון קו מים 8 צול – החלפת קטע (דוגמה)', 'pipe', 'lead',
+   'החלפת קטע של 12 מ׳ בקו מים 8 צול פלדה. 6 תפרי ריתוך בשטח, יום רתכת נגררת.');
 
 INSERT INTO job_items (job_id, element_id, group_name, description, quantity, unit, unit_cost, length_mm, pieces, source, sort_order) VALUES
-  (9002, 9012, 'ריתוך',  'תפר 8" (8 אינץ׳-קוטר × 60 ₪)',  6, 'joint', 480, NULL, NULL, 'manual', 10),
+  (9002, 9012, 'ריתוך',  'תפר 8 צול (8 אינץ׳-קוטר × 60 ₪)',  6, 'joint', 480, NULL, NULL, 'manual', 10),
   (9002, 9013, 'ציוד',   'רתכת נגררת + גנרטור',          1, 'day',   400, NULL, NULL, 'manual', 20),
   (9002, 9009, 'מתכלים', 'אלקטרודות, דיסקים',            1, 'unit',  120, NULL, NULL, 'manual', 30),
   (9002, 9011, 'הגעה',   'הגעה לאתר',                    1, 'unit',  250, NULL, NULL, 'manual', 40);
