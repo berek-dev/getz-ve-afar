@@ -516,7 +516,7 @@ function PriceRow({ label, value }: { label: string; value: number }) {
 
 function quantityText(item: JobItem): string {
   if (isCutLine(item)) {
-    return `${item.pieces} × ${fmtNum(item.length_mm ?? 0)} מ״מ = ${fmtNum(item.quantity)} מ׳, ${formatIls(item.unit_cost)} למטר`;
+    return `${item.pieces} יח׳ באורך ${fmtNum(item.length_mm ?? 0)} מ״מ, סה״כ ${fmtNum(item.quantity)} מ׳, ${formatIls(item.unit_cost)} למטר`;
   }
   return `${fmtNum(item.quantity)} ${UNIT_LABELS[item.unit]}, ${formatIls(item.unit_cost)} ${UNIT_PER[item.unit]}`;
 }

@@ -209,7 +209,7 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
                     <span className="tnum block text-sm text-steel-300">
                       {d.group_name ? `${d.group_name}: ` : ''}
                       {d.pieces && d.length_mm
-                        ? `${d.pieces} × ${fmtNum(d.length_mm)} מ״מ`
+                        ? `${d.pieces} יח׳ באורך ${fmtNum(d.length_mm)} מ״מ`
                         : `${fmtNum(d.quantity)} ${UNIT_LABELS[d.unit]}`}
                       {d.unit_cost > 0 ? `, ${formatIls(d.unit_cost)} ${UNIT_PER[d.unit]}` : ''}
                     </span>

@@ -530,7 +530,9 @@ function BoqCheck({ job, cut, onItems }: { job: JobDetail; cut: CutList; onItems
         type="button"
         onClick={() => void add()}
         disabled={busy}
-        className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-hivis font-semibold text-hivis"
+        className={`mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border font-semibold ${
+          ownCut ? 'border-steel-500' : 'border-hivis text-hivis'
+        }`}
       >
         <Icon name="plus" size={20} />
         {busy ? 'מוסיף...' : fromModel ? `עדכן את "${MODEL_GROUP}" לפי המודל` : 'הוסף את המודל לכתב הכמויות'}

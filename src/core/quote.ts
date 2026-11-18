@@ -42,7 +42,7 @@ const num = (n: number) => new Intl.NumberFormat('he-IL', { maximumFractionDigit
 
 function lineDetail(line: QuoteLine): string | null {
   if (isLaborLine(line)) return null; // the client sees the work, not the hours
-  if (isCutLine(line)) return `${line.pieces} × ${num(line.length_mm ?? 0)} מ״מ`;
+  if (isCutLine(line)) return `${line.pieces} יח׳ באורך ${num(line.length_mm ?? 0)} מ״מ`;
   return `${num(line.quantity)} ${UNIT_LABELS[line.unit]}`;
 }
 

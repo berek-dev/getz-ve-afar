@@ -29,7 +29,7 @@ test('snapshot shows scope and price, hides costs and hours', () => {
     SETTINGS,
   );
   assert.deepEqual(s.scope, [
-    { group: 'כנפיים', lines: [{ text: 'מילוי 40×20', detail: '30 × 1,670 מ״מ' }] },
+    { group: 'כנפיים', lines: [{ text: 'מילוי 40×20', detail: '30 יח׳ באורך 1,670 מ״מ' }] },
     { group: 'פרזול', lines: [{ text: 'ציר כבד', detail: '4 יח׳' }] },
     { group: 'עבודה', lines: [{ text: 'התקנה בשטח', detail: null }] },
   ]);

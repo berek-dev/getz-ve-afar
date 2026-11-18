@@ -69,17 +69,15 @@ export function ModelView({
   }, [state, prepared, cut, designKey]);
 
   useEffect(() => {
-    const v = viewer.current;
-    if (v) {
-      v.resize();
-      v.frame('3d');
-    }
-    if (!full) return;
+    // Reframe once the layer has its new size (portrait full screen needs the camera further back)
+    const raf = requestAnimationFrame(() => viewer.current?.frame('3d'));
+    if (!full) return () => cancelAnimationFrame(raf);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFull(false);
     window.addEventListener('keydown', onKey);
     return () => {
+      cancelAnimationFrame(raf);
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };

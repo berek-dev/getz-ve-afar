@@ -412,6 +412,7 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
   controls.addEventListener('change', () => (needsRender = true));
   function frame(kind = '3d') {
     if (!current) return;
+    resize();
     const wb = C.workBounds(current.prepared.scene);
     const min = v3(wb.min);
     const max = v3(wb.max);
