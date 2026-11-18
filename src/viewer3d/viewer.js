@@ -410,9 +410,17 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
   // --- camera, rendering ----------------------------------------------------------------------------
   let needsRender = true;
   controls.addEventListener('change', () => (needsRender = true));
+  // While the user hasn't moved the camera since the last framing, keep the work fitted when the view
+  // changes size (full screen, rotating the phone). Touching the view hands the camera over.
+  let fitKind = null;
+  controls.addEventListener('start', () => (fitKind = null));
   function frame(kind = '3d') {
     if (!current) return;
-    resize();
+    fitKind = kind;
+    applySize();
+    fit(kind);
+  }
+  function fit(kind) {
     const wb = C.workBounds(current.prepared.scene);
     const min = v3(wb.min);
     const max = v3(wb.max);
@@ -436,10 +444,11 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
     sun.shadow.camera.updateProjectionMatrix();
     needsRender = true;
   }
-  function resize() {
+  /** Matches the canvas to the container; false while the container has no size (hidden, mid-layout) */
+  function applySize() {
     const w = container.clientWidth;
     const h = container.clientHeight;
-    if (!w || !h) return;
+    if (!w || !h) return false;
     renderer.setSize(w, h, false);
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
@@ -447,6 +456,10 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     needsRender = true;
+    return true;
+  }
+  function resize() {
+    if (applySize() && fitKind && current) fit(fitKind);
   }
   const ro = new ResizeObserver(resize);
   ro.observe(container);
