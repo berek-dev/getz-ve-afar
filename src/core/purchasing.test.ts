@@ -14,8 +14,8 @@ function line(p: Partial<OrderItem>): OrderItem {
 }
 
 const items: OrderItem[] = [
-  line({ element_id: 2, element_name: '60×40×2', category: 'profile', description: 'אנכי', quantity: 7, unit: 'm', unit_cost: 22, length_mm: 1750, pieces: 4, stock_length_mm: 6000, ...iron }),
-  line({ element_id: 2, element_name: '60×40×2', category: 'profile', description: 'אופקי', quantity: 7.44, unit: 'm', unit_cost: 22, length_mm: 1860, pieces: 4, stock_length_mm: 6000, ...iron }),
+  line({ element_id: 2, element_name: '60/40/2', category: 'profile', description: 'אנכי', quantity: 7, unit: 'm', unit_cost: 22, length_mm: 1750, pieces: 4, stock_length_mm: 6000, ...iron }),
+  line({ element_id: 2, element_name: '60/40/2', category: 'profile', description: 'אופקי', quantity: 7.44, unit: 'm', unit_cost: 22, length_mm: 1860, pieces: 4, stock_length_mm: 6000, ...iron }),
   line({ element_id: 4, element_name: 'ציר כבד', category: 'hardware', description: 'ציר', quantity: 2, unit: 'unit', unit_cost: 45, ...shop }),
   line({ element_id: 4, element_name: 'ציר כבד', category: 'hardware', description: 'ציר נוסף', quantity: 2, unit: 'unit', unit_cost: 45, ...shop }),
   line({ element_id: 10, category: 'labor', description: 'ייצור', quantity: 14, unit: 'hour', unit_cost: 180 }),
@@ -32,7 +32,7 @@ test('orders group by supplier, profiles in whole bars, labor and own equipment 
     ['ברזל בע״מ', 'פרזול', null],
   );
   const [ironOrder, shopOrder, none] = orders;
-  assert.deepEqual(ironOrder.lines, [{ name: '60×40×2', qty: '3 מוטות של 6 מ׳', note: null }]);
+  assert.deepEqual(ironOrder.lines, [{ name: '60/40/2', qty: '3 מוטות של 6 מ׳', note: null }]);
   assert.equal(ironOrder.cost, 396); // 3 bars × 6 m × 22
   assert.deepEqual(shopOrder.lines, [{ name: 'ציר כבד', qty: '4 יח׳', note: null }]);
   assert.equal(shopOrder.cost, 180);
@@ -49,6 +49,6 @@ test('supplier message has the lines and no client details', () => {
   const { cutPlans } = computeJob(items, settings);
   const msg = orderMessage(buildOrders(items, cutPlans)[0], { businessName: 'גץ ועפר', jobTitle: 'שער' });
   assert.equal(msg.split('\n')[0], 'שלום ברזל בע״מ, הזמנה מגץ ועפר (עבור שער):');
-  assert.ok(msg.includes('• 60×40×2: 3 מוטות של 6 מ׳'));
+  assert.ok(msg.includes('• 60/40/2: 3 מוטות של 6 מ׳'));
   assert.equal(barsText(1, 6000), 'מוט אחד של 6 מ׳');
 });

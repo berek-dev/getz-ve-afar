@@ -338,7 +338,11 @@ export function JobDetailPage({ jobId, initialTab }: { jobId: number; initialTab
                           <span className="block font-semibold leading-snug">{item.description}</span>
                           <span className="tnum mt-0.5 block text-sm text-steel-300">{quantityText(item)}</span>
                         </span>
-                        <span className="tnum shrink-0 font-semibold">{formatIls(lineTotal(item))}</span>
+                        {item.unit_cost > 0 ? (
+                          <span className="tnum shrink-0 font-semibold">{formatIls(lineTotal(item))}</span>
+                        ) : (
+                          <span className="shrink-0 rounded-md border border-hivis px-2 py-0.5 text-sm font-semibold text-hivis">חסר מחיר</span>
+                        )}
                         <Icon name="forward" size={18} className="shrink-0 text-steel-500" />
                       </button>
                     </li>

@@ -16,6 +16,8 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   tests run directly with `node --test` (Node ≥ 22.18 type stripping), no test framework.
 - `src/core/` is pure and dependency-free (pricing, quantities, cut lists). Put business logic there, with tests.
 - UI strings are Hebrew; code, comments and docs (README, setup instructions) in English.
+- Write dimensions as `60/40/2`, never `60×40×2`: in right-to-left text `×`, `°`, `"` and `½` next to digits flip the
+  number's order. Inches are written `8 צול`, angles `90 מעלות`.
 - Never commit secrets, real client data or real price lists – the repo may be public.
 
 ## Commands

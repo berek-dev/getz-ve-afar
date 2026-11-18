@@ -1,7 +1,7 @@
 import type { Element, ElementCategory, Job, JobItem, JobKind, JobStatus, QuoteSummary, Settings, Supplier, Unit } from '../core/types.ts';
 import type { QuoteSnapshot } from '../core/quote.ts';
 import type { Expense, ExpenseCategory, Payment, PaymentMethod } from '../core/finance.ts';
-import type { Photo, Template } from '../core/types.ts';
+import type { Material, Photo, Template } from '../core/types.ts';
 
 export class ApiError extends Error {
   status: number;
@@ -51,6 +51,10 @@ export interface ElementDraft {
   weight_kg_per_unit: number | null;
   stock_length_mm: number | null;
   supplier_id: number | null;
+  family: string | null;
+  material: string | null;
+  size: string | null;
+  price_by_kg: boolean;
   /** Set to create a new supplier together with the element */
   supplier_name?: string;
   supplier_phone?: string;
@@ -76,6 +80,11 @@ export const api = {
     request<Element>(`/elements/${id}`, { method: 'PATCH', body: JSON.stringify(el) }),
   deleteElement: (id: number) => request<{ ok: true }>(`/elements/${id}`, { method: 'DELETE' }),
   suppliers: () => request<Supplier[]>('/suppliers'),
+  materials: () => request<Material[]>('/materials'),
+  setMaterialPrice: (key: string, price_per_kg: number) =>
+    request<{ material: Material; repriced: number }>(`/materials/${key}`, { method: 'PUT', body: JSON.stringify({ price_per_kg }) }),
+  catalogStatus: () => request<{ total: number; missing: number }>('/catalog/status'),
+  importCatalog: () => request<{ linked: number; added: number }>('/catalog/import', { method: 'POST' }),
   quotes: (jobId: number) => request<QuoteSummary[]>(`/jobs/${jobId}/quotes`),
   createQuote: (jobId: number) => request<QuoteSummary>(`/jobs/${jobId}/quotes`, { method: 'POST' }),
   publicQuote: (token: string) => request<PublicQuote>(`/public/quotes/${encodeURIComponent(token)}`),
@@ -234,6 +243,8 @@ export function errorMessage(err: unknown): string {
         return 'השירות עמוס כרגע. נסה שוב בעוד דקה.';
       case 'text_too_short':
         return 'כתוב קצת יותר על העבודה.';
+      case 'by_kg_needs_weight':
+        return 'למחיר לפי משקל צריך חומר ומשקל למטר.';
       case 'name is required':
         return 'צריך לתת שם.';
       case 'auth_not_configured':

@@ -2,6 +2,8 @@
 import { UNITS } from '../src/core/types.ts';
 import type { ElementCategory, Unit } from '../src/core/types.ts';
 import { normalizePhone } from '../src/core/phone.ts';
+import { MATERIAL_KEYS } from '../src/core/catalog.ts';
+import type { MaterialKey } from '../src/core/catalog.ts';
 
 export { normalizePhone, whatsappNumber } from '../src/core/phone.ts';
 
@@ -26,6 +28,10 @@ export interface ElementInput {
   weight_kg_per_unit: number | null;
   stock_length_mm: number | null;
   supplier_id: number | null;
+  family: string | null;
+  material: MaterialKey | null;
+  size: string | null;
+  price_by_kg: boolean;
 }
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -52,6 +58,11 @@ export function validateElement(body: Record<string, unknown>): Result<ElementIn
   if (stock === 'invalid') return { ok: false, error: 'invalid stock_length_mm' };
   const supplier = optNumber(body.supplier_id, { min: 1, integer: true });
   if (supplier === 'invalid') return { ok: false, error: 'invalid supplier_id' };
+  const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+  const material = body.material == null || body.material === '' ? null : (body.material as MaterialKey);
+  if (material !== null && !MATERIAL_KEYS.includes(material)) return { ok: false, error: 'invalid material' };
+  const byKg = body.price_by_kg === true || body.price_by_kg === 1;
+  if (byKg && (!material || !weight)) return { ok: false, error: 'by_kg_needs_weight' };
   return {
     ok: true,
     value: {
@@ -62,6 +73,10 @@ export function validateElement(body: Record<string, unknown>): Result<ElementIn
       weight_kg_per_unit: weight === 0 ? null : weight,
       stock_length_mm: stock,
       supplier_id: supplier,
+      family: text(body.family, 60),
+      material,
+      size: text(body.size, 40),
+      price_by_kg: byKg,
     },
   };
 }

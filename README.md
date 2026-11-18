@@ -136,6 +136,9 @@ scripts/        helpers (password hash)
 
 - ✅ Jobs, clients, stages, login, deployment
 - ✅ Price list with suppliers, bill of quantities, cut list from stock bars (priced by bars actually bought), weight
+- ✅ Built-in catalog (`src/core/catalog.ts`, ~500 items): profiles, bars, tubes, water pipes, beams and plate in black,
+  galvanized, stainless and aluminium, priced by one price per kg per material; fittings, hardware, consumables, finishing.
+  Add sizes there (keys must stay stable) and tap "add the catalog" in the price list to pick them up
 - ✅ Quotes: client page, WhatsApp, approval, print / PDF
 - ✅ Material orders per supplier (WhatsApp), job dates, calendar view, Google Calendar / .ics, Waze
 - ✅ Photos per job and receipt photos (compressed on the phone, Workers KV)

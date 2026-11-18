@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { ItemDraft } from '../lib/api.ts';
-import { ELEMENT_CATEGORY_LABELS, UNITS, UNIT_LABELS, UNIT_PER } from '../core/types.ts';
-import type { Element, ElementCategory, JobItem, Unit } from '../core/types.ts';
+import { UNITS, UNIT_LABELS, UNIT_PER } from '../core/types.ts';
+import type { Element, JobItem, Unit } from '../core/types.ts';
 import { formatIls } from '../core/money.ts';
 import { fmtNum } from '../lib/format.ts';
 import { Icon } from './Icon.tsx';
+import { ElementBrowser } from './ElementBrowser.tsx';
 
 const UNIT_NAMES: Record<Unit, string> = {
   m: 'מטר',
@@ -54,11 +55,9 @@ export function ItemForm({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const byCategory = useMemo(() => {
-    const map = new Map<ElementCategory, Element[]>();
-    for (const el of elements) map.set(el.category, [...(map.get(el.category) ?? []), el]);
-    return [...map.entries()];
-  }, [elements]);
+  const [picking, setPicking] = useState(false);
+  const [pickQuery, setPickQuery] = useState('');
+  const picked = elements.find((e) => String(e.id) === elementId);
 
   const usePieces = unit === 'm' && mode === 'pieces';
   const qty = usePieces ? ((Number(pieces) || 0) * (Number(length) || 0)) / 1000 : Number(quantity) || 0;
@@ -68,6 +67,7 @@ export function ItemForm({
     const previous = elements.find((e) => String(e.id) === elementId);
     const el = elements.find((e) => String(e.id) === id);
     setElementId(id);
+    setPicking(false);
     if (!el) return;
     if (!description.trim() || description === previous?.name) setDescription(el.name);
     setUnit(el.unit);
@@ -78,7 +78,7 @@ export function ItemForm({
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!description.trim()) return setError('כתוב מה השורה, למשל "ציר כבד" או "פרופיל 60×40".');
+    if (!description.trim()) return setError('כתוב מה השורה, למשל "ציר כבד" או "פרופיל 60/40".');
     if (usePieces && (!(Number(pieces) > 0) || !(Number(length) > 0))) {
       return setError('מלא כמה חתיכות ואת האורך של כל אחת במ״מ.');
     }
@@ -118,25 +118,75 @@ export function ItemForm({
     }
   };
 
+  if (picking) {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setPicking(false)}
+          className="-ms-2 inline-flex min-h-11 items-center gap-1 px-2 font-semibold text-steel-300"
+        >
+          <Icon name="back" size={20} />
+          חזרה לשורה
+        </button>
+        <label className="relative mt-2 block">
+          <span className="sr-only">חיפוש במחירון</span>
+          <Icon name="search" size={20} className="pointer-events-none absolute inset-y-0 start-3 my-auto text-steel-500" />
+          <input
+            className="field ps-10"
+            type="search"
+            value={pickQuery}
+            onChange={(e) => setPickQuery(e.target.value)}
+            placeholder="חיפוש: 60/40, צינור 8, ציר..."
+          />
+        </label>
+        <ElementBrowser
+          elements={elements}
+          query={pickQuery}
+          selectedId={picked?.id ?? null}
+          onPick={(el) => pickElement(String(el.id))}
+        />
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={submit} className="space-y-5" noValidate>
       {elements.length > 0 && (
-        <label className="block">
+        <div>
           <span className="mb-1.5 block font-semibold">מהמחירון</span>
-          <select className="field" value={elementId} onChange={(e) => pickElement(e.target.value)}>
-            <option value="">שורה חופשית, בלי מחירון</option>
-            {byCategory.map(([category, list]) => (
-              <optgroup key={category} label={ELEMENT_CATEGORY_LABELS[category]}>
-                {list.map((el) => (
-                  <option key={el.id} value={el.id}>
-                    {el.name}, {formatIls(el.unit_cost)} {UNIT_PER[el.unit]}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          <span className="mt-1.5 block text-sm text-steel-300">בחירה מהמחירון ממלאת שם, יחידה ומחיר. אפשר לשנות אחר כך.</span>
-        </label>
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className="flex min-h-14 w-full items-center gap-3 rounded-[10px] border border-steel-700 bg-steel-950 px-3 text-start"
+          >
+            <Icon name="tag" size={20} className="shrink-0 text-hivis" />
+            <span className="min-w-0 flex-1">
+              {picked ? (
+                <>
+                  <span className="block truncate font-semibold">{picked.name}</span>
+                  <span className={`tnum block text-sm ${picked.unit_cost > 0 ? 'text-steel-300' : 'text-hivis'}`}>
+                    {picked.unit_cost > 0 ? `${formatIls(picked.unit_cost)} ${UNIT_PER[picked.unit]}` : 'חסר מחיר במחירון'}
+                  </span>
+                </>
+              ) : (
+                <span className="block text-steel-300">בחר פרופיל, פרזול, צביעה...</span>
+              )}
+            </span>
+            <span className="shrink-0 text-sm font-semibold text-hivis">{picked ? 'החלף' : 'בחר'}</span>
+          </button>
+          {picked ? (
+            <button
+              type="button"
+              onClick={() => setElementId('')}
+              className="mt-1 min-h-11 text-sm text-steel-300 underline underline-offset-4"
+            >
+              הפוך לשורה חופשית
+            </button>
+          ) : (
+            <span className="mt-1.5 block text-sm text-steel-300">או כתוב שורה חופשית למטה. בחירה מהמחירון ממלאת שם, יחידה ומחיר.</span>
+          )}
+        </div>
       )}
 
       <label className="block">
@@ -145,7 +195,7 @@ export function ItemForm({
           className="field"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="למשל: מסגרת 60×40 – אנכיים"
+          placeholder="למשל: מסגרת 60/40 – אנכיים"
         />
       </label>
 

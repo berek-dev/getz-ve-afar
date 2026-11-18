@@ -67,6 +67,23 @@ export interface Element {
   supplier_id: number | null;
   supplier_name?: string | null;
   active: number;
+  /** Menu group inside the category ("פרופיל מלבני", "צירים") */
+  family: string | null;
+  /** materials.key for metal stock */
+  material: string | null;
+  /** Short size label for the size grid ("60/40/2") */
+  size: string | null;
+  catalog_key: string | null;
+  /** 1 = unit_cost follows weight × the material's price per kg */
+  price_by_kg: number;
+}
+
+export interface Material {
+  key: string;
+  name: string;
+  density: number;
+  price_per_kg: number;
+  sort_order: number;
 }
 
 export interface Supplier {

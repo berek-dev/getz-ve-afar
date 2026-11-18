@@ -55,7 +55,7 @@ export function registerAi(app: App): void {
     if (!job) return c.json({ error: 'not found' }, 404);
     const [{ results: list }, settings] = await Promise.all([
       db
-        .prepare('SELECT id, name, unit, category, unit_cost, stock_length_mm FROM elements WHERE active = 1 ORDER BY category, name LIMIT 300')
+        .prepare('SELECT id, name, unit, category, unit_cost, stock_length_mm FROM elements WHERE active = 1 ORDER BY category, family, name LIMIT 800')
         .all<PriceListEntry>(),
       db.prepare('SELECT hourly_rate FROM settings WHERE id = 1').first<{ hourly_rate: number }>(),
     ]);

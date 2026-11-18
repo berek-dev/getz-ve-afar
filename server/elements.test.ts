@@ -22,7 +22,27 @@ test('validateElement normalises a profile', () => {
       weight_kg_per_unit: 3.014,
       stock_length_mm: 6000,
       supplier_id: null,
+      family: null,
+      material: null,
+      size: null,
+      price_by_kg: false,
     },
+  });
+});
+
+test('validateElement: catalog fields and price by weight', () => {
+  const ok = validateElement({
+    category: 'profile', name: 'פרופיל 60×40×2 מגולוון', unit: 'm', unit_cost: 0, weight_kg_per_unit: 3.014,
+    family: 'פרופיל מלבני', material: 'galv', size: '60×40×2', price_by_kg: true,
+  });
+  assert.ok(ok.ok && ok.value.price_by_kg && ok.value.material === 'galv' && ok.value.family === 'פרופיל מלבני');
+  assert.deepEqual(validateElement({ category: 'profile', name: 'x', unit: 'm', unit_cost: 1, material: 'gold' }), {
+    ok: false,
+    error: 'invalid material',
+  });
+  assert.deepEqual(validateElement({ category: 'profile', name: 'x', unit: 'm', unit_cost: 1, material: 'black', price_by_kg: true }), {
+    ok: false,
+    error: 'by_kg_needs_weight',
   });
 });
 

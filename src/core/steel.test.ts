@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SHAPES } from './steel.ts';
 
-test('rectangular tube 60×40×2 ≈ 3.01 kg/m', () => {
+test('rectangular tube 60/40/2 ≈ 3.01 kg/m', () => {
   assert.equal(SHAPES.rect_tube.kg([60, 40, 2]), 3.014);
-  assert.equal(SHAPES.rect_tube.name([60, 40, 2]), 'פרופיל 60×40×2');
+  assert.equal(SHAPES.rect_tube.name([60, 40, 2]), 'פרופיל 60/40/2');
 });
 
-test('square tube 80×80×3 ≈ 7.25 kg/m', () => {
+test('square tube 80/80/3 ≈ 7.25 kg/m', () => {
   assert.equal(SHAPES.rect_tube.kg([80, 80, 3]), 7.253);
 });
 
