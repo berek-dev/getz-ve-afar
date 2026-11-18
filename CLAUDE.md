@@ -20,5 +20,10 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   number's order. Inches are written `8 צול`, angles `90 מעלות`.
 - Never commit secrets, real client data or real price lists – the repo may be public.
 
+## 3D
+- The AI writes layout JSON only (`src/core/scene.ts`); the viewer (`prototype/3d/viewer.js`), cut list and shop
+  drawing (`src/core/drawing.ts`) are deterministic code. `npm run build:3d` inlines `src/core` into the page.
+- Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).
+
 ## Commands
 `npm test` · `npm run typecheck` · `npm run build` · `npm run dev` + `npm run dev:api` · `npm run db:migrate:local|remote`

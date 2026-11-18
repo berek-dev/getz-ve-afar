@@ -144,4 +144,18 @@ scripts/        helpers (password hash)
 - ✅ Photos per job and receipt photos (compressed on the phone, Workers KV)
 - ✅ Payments and balances, expenses, monthly CSV for the accountant
 - ✅ Templates, draft lines from a description (Gemini, optional)
-- Next: offline mode, Android tablet + Bluetooth laser, earthworks pricing, 3D preview
+- 🧪 3D visualization, phase 1 (prototype): see below
+- Next: 3D in the app and in the client's quote, offline mode, Android tablet + Bluetooth laser, earthworks pricing
+
+## 3D visualization (phase 1 prototype)
+
+An AI turns a description (and optionally the bill of quantities, a photo or a sketch) into a **layout**: JSON data,
+not code. Everything else is drawn from that data by our own code, so it is consistent and can be corrected:
+
+- `src/core/scene.ts`: the layout format (members on centre lines with catalog sections, arcs, repeats, trims,
+  plates, hardware, surroundings, swing/slide groups), validation, cut list with piece marks.
+- `src/core/drawing.ts`: A3 shop drawing (front view, dimensions, marks, cut list).
+- `docs/3d/layout-instructions.md`: the instructions for the AI (paste into a Gemini Gem or Claude Project).
+- `prototype/3d/`: a three.js viewer page with four gate examples from DIY builds. `npm run build:3d` writes it to
+  `public/3d/index.html`; it is served at `/3d/` and also published as a Claude artifact, where its chat asks Claude
+  to build and edit the model (the chat only works inside Claude).
