@@ -718,7 +718,7 @@ export function workBounds(scene: ResolvedScene): { min: Vec3; max: Vec3 } {
 }
 
 /** Extent of some members (and plates), padded across each member only. */
-export function boundsOf(members: Member[], plates: Pick<Plate, 'center' | 'size'>[] = []): { min: Vec3; max: Vec3 } {
+export function boundsOf(members: Member[], plates: (Pick<Plate, 'center' | 'size'> & Partial<Pick<Plate, 'normal' | 'thickness'>>)[] = []): { min: Vec3; max: Vec3 } {
   const scene = { members, plates };
   const min: Vec3 = [Infinity, Infinity, Infinity];
   const max: Vec3 = [-Infinity, -Infinity, -Infinity];
@@ -741,7 +741,18 @@ export function boundsOf(members: Member[], plates: Pick<Plate, 'center' | 'size
       for (const sf of [-r, r]) for (const sn of [-r, r]) grow(add(end, add(scale(f, sf), scale(n, sn))));
     }
   }
-  for (const p of scene.plates) grow(p.center, Math.max(...p.size) / 2);
+  for (const p of scene.plates) {
+    if (!p.normal) {
+      grow(p.center, Math.max(...p.size) / 2);
+      continue;
+    }
+    // Half sizes along X, Y, Z: the plate's thickness across its normal, its size in its plane
+    const [a, b] = [p.size[0] / 2, p.size[1] / 2];
+    const t = (p.thickness ?? 0) / 2;
+    const h: Vec3 = p.normal === 'y' ? [a, t, b] : p.normal === 'x' ? [t, b, a] : [a, b, t];
+    grow(sub(p.center, h));
+    grow(add(p.center, h));
+  }
   return { min, max };
 }
 

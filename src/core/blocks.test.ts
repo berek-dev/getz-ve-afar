@@ -4,7 +4,7 @@ import { addBlock, addMember, blockReport, compileDesign, newDesign, readDesign,
 import type { Design } from './design.ts';
 import { placementError } from './blocks.ts';
 import type { BlockKind } from './blocks.ts';
-import { cutList, prepareScene } from './scene.ts';
+import { cutList, metalBounds, prepareScene } from './scene.ts';
 import type { DesignNode } from './design.ts';
 
 function place(d: Design, kind: BlockKind, a: DesignNode, b: DesignNode, set: Record<string, number> = {}) {
@@ -55,6 +55,10 @@ test('a platform: deck at the level, posts to the ground under the beams, joists
   const edges = s.members.filter((m) => m.label === 'קורה היקפית');
   assert.equal(edges.length, 4);
   for (const e of edges) assert.equal(Math.round(top(e) + 80), 1195); // UPN 160 centered 80 below its top
+  // A plate counts by its own extent: the deck doesn't make the model taller, base plates don't go underground
+  const box = metalBounds(s);
+  assert.equal(box.min[1], 0);
+  assert.equal(box.max[1], 1200);
 });
 
 test('a railing on a beam stands on it; on bare ground its posts get base plates', () => {
