@@ -133,13 +133,18 @@ export async function geminiText(
       let firstMs: number | null = null;
       let chars = 0;
       // Cut the attempt after IDLE_MS without a piece of the reply, or well past the deadline
-      let idle = setTimeout(() => ctl.abort(), IDLE_MS);
+      let silent = false;
+      const cut = () => {
+        silent = true;
+        ctl.abort();
+      };
+      let idle = setTimeout(cut, IDLE_MS);
       const hard = setTimeout(() => ctl.abort(), Math.max(IDLE_MS, stopAt + OVERTIME_MS - deps.now()));
       const alive = (n: number) => {
         if (firstMs === null) firstMs = deps.now() - t0;
         chars = n;
         clearTimeout(idle);
-        idle = setTimeout(() => ctl.abort(), IDLE_MS);
+        idle = setTimeout(cut, IDLE_MS);
       };
       let status = 0;
       let text: string | null = null;
@@ -180,6 +185,7 @@ export async function geminiText(
       }
       if (!TRANSIENT.has(status)) throw new Error(`ai_failed_${status}`);
       sawTransient = true;
+      if (silent) break; // this model is too slow right now: don't wait on it twice
       if (attempt === 0) await deps.sleep(1500 + Math.floor(Math.random() * 1000));
     }
   }
