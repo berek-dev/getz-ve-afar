@@ -65,7 +65,7 @@ test('steps tick themselves off from the data; optional steps never become "next
       ['quote', 'next'],
     ],
   );
-  assert.deepEqual([planning.done, planning.total], [1, 3]);
+  assert.deepEqual([planning.done, planning.total], [2, 4]); // the drawing counts for fabrication
   assert.equal(isStepDone('drawing', f), true);
   assert.equal(isStepDone('model', { ...f, model_latest_id: 8 }), false);
   assert.equal(phaseStatus('payment', f, NOW).steps.find((s) => s.id === 'invoice')?.state, 'optional');
@@ -114,11 +114,20 @@ test('calendar events: visits of new requests and work dates of open jobs', asyn
 
 test('a model has to be approved before the price; a change after approval asks again', () => {
   const visited = { ...base, status: 'visit' as const, visit_at: '2026-11-18T08:00', photo_count: 2 };
-  assert.deepEqual(nextAction(visited, NOW), { step: 'model', label: 'להתחיל בהדמיה', kind: 'do' });
+  assert.deepEqual(nextAction(visited, NOW), { step: 'model', label: 'להתחיל בשרטוט', kind: 'do' });
   assert.deepEqual(nextAction({ ...visited, kind: 'service' }, NOW)?.step, 'boq');
   const drafted = { ...visited, model_versions: 2, model_latest_id: 5 };
-  assert.equal(nextAction(drafted, NOW)?.label, 'לסיים את ההדמיה ולאשר');
+  assert.equal(nextAction(drafted, NOW)?.label, 'לסיים את השרטוט ולאשר');
   const approved = { ...drafted, model_approved_id: 5, item_count: 9 };
   assert.equal(nextAction(approved, NOW)?.label, 'לשלוח הצעת מחיר');
-  assert.equal(nextAction({ ...approved, model_latest_id: 6 }, NOW)?.label, 'ההדמיה השתנתה, לאשר מחדש');
+  assert.equal(nextAction({ ...approved, model_latest_id: 6 }, NOW)?.label, 'השרטוט השתנה, לאשר מחדש');
+});
+
+test('the drawing opens planning for fabrication; for service work it is optional', () => {
+  const visited = { ...base, status: 'visit' as const, visit_at: '2026-11-18T08:00', photo_count: 2 };
+  const fab = phaseStatus('planning', visited, NOW);
+  assert.deepEqual(fab.steps[0], { ...fab.steps[0], id: 'model', title: 'שרטוט והדמיה', optional: false, state: 'next' });
+  assert.equal(fab.total, 4);
+  const service = phaseStatus('planning', { ...visited, kind: 'service' }, NOW);
+  assert.deepEqual([service.steps[0].state, service.steps[0].optional, service.total], ['optional', true, 3]);
 });

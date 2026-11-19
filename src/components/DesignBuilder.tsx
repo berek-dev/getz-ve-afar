@@ -4,7 +4,7 @@
  * a new one. The design compiles (src/core/design.ts) to the same layout the 3D view, shop drawing, cut list and
  * price use. Loaded with the model step.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { JobDetail, JobModel } from '../lib/api.ts';
@@ -41,11 +41,15 @@ import { PROFILES, arcPoint, arcThrough, cutList, halfExtent, prepareScene, sect
 import type { Profile, ResolvedMember, ResolvedScene, Vec3 } from '../core/scene.ts';
 import { fmtNum } from '../lib/format.ts';
 import { ModelView } from './ModelView.tsx';
+import { ModelDrawing } from './ModelDrawing.tsx';
 import { Icon } from './Icon.tsx';
 import { Sheet } from './Sheet.tsx';
+import { useCanvasGestures } from './canvasGestures.ts';
+import { viewBoxOf } from '../core/viewport.ts';
 import { toast } from './Toast.tsx';
 
-type ViewKind = 'front' | 'side' | 'plan' | '3d';
+type ViewKind = 'front' | 'side' | 'plan' | '3d' | 'sheet';
+const FLAT = (k: ViewKind): k is 'front' | 'side' | 'plan' => k === 'front' || k === 'side' || k === 'plan';
 interface View {
   kind: ViewKind;
   line: number;
@@ -55,12 +59,12 @@ type SheetState = { kind: 'grid' } | { kind: 'profile' } | { kind: 'blocks' } | 
 
 const AXIS_I: Record<GridAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 /** For each 2D view: the axis across the screen, the axis up/down the screen, and the axis the view looks along */
-const VIEW_AXES: Record<Exclude<ViewKind, '3d'>, { u: GridAxis; v: GridAxis; p: GridAxis }> = {
+const VIEW_AXES: Record<'front' | 'side' | 'plan', { u: GridAxis; v: GridAxis; p: GridAxis }> = {
   front: { u: 'x', v: 'y', p: 'z' },
   side: { u: 'z', v: 'y', p: 'x' },
   plan: { u: 'x', v: 'z', p: 'y' },
 };
-const VIEW_LABELS: Record<ViewKind, string> = { front: 'חזית', side: 'צד', plan: 'מבט על', '3d': 'תלת־ממד' };
+const VIEW_LABELS: Record<ViewKind, string> = { front: 'חזית', side: 'צד', plan: 'מבט על', '3d': 'תלת־ממד', sheet: 'גיליון' };
 const AXIS_LABELS: Record<GridAxis, string> = { x: 'רוחב', y: 'גבהים', z: 'עומק' };
 
 const DEFAULT_PROFILE: ProfileChoice = { profile: 'rect_tube', size: [60, 60, 3] };
@@ -87,7 +91,19 @@ function saveJson(key: string, value: unknown) {
 const lineName = (axis: GridAxis, i: number, grid: Design['grid']) =>
   axis === 'x' ? xLineName(i) : axis === 'z' ? zLineName(i) : fmtNum(gridLines(grid.y).at(i) ?? 0);
 
-export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; model: JobModel; onSaved: (m: JobModel) => void; after?: ReactNode }) {
+export function DesignBuilder({
+  job,
+  model,
+  businessName,
+  onSaved,
+  after,
+}: {
+  job: JobDetail;
+  model: JobModel;
+  businessName: string;
+  onSaved: (m: JobModel) => void;
+  after?: ReactNode;
+}) {
   const savedDesign = useMemo(() => readDesign((model.layout as { design?: unknown } | null)?.design), [model.layout]);
   const [design, setDesign] = useState<Design>(() => readDesign(loadJson(draftKey(job.id))) ?? savedDesign ?? newDesign());
   const [history, setHistory] = useState<Design[]>([]);
@@ -179,7 +195,7 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
     setPending(null);
   };
 
-  const axes = view.kind === '3d' ? null : VIEW_AXES[view.kind];
+  const axes = FLAT(view.kind) ? VIEW_AXES[view.kind] : null;
   const planeLines = axes ? design.grid[axes.p].length + 1 : 1;
   const line = Math.min(view.line, planeLines - 1);
   const setKind = (kind: ViewKind) => {
@@ -198,7 +214,7 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
         toast('נוסף עומק של 1,000 מ״מ. אפשר לשנות אותו במידה.');
       }
       if (view.kind !== 'plan' || view.line === 0) setView({ kind: 'plan', line: design.grid.y.length });
-    } else if (view.kind === '3d' || view.kind === 'plan') setView({ kind: 'front', line: 0 });
+    } else if (!FLAT(view.kind) || view.kind === 'plan') setView({ kind: 'front', line: 0 });
   };
 
   const sel = selected;
@@ -212,8 +228,8 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
         <p className="mb-3 rounded-md bg-accent-soft px-3 py-2.5 text-[0.9rem]">ההדמיה הנוכחית נבנתה בלי רשת. שמירה כאן תיצור גרסה חדשה במקומה, ואפשר לבטל.</p>
       )}
 
-      <div className="grid grid-cols-4 rounded-md border border-line-strong bg-card p-0.5" role="tablist" aria-label="תצוגה">
-        {(['front', 'side', 'plan', '3d'] as ViewKind[]).map((k) => (
+      <div className="grid grid-cols-5 rounded-md border border-line-strong bg-card p-0.5" role="tablist" aria-label="תצוגה">
+        {(['front', 'side', 'plan', '3d', 'sheet'] as ViewKind[]).map((k) => (
           <button
             key={k}
             type="button"
@@ -255,12 +271,12 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
       )}
 
       <div className="mt-1">
-        {view.kind === '3d' ? (
-          usable && cut ? (
-            <ModelView prepared={prepared} cut={cut} designKey="builder" title={job.title} />
-          ) : (
-            <p className="plate rounded-md p-5 text-center text-muted">עוד אין חלקים. בחזית, גע בשתי נקודות ברשת.</p>
-          )
+        {!FLAT(view.kind) && !(usable && cut) ? (
+          <p className="plate rounded-md p-5 text-center text-muted">עוד אין חלקים. בחזית, גע בשתי נקודות ברשת.</p>
+        ) : view.kind === '3d' && cut ? (
+          <ModelView prepared={prepared} cut={cut} designKey="builder" title={job.title} />
+        ) : view.kind === 'sheet' && cut ? (
+          <ModelDrawing scene={prepared.scene} cut={cut} businessName={businessName} />
         ) : axes && axes.u === 'z' && design.grid.z.length === 0 ? (
           <p className="plate rounded-md p-5 text-center text-muted">
             אין עומק. מוסיפים עומק ב
@@ -271,6 +287,7 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
           </p>
         ) : axes ? (
           <GridCanvas
+            key={`${view.kind}-${line}`}
             design={design}
             scene={prepared.scene}
             axes={axes}
@@ -306,7 +323,7 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
           </button>
         </div>
       ) : (
-        view.kind !== '3d' && (
+        FLAT(view.kind) && (
           <p className="mt-1.5 px-1 text-[0.85rem] text-muted">
             {pending ? 'גע בנקודה הבאה כדי להוסיף חלק, או שוב באותה נקודה כדי לסיים.' : 'גע בשתי נקודות כדי להוסיף חלק. גע בחלק או במידה כדי לשנות.'}
           </p>
@@ -464,6 +481,10 @@ function GridCanvas({
   const up = axes.v === 'y';
   const sx = (u: number) => M.left + u * k;
   const sy = (v: number) => (up ? M.top + (vMax - v) * k : M.top + v * k);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const gestures = useCanvasGestures(svgRef, W, H, null);
+  // Points, labels and measurement pills keep their size on screen at any zoom
+  const z = 1 / gestures.view.zoom;
   const nodeAt = (a: number, b: number): DesignNode => {
     const n: DesignNode = [0, 0, 0];
     n[ui] = a;
@@ -544,24 +565,33 @@ function GridCanvas({
   const vChainX = 22;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="plate block w-full rounded-md bg-card" role="img" aria-label="רשת השרטוט">
+    <div className="relative">
+    <svg
+      ref={svgRef}
+      viewBox={viewBoxOf(gestures.view, W, H)}
+      className="plate block w-full select-none rounded-md bg-card"
+      style={{ touchAction: gestures.zoomed ? 'none' : 'pan-y' }}
+      role="img"
+      aria-label="רשת השרטוט"
+      {...gestures.handlers}
+    >
       {/* grid lines and their names */}
       {U.map((u, i) => (
         <g key={`u${i}`}>
-          <line x1={sx(u)} x2={sx(u)} y1={M.top - 6} y2={M.top + vMax * k + 6} className="stroke-line" strokeDasharray="4 4" />
-          <text x={sx(u)} y={M.top - 12} textAnchor="middle" fontSize="11" className="fill-faint">
+          <line x1={sx(u)} x2={sx(u)} y1={M.top - 6} y2={M.top + vMax * k + 6} className="stroke-line" strokeWidth={z} strokeDasharray={`${4 * z} ${4 * z}`} />
+          <text x={sx(u)} y={M.top - 12 * z} textAnchor="middle" fontSize={11 * z} className="fill-faint">
             {lineName(axes.u, i, grid)}
           </text>
         </g>
       ))}
       {V.map((v, j) => (
-        <line key={`v${j}`} x1={M.left - 6} x2={M.left + uMax * k + 6} y1={sy(v)} y2={sy(v)} className="stroke-line" strokeDasharray="4 4" />
+        <line key={`v${j}`} x1={M.left - 6} x2={M.left + uMax * k + 6} y1={sy(v)} y2={sy(v)} className="stroke-line" strokeWidth={z} strokeDasharray={`${4 * z} ${4 * z}`} />
       ))}
 
       {/* members */}
       {inPlane.map(({ m, x1, y1, x2, y2, w }) => (
         <g key={m.id} onClick={() => onPick(pickOf(m.id))} className="cursor-pointer">
-          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={Math.max(w, 18)} />
+          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={Math.max(w, 18 * z)} />
           <line
             x1={x1}
             y1={y1}
@@ -588,7 +618,7 @@ function GridCanvas({
       ))}
       {seen.map(({ m, points, w }) => (
         <g key={m.id} onClick={() => onPick(pickOf(m.id))} className="cursor-pointer">
-          <polyline points={points} fill="none" stroke="transparent" strokeWidth={Math.max(w, 16)} />
+          <polyline points={points} fill="none" stroke="transparent" strokeWidth={Math.max(w, 16 * z)} />
           <polyline points={points} fill="none" strokeWidth={w} className={isSelected(m.id) ? 'stroke-accent' : 'stroke-ink'} strokeOpacity={isSelected(m.id) ? 1 : 0.7} />
         </g>
       ))}
@@ -614,8 +644,8 @@ function GridCanvas({
           const on = pending !== null && pending.join() === n.join();
           return (
             <g key={`n${i}-${j}`} onClick={() => onNode(n)} className="cursor-pointer">
-              <circle cx={sx(u)} cy={sy(v)} r="22" fill="transparent" />
-              <circle cx={sx(u)} cy={sy(v)} r={on ? 7 : 5} strokeWidth="1.5" className={on ? 'fill-accent stroke-accent' : 'fill-card stroke-muted'} />
+              <circle cx={sx(u)} cy={sy(v)} r={22 * z} fill="transparent" data-node={n.join(',')} />
+              <circle cx={sx(u)} cy={sy(v)} r={(on ? 7 : 5) * z} strokeWidth={1.5 * z} className={on ? 'fill-accent stroke-accent' : 'fill-card stroke-muted'} />
             </g>
           );
         }),
@@ -623,27 +653,38 @@ function GridCanvas({
 
       {/* measurements: tap to type a new one */}
       {grid[axes.u].map((s, i) => (
-        <DimPill key={`du${i}`} x={(sx(U[i]) + sx(U[i + 1])) / 2} y={uChainY} x1={sx(U[i])} x2={sx(U[i + 1])} value={s} onTap={() => onDim(axes.u, i)} horizontal />
+        <DimPill key={`du${i}`} x={(sx(U[i]) + sx(U[i + 1])) / 2} y={uChainY} x1={sx(U[i])} x2={sx(U[i + 1])} value={s} onTap={() => onDim(axes.u, i)} horizontal z={z} />
       ))}
       {grid[axes.v].map((s, j) => (
-        <DimPill key={`dv${j}`} x={vChainX} y={(sy(V[j]) + sy(V[j + 1])) / 2} x1={sy(V[j])} x2={sy(V[j + 1])} value={s} onTap={() => onDim(axes.v, j)} />
+        <DimPill key={`dv${j}`} x={vChainX} y={(sy(V[j]) + sy(V[j + 1])) / 2} x1={sy(V[j])} x2={sy(V[j + 1])} value={s} onTap={() => onDim(axes.v, j)} z={z} />
       ))}
     </svg>
+    {gestures.zoomed && (
+      <button
+        type="button"
+        onClick={gestures.fit}
+        className="absolute end-2 top-2 flex min-h-10 items-center gap-1.5 rounded-md border border-line-strong bg-card px-3 text-[0.85rem] font-semibold shadow-sm"
+      >
+        <Icon name="shrink" size={16} />
+        כל הרשת
+      </button>
+    )}
+    </div>
   );
 }
 
-function DimPill({ x, y, x1, x2, value, onTap, horizontal = false }: { x: number; y: number; x1: number; x2: number; value: number; onTap: () => void; horizontal?: boolean }) {
+function DimPill({ x, y, x1, x2, value, onTap, horizontal = false, z = 1 }: { x: number; y: number; x1: number; x2: number; value: number; onTap: () => void; horizontal?: boolean; z?: number }) {
   const label = fmtNum(value);
-  const w = Math.max(30, label.length * 6.6 + 10);
+  const w = Math.max(30, label.length * 6.6 + 10) * z;
   return (
     <g onClick={onTap} className="cursor-pointer">
       {horizontal ? (
-        <line x1={x1} x2={x2} y1={y} y2={y} className="stroke-faint" strokeWidth="1" />
+        <line x1={x1} x2={x2} y1={y} y2={y} className="stroke-faint" strokeWidth={z} />
       ) : (
-        <line x1={x + 18} x2={x + 18} y1={x1} y2={x2} className="stroke-faint" strokeWidth="1" />
+        <line x1={x + 18} x2={x + 18} y1={x1} y2={x2} className="stroke-faint" strokeWidth={z} />
       )}
-      <rect x={x - w / 2} y={y - 10} width={w} height="20" rx="10" className="fill-card stroke-accent" strokeWidth="1.2" />
-      <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fontWeight="600" className="fill-accent">
+      <rect x={x - w / 2} y={y - 10 * z} width={w} height={20 * z} rx={10 * z} className="fill-card stroke-accent" strokeWidth={1.2 * z} />
+      <text x={x} y={y + 4 * z} textAnchor="middle" fontSize={11 * z} fontWeight="600" className="fill-accent">
         {label}
       </text>
     </g>

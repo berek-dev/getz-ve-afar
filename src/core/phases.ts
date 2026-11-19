@@ -38,8 +38,8 @@ export interface StepDef {
   id: StepId;
   phase: PhaseId;
   title: string;
-  /** Nice to have: never the "next step", shown as optional while not done */
-  optional?: boolean;
+  /** Nice to have: never the "next step", shown as optional while not done. May depend on the job. */
+  optional?: boolean | ((f: Pick<JobFacts, 'kind'>) => boolean);
 }
 
 export const STEPS: StepDef[] = [
@@ -47,7 +47,8 @@ export const STEPS: StepDef[] = [
   { id: 'description', phase: 'intake', title: 'תיאור העבודה' },
   { id: 'visit', phase: 'intake', title: 'תיאום ביקור' },
   { id: 'site', phase: 'intake', title: 'מדידות ותמונות מהאתר' },
-  { id: 'model', phase: 'planning', title: 'הדמיה בתלת־ממד', optional: true },
+  // Fabrication starts from the drawing: the price, the shop drawing and the cut list come from it
+  { id: 'model', phase: 'planning', title: 'שרטוט והדמיה', optional: (f) => f.kind !== 'fabrication' },
   { id: 'boq', phase: 'planning', title: 'מחיר וכתב כמויות' },
   { id: 'schedule', phase: 'planning', title: 'לוח זמנים' },
   { id: 'quote', phase: 'planning', title: 'הצעת מחיר ואישור' },
@@ -63,6 +64,7 @@ export const STEPS: StepDef[] = [
 ];
 
 export const STEP_IDS = STEPS.map((s) => s.id);
+export const isOptional = (s: StepDef, f: Pick<JobFacts, 'kind'>): boolean => (typeof s.optional === 'function' ? s.optional(f) : Boolean(s.optional));
 export const stepDef = (id: StepId): StepDef => STEPS.find((s) => s.id === id) as StepDef;
 export const phaseSteps = (phase: PhaseId): StepDef[] => STEPS.filter((s) => s.phase === phase);
 
@@ -203,11 +205,11 @@ export function nextAction(f: JobFacts, now: string): NextAction | null {
   if (phase === 'planning') {
     if (!done('site') && f.status === 'visit') return { step: 'site', label: 'לרשום מידות ותמונות מהאתר', kind: 'do' };
     if ((f.model_versions ?? 0) > 0 && !modelApproved(f) && f.status !== 'quoted') {
-      return { step: 'model', label: f.model_approved_id ? 'ההדמיה השתנתה, לאשר מחדש' : 'לסיים את ההדמיה ולאשר', kind: 'do' };
+      return { step: 'model', label: f.model_approved_id ? 'השרטוט השתנה, לאשר מחדש' : 'לסיים את השרטוט ולאשר', kind: 'do' };
     }
     if (!done('boq')) {
       return f.kind === 'fabrication' && !(f.model_versions ?? 0)
-        ? { step: 'model', label: 'להתחיל בהדמיה', kind: 'do' }
+        ? { step: 'model', label: 'להתחיל בשרטוט', kind: 'do' }
         : { step: 'boq', label: 'לבנות את המחיר', kind: 'do' };
     }
     if (f.quote_status === 'sent' || (f.status === 'quoted' && f.quote_status !== 'expired' && f.quote_status !== 'rejected')) {
@@ -250,8 +252,9 @@ export function phaseStatus(phase: PhaseId, f: JobFacts, now: string): { steps: 
   const next = nextAction(f, now);
   const steps = phaseSteps(phase).map((s): StepStatus => {
     const done = isStepDone(s.id, f);
-    const state: StepState = done ? 'done' : next?.step === s.id ? 'next' : s.optional ? 'optional' : 'todo';
-    return { ...s, state };
+    const optional = isOptional(s, f);
+    const state: StepState = done ? 'done' : next?.step === s.id ? 'next' : optional ? 'optional' : 'todo';
+    return { ...s, optional, state };
   });
   const required = steps.filter((s) => !s.optional);
   return { steps, done: required.filter((s) => s.state === 'done').length, total: required.length };

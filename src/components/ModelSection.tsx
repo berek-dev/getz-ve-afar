@@ -22,13 +22,18 @@ import { toast } from './Toast.tsx';
 
 type Mode = 'new' | 'edit';
 
-/** The model step: the 3D model, talking to it until it is right, then "ההדמיה מוכנה". Loaded lazily. */
+/**
+ * The drawing step, first in planning: build the work by measurements (or have an AI draft it), see it as a sheet
+ * and in 3D, then "השרטוט מוכן" fills the price. Loaded lazily.
+ */
 export default function ModelSection({
   job,
+  businessName,
   onApproved,
   onModelChange,
 }: {
   job: JobDetail;
+  businessName: string;
   /** After approval: reload the job (its lines changed) and move on */
   onApproved: () => Promise<void>;
   onModelChange: (m: { versions: number; latestId: number | null }) => void;
@@ -124,6 +129,7 @@ export default function ModelSection({
         <DesignBuilder
           job={job}
           model={model}
+          businessName={businessName}
           onSaved={apply}
           after={ok && cut ? <ApproveBar job={job} latestId={model.history[0]?.id ?? null} onApproved={onApproved} /> : null}
         />
@@ -209,7 +215,7 @@ export default function ModelSection({
   );
 }
 
-/** "ההדמיה מוכנה": approve the model, which fills the materials in the price. */
+/** "השרטוט מוכן": approve the model, which fills the materials in the price. */
 function ApproveBar({ job, latestId, onApproved }: { job: JobDetail; latestId: number | null; onApproved: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [conflicts, setConflicts] = useState<number | null>(null);
@@ -228,7 +234,7 @@ function ApproveBar({ job, latestId, onApproved }: { job: JobDetail; latestId: n
       }
       const r = await api.approveModel(job.id, { replace: replace === true });
       setConflicts(null);
-      toast(`ההדמיה אושרה: ${r.lines} שורות חומרים במחיר${r.unpriced ? `, ${r.unpriced} בלי מחיר` : ''}`);
+      toast(`השרטוט אושר: ${r.lines} שורות חומרים במחיר${r.unpriced ? `, ${r.unpriced} בלי מחיר` : ''}`);
       await onApproved();
     } catch (e) {
       toast(errorMessage(e));
@@ -243,7 +249,7 @@ function ApproveBar({ job, latestId, onApproved }: { job: JobDetail; latestId: n
         <div className="flex items-center justify-between gap-3 rounded-md bg-ok-soft px-3.5 py-2.5">
           <span className="flex items-center gap-2 font-semibold text-ok">
             <Icon name="check" size={20} />
-            ההדמיה אושרה
+            השרטוט אושר
           </span>
           <a href={`#/jobs/${job.id}/boq`} className="text-[0.9rem] font-semibold text-accent">
             למחיר
@@ -251,12 +257,12 @@ function ApproveBar({ job, latestId, onApproved }: { job: JobDetail; latestId: n
         </div>
       ) : (
         <>
-          {state === 'changed' && <p className="mb-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">ההדמיה השתנתה מאז שאושרה.</p>}
+          {state === 'changed' && <p className="mb-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">השרטוט השתנה מאז שאושר.</p>}
           <button type="button" onClick={() => void approve()} disabled={busy} className="btn-primary">
             <Icon name="check" />
-            {busy ? 'מעדכן...' : state === 'changed' ? 'לאשר מחדש ולעדכן את המחיר' : 'ההדמיה מוכנה'}
+            {busy ? 'מעדכן...' : state === 'changed' ? 'לאשר מחדש ולעדכן את המחיר' : 'השרטוט מוכן'}
           </button>
-          <p className="mt-1.5 px-1 text-[0.85rem] text-muted">החומרים ייכנסו למחיר, והשרטוט והחיתוך יוכנו ממנה.</p>
+          <p className="mt-1.5 px-1 text-[0.85rem] text-muted">החומרים ייכנסו למחיר, ושרטוט הייצור והחיתוך יוכנו ממנו.</p>
         </>
       )}
       <Sheet open={conflicts !== null} onClose={() => setConflicts(null)} title="שורות שכבר במחיר">

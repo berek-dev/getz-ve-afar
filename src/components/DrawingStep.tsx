@@ -28,9 +28,9 @@ function ModelNotice({ job, children }: { job: Job; children?: ReactNode }) {
   if (!job.model_versions) {
     return (
       <p className="plate rounded-md p-4 text-muted">
-        {children ?? 'נוצר מההדמיה.'}{' '}
+        {children ?? 'נוצר מהשרטוט שבתכנון.'}{' '}
         <a href={`#/jobs/${job.id}/model`} className="font-semibold text-accent underline underline-offset-4">
-          ליצירת הדמיה
+          לשרטוט
         </a>
       </p>
     );
@@ -38,7 +38,7 @@ function ModelNotice({ job, children }: { job: Job; children?: ReactNode }) {
   if (job.model_approved_id !== job.model_latest_id) {
     return (
       <p className="mb-3 rounded-md bg-accent-soft px-3 py-2.5 text-[0.9rem]">
-        {job.model_approved_id ? 'ההדמיה השתנתה מאז שאושרה.' : 'ההדמיה עוד לא אושרה.'}{' '}
+        {job.model_approved_id ? 'השרטוט השתנה מאז שאושר.' : 'השרטוט עוד לא אושר.'}{' '}
         <a href={`#/jobs/${job.id}/model`} className="font-semibold text-accent underline underline-offset-4">
           לאשר
         </a>
@@ -52,7 +52,7 @@ export function DrawingStep({ job, businessName }: { job: Job; businessName: str
   const { loading, scene, cut } = useModelScene(job.id);
   return (
     <div>
-      <ModelNotice job={job}>שרטוט ייצור עם מידות וסימון חלקים נוצר מההדמיה.</ModelNotice>
+      <ModelNotice job={job}>שרטוט ייצור עם מידות וסימון חלקים נוצר מהשרטוט שבתכנון.</ModelNotice>
       {loading && <p className="text-muted">טוען...</p>}
       {scene && cut && <ModelDrawing scene={scene} cut={cut} businessName={businessName} />}
     </div>

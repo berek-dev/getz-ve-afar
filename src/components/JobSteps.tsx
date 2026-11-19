@@ -60,11 +60,19 @@ export function stepSummary(id: StepId, ctx: JobCtx): string {
     case 'site':
       return [job.site_notes?.trim() ? 'יש מידות' : '', job.photo_count ? `${job.photo_count} תמונות` : ''].filter(Boolean).join(', ') || 'עוד אין מידות ותמונות';
     case 'model':
-      return !job.model_versions ? 'לא חובה, לעבודות ייצור' : modelApproved(job) ? 'אושרה' : job.model_approved_id ? 'השתנתה, לאשר מחדש' : 'טיוטה, עוד לא אושרה';
+      return !job.model_versions
+        ? job.kind === 'fabrication'
+          ? 'לפי מידות. ממנו המחיר והחיתוך'
+          : 'לא חובה'
+        : modelApproved(job)
+          ? 'אושר'
+          : job.model_approved_id
+            ? 'השתנה, לאשר מחדש'
+            : 'טיוטה, עוד לא אושר';
     case 'boq':
       return job.items.length ? `${job.items.length} שורות, ${formatIls(totals.price.total)}` : 'עוד אין שורות';
     case 'drawing':
-      return job.model_versions ? 'שרטוט A3 עם מידות וסימונים' : 'נוצר מההדמיה';
+      return job.model_versions ? 'PDF על A4 או A3, עם מידות וסימונים' : 'נוצר מהשרטוט שבתכנון';
     case 'schedule':
     case 'install':
       return job.scheduled_at ? slot(job.scheduled_at) : 'עוד לא נקבע';
@@ -123,9 +131,10 @@ export function StepBody({ step, ctx }: { step: StepId; ctx: JobCtx }) {
       );
     case 'model':
       return (
-        <Suspense fallback={<p className="text-muted">טוען את ההדמיה...</p>}>
+        <Suspense fallback={<p className="text-muted">טוען את השרטוט...</p>}>
           <ModelSection
             job={job}
+            businessName={settings.business_name}
             onApproved={async () => {
               await ctx.reload();
               location.hash = `#/jobs/${job.id}/boq`;
