@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, errorMessage } from '../lib/api.ts';
+import type { ReactNode } from 'react';
+import { ApiError, api, errorMessage } from '../lib/api.ts';
+import { forgetJob } from '../lib/modelRuns.ts';
 import { JOB_STATUS_LABELS } from '../core/types.ts';
 import type { Job } from '../core/types.ts';
 import { PHASES, currentPhase, nextAction } from '../core/phases.ts';
@@ -7,8 +9,17 @@ import type { Phase } from '../core/phases.ts';
 import { businessNow } from '../core/calendar.ts';
 import { Icon } from '../components/Icon.tsx';
 import { Mark, PageHeader, SectionTitle, actionMeta, phaseNumber } from '../components/ui.tsx';
+import { toast } from '../components/Toast.tsx';
 
 type Filter = 'open' | 'closed';
+
+/** Selection mode: tapping a row ticks it instead of opening the job */
+interface Select {
+  on: boolean;
+  toggle: () => void;
+}
+
+const jobsText = (n: number) => (n === 1 ? 'עבודה אחת' : `${n} עבודות`);
 
 /** All jobs, grouped by the phase they are in, with the next thing to do on each. */
 export function JobsPage() {
@@ -16,6 +27,10 @@ export function JobsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('open');
   const [query, setQuery] = useState('');
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
+  const [confirm, setConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     api
@@ -32,6 +47,51 @@ export function JobsPage() {
   );
   const open = found.filter((j) => j.phase !== 'closed');
   const closed = found.filter((j) => j.phase === 'closed');
+  const shown = filter === 'open' ? open : closed;
+  // Only what is on screen gets deleted (a search can hide rows that were ticked)
+  const picked = shown.filter(({ job }) => selected.has(job.id)).map(({ job }) => job.id);
+  const allPicked = shown.length > 0 && picked.length === shown.length;
+
+  const pick = (ids: number[]) => {
+    setSelected(new Set(ids));
+    setConfirm(false);
+  };
+  const toggle = (id: number) => pick(selected.has(id) ? [...selected].filter((x) => x !== id) : [...selected, id]);
+  const select = (id: number): Select | undefined => (selecting ? { on: selected.has(id), toggle: () => toggle(id) } : undefined);
+  const stopSelecting = () => {
+    setSelecting(false);
+    pick([]);
+  };
+
+  const remove = async () => {
+    if (!confirm) return setConfirm(true);
+    setDeleting(true);
+    const done: number[] = [];
+    let failure: unknown = null;
+    for (const id of picked) {
+      try {
+        await api.deleteJob(id);
+      } catch (e) {
+        // already gone (deleted from another phone) counts as deleted
+        if (!(e instanceof ApiError && e.status === 404)) {
+          failure = e;
+          break;
+        }
+      }
+      forgetJob(id);
+      done.push(id);
+    }
+    setJobs((list) => list && list.filter((j) => !done.includes(j.id)));
+    setSelected((s) => new Set([...s].filter((id) => !done.includes(id))));
+    setConfirm(false);
+    setDeleting(false);
+    if (failure) {
+      toast(done.length ? `נמחקו ${done.length} מתוך ${picked.length}. ${errorMessage(failure)}` : errorMessage(failure));
+    } else {
+      toast(done.length === 1 ? 'העבודה נמחקה' : `נמחקו ${done.length} עבודות`);
+      stopSelecting();
+    }
+  };
 
   return (
     <div>
@@ -43,6 +103,23 @@ export function JobsPage() {
           <Icon name="search" size={18} className="pointer-events-none absolute inset-y-0 start-3 my-auto text-faint" />
           <input className="field ps-10" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="לקוח, כתובת או עבודה" />
         </label>
+        {jobs !== null && jobs.length > 0 && (
+          <button
+            type="button"
+            onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+            aria-pressed={selecting}
+            className="btn-secondary shrink-0 px-3.5"
+          >
+            {selecting ? (
+              'ביטול'
+            ) : (
+              <>
+                <Icon name="trash" size={18} />
+                מחיקה
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-1 rounded-md border border-line bg-card p-1" role="group" aria-label="אילו עבודות">
@@ -56,7 +133,10 @@ export function JobsPage() {
             key={id}
             type="button"
             aria-pressed={filter === id}
-            onClick={() => setFilter(id)}
+            onClick={() => {
+              setFilter(id);
+              pick([]);
+            }}
             className={`flex min-h-10 items-center justify-center gap-2 rounded-[4px] font-semibold ${filter === id ? 'bg-ink text-white' : 'text-muted'}`}
           >
             {label}
@@ -71,6 +151,17 @@ export function JobsPage() {
         </p>
       )}
       {jobs === null && !error && <p className="mt-6 text-muted">טוען עבודות...</p>}
+
+      {selecting && shown.length > 0 && (
+        <div className="mt-4 flex items-center justify-between gap-3 px-1">
+          <p className="text-[0.9rem] text-muted" role="status">
+            {picked.length ? `נבחרו ${jobsText(picked.length)}` : 'סמן את העבודות למחיקה'}
+          </p>
+          <button type="button" onClick={() => pick(allPicked ? [] : shown.map(({ job }) => job.id))} className="min-h-10 px-1 text-[0.9rem] font-semibold">
+            {allPicked ? 'נקה בחירה' : 'בחר הכל'}
+          </button>
+        </div>
+      )}
 
       {jobs !== null && filter === 'open' && (
         <div className="mt-5 space-y-6">
@@ -95,7 +186,7 @@ export function JobsPage() {
                 </SectionTitle>
                 <ul className="plate divide-y divide-line rounded-md">
                   {list.map(({ job }) => (
-                    <JobRow key={job.id} job={job} now={now} />
+                    <JobRow key={job.id} job={job} now={now} select={select(job.id)} />
                   ))}
                 </ul>
               </section>
@@ -112,31 +203,78 @@ export function JobsPage() {
             <ul className="plate divide-y divide-line rounded-md">
               {closed.map(({ job }) => (
                 <li key={job.id}>
-                  <a href={`#/jobs/${job.id}`} className="flex min-h-14 items-center gap-3 px-3.5 py-2.5 active:bg-sunken">
+                  <RowLink job={job} select={select(job.id)} className="min-h-14">
                     <span className="min-w-0 flex-1">
                       <span className="block font-semibold leading-snug">{job.title}</span>
                       <span className="block truncate text-[0.85rem] text-muted">{[job.client_name, job.site_address].filter(Boolean).join(', ')}</span>
                     </span>
                     <span className={`shrink-0 text-[0.85rem] ${job.status === 'lost' ? 'text-faint' : 'text-ok'}`}>{JOB_STATUS_LABELS[job.status]}</span>
-                  </a>
+                  </RowLink>
                 </li>
               ))}
             </ul>
           )}
         </div>
       )}
+
+      {selecting && (
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 border-t border-line bg-page/95 backdrop-blur">
+          <div className="mx-auto max-w-xl space-y-2 px-4 py-2.5">
+            {confirm && <p className="text-center text-[0.85rem] text-muted">תשלומים והוצאות יישארו בכספים, בלי שיוך לעבודה.</p>}
+            <button
+              type="button"
+              onClick={() => void remove()}
+              disabled={picked.length === 0 || deleting}
+              className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-md border font-semibold disabled:opacity-40 ${
+                confirm ? 'border-danger bg-danger text-white' : 'border-line bg-card text-danger'
+              }`}
+            >
+              <Icon name="trash" size={20} />
+              {deleting
+                ? 'מוחק...'
+                : confirm
+                  ? picked.length === 1
+                    ? 'לחץ שוב: העבודה וכל מה שבה יימחקו'
+                    : `לחץ שוב: ${picked.length} עבודות וכל מה שבהן יימחקו`
+                  : picked.length
+                    ? `מחק ${jobsText(picked.length)}`
+                    : 'מחק עבודות'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function JobRow({ job, now }: { job: Job; now: string }) {
+/** A job row: opens the job, or in selection mode ticks it */
+function RowLink({ job, select, className, children }: { job: Job; select?: Select; className: string; children: ReactNode }) {
+  const base = `flex w-full items-center gap-3 px-3.5 py-2.5 text-start active:bg-sunken ${className}`;
+  if (!select) {
+    return (
+      <a href={`#/jobs/${job.id}`} className={base}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <button type="button" role="checkbox" aria-checked={select.on} onClick={select.toggle} className={`${base} ${select.on ? 'bg-sunken' : ''}`}>
+      <span className={`mark ${select.on ? 'mark-done' : ''}`} aria-hidden>
+        {select.on && <Icon name="check" size={16} />}
+      </span>
+      {children}
+    </button>
+  );
+}
+
+function JobRow({ job, now, select }: { job: Job; now: string; select?: Select }) {
   const action = nextAction(job, now);
   const meta = action ? actionMeta(action) : null;
   const phase = currentPhase(job, now);
   return (
     <li>
-      <a href={`#/jobs/${job.id}`} className="flex min-h-16 items-center gap-3 px-3.5 py-2.5 active:bg-sunken">
-        {phase !== 'closed' && <Mark n={phaseNumber(phase)} state={action?.kind === 'do' && meta?.urgent ? 'next' : 'todo'} />}
+      <RowLink job={job} select={select} className="min-h-16">
+        {!select && phase !== 'closed' && <Mark n={phaseNumber(phase)} state={action?.kind === 'do' && meta?.urgent ? 'next' : 'todo'} />}
         <span className="min-w-0 flex-1">
           <span className="block font-semibold leading-snug">{job.title}</span>
           <span className="block truncate text-[0.85rem] text-muted">{[job.client_name, job.site_address].filter(Boolean).join(', ')}</span>
@@ -147,8 +285,8 @@ function JobRow({ job, now }: { job: Job; now: string }) {
             </span>
           )}
         </span>
-        <Icon name="forward" size={18} className="shrink-0 text-faint" />
-      </a>
+        {!select && <Icon name="forward" size={18} className="shrink-0 text-faint" />}
+      </RowLink>
     </li>
   );
 }

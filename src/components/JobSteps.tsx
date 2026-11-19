@@ -14,6 +14,7 @@ import { formatIls, round2 } from '../core/money.ts';
 import { fmtDate, fmtMeters, fmtNum, fmtSlotDay, fmtSlotTime } from '../lib/format.ts';
 import { useFeatures } from '../lib/features.ts';
 import { appendText, useDictation } from '../lib/speech.ts';
+import { forgetJob } from '../lib/modelRuns.ts';
 import { Icon } from './Icon.tsx';
 import { Sheet } from './Sheet.tsx';
 import { JobForm } from './JobForm.tsx';
@@ -416,6 +417,7 @@ export function EditJobSheet({ ctx, open, onClose }: { ctx: JobCtx; open: boolea
               if (!confirmDelete) return setConfirmDelete(true);
               try {
                 await api.deleteJob(job.id);
+                forgetJob(job.id);
                 toast('העבודה נמחקה');
                 window.location.hash = '#/jobs';
               } catch (e) {

@@ -177,6 +177,20 @@ export function dismissModelRun(jobId: number): void {
   emit();
 }
 
+/** The job was deleted: drop its run (no bar, no "ready" toast) and its typed draft */
+export function forgetJob(jobId: number): void {
+  controllers.get(jobId)?.abort();
+  controllers.delete(jobId);
+  stopPolling(jobId);
+  drafts.delete(jobId);
+  try {
+    localStorage.removeItem(draftKey(jobId));
+  } catch {
+    // ignore
+  }
+  if (runs.delete(jobId)) emit();
+}
+
 // ------------------------------------------------------------------------------------- drafts
 
 /** What was typed (and the photo picked) for a job's model, kept while moving around the app */
