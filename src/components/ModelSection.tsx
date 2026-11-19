@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { MouseEvent } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { JobDetail, JobModel, ModelRun } from '../lib/api.ts';
 import type { JobItem } from '../core/types.ts';
@@ -516,7 +517,13 @@ const OTHER_CHATS = [
  */
 function OtherChat({ chat, reply, setReply }: { chat: Chat; reply: string; setReply: (v: string) => void }) {
   const [manual, setManual] = useState(false);
-  const copy = () => {
+  const copy = (e: MouseEvent) => {
+    // A change needs its wording (an empty box would ask for a new design instead)
+    if (chat.mode === 'edit' && chat.text.trim().length < 3) {
+      e.preventDefault();
+      toast('כתוב קודם למעלה מה לשנות, ואז העתק');
+      return;
+    }
     // No await before the link opens: iPhone only allows opening an app straight from the tap
     void navigator.clipboard.writeText(chat.prompt()).then(
       () => toast(chat.image ? 'ההנחיות הועתקו. צרף שם גם את התמונה' : 'ההנחיות הועתקו. הדבק ושלח'),
@@ -535,7 +542,9 @@ function OtherChat({ chat, reply, setReply }: { chat: Chat; reply: string; setRe
   };
   return (
     <section className="rounded-md border border-line p-3" aria-label="דרך האפליקציה של Gemini, Claude או ChatGPT">
-      <p className="text-sm text-muted">או דרך האפליקציה שלך, לרוב מהיר יותר. העתק ופתח:</p>
+      <p className="text-sm text-muted">
+        {chat.mode === 'edit' ? 'או לשנות דרך האפליקציה שלך, לרוב מהיר יותר. העתק ופתח:' : 'או דרך האפליקציה שלך, לרוב מהיר יותר. העתק ופתח:'}
+      </p>
       <div className="mt-2 grid grid-cols-3 gap-2">
         {OTHER_CHATS.map((c) => (
           <a
