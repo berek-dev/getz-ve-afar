@@ -17,6 +17,7 @@ import { fmtNum } from '../lib/format.ts';
 import { ModelView } from './ModelView.tsx';
 import { Icon } from './Icon.tsx';
 import { Sheet } from './Sheet.tsx';
+import { DesignBuilder } from './DesignBuilder.tsx';
 import { toast } from './Toast.tsx';
 
 type Mode = 'new' | 'edit';
@@ -35,6 +36,7 @@ export default function ModelSection({
   const [model, setModel] = useState<JobModel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [tool, setTool] = useState<'builder' | 'ai' | null>(null);
 
   useEffect(() => {
     api
@@ -90,9 +92,48 @@ export default function ModelSection({
   );
 
   const notes = ok?.scene.notes ?? [];
+  // Building by measurements is the main way; a model made by AI (or pasted) opens on the AI side
+  const built = Boolean((model.layout as { design?: unknown } | null)?.design);
+  const mode = tool ?? (chat.busy ? 'ai' : built || model.layout == null ? 'builder' : 'ai');
+  const tabs = (
+    <div className="mb-3 grid grid-cols-2 rounded-md border border-line-strong bg-card p-0.5" role="tablist" aria-label="איך בונים">
+      {(
+        [
+          ['builder', 'לפי מידות'],
+          ['ai', 'בעזרת AI'],
+        ] as const
+      ).map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={mode === key}
+          onClick={() => setTool(key)}
+          className={`min-h-11 rounded-[5px] text-[0.9rem] font-semibold ${mode === key ? 'bg-ink text-white' : 'text-muted'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (mode === 'builder') {
+    return (
+      <div>
+        {tabs}
+        <DesignBuilder
+          job={job}
+          model={model}
+          onSaved={apply}
+          after={ok && cut ? <ApproveBar job={job} latestId={model.history[0]?.id ?? null} onApproved={onApproved} /> : null}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>
+      {tabs}
       {ok && cut ? (
         <>
           <ModelView

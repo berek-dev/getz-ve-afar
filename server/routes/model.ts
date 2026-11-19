@@ -26,7 +26,7 @@ interface VersionRow {
   id: number;
   request: string | null;
   mode: 'new' | 'edit';
-  source: 'ai' | 'paste' | 'demo';
+  source: 'ai' | 'paste' | 'demo' | 'builder';
   created_at: string;
 }
 
@@ -88,7 +88,8 @@ async function saveVersion(
     db
       .prepare('INSERT INTO job_models (job_id, layout_json, request, mode, source) VALUES (?, ?, ?, ?, ?) RETURNING id')
       // Measurements that sit on two parts are tied to them, so they follow the parts in later changes
-      .bind(jobId, JSON.stringify(anchorDimensions(layout)), v.request, v.mode, v.source),
+      // (a builder layout makes its own measurements from the grid every time)
+      .bind(jobId, JSON.stringify(v.source === 'builder' ? layout : anchorDimensions(layout)), v.request, v.mode, v.source),
     db
       .prepare('DELETE FROM job_models WHERE job_id = ? AND id NOT IN (SELECT id FROM job_models WHERE job_id = ? ORDER BY id DESC LIMIT ?)')
       .bind(jobId, jobId, MAX_VERSIONS),
@@ -131,7 +132,7 @@ export function registerModel(app: App): void {
     await saveVersion(c.env.DB, jobId, body.layout, {
       request,
       mode: body.mode === 'edit' ? 'edit' : 'new',
-      source: body.source === 'demo' ? 'demo' : 'paste',
+      source: body.source === 'demo' ? 'demo' : body.source === 'builder' ? 'builder' : 'paste',
     });
     return c.json({ ...(await modelState(c.env.DB, jobId)), warnings: check.warnings }, 201);
   });

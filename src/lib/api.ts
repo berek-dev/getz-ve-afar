@@ -178,7 +178,7 @@ export const api = {
     request<JobItem[]>(`/jobs/${jobId}/apply-template`, { method: 'POST', body: JSON.stringify({ template_id: templateId }) }),
 
   model: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model`),
-  saveModel: (jobId: number, layout: unknown, opts: { source?: 'paste' | 'demo'; request?: string; mode?: 'new' | 'edit' } = {}) =>
+  saveModel: (jobId: number, layout: unknown, opts: { source?: 'paste' | 'demo' | 'builder'; request?: string; mode?: 'new' | 'edit' } = {}) =>
     request<JobModel>(`/jobs/${jobId}/model`, { method: 'POST', body: JSON.stringify({ layout, ...opts }) }),
   undoModel: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model/undo`, { method: 'POST' }),
   cancelModel: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model/cancel`, { method: 'POST' }),
@@ -204,7 +204,7 @@ export interface ModelVersion {
   id: number;
   request: string | null;
   mode: 'new' | 'edit';
-  source: 'ai' | 'paste' | 'demo';
+  source: 'ai' | 'paste' | 'demo' | 'builder';
   created_at: string;
 }
 
