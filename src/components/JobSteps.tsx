@@ -459,16 +459,14 @@ function BoqStep({ ctx }: { ctx: JobCtx }) {
   return (
     <div>
       <section className="plate rounded-md p-4" aria-labelledby="price-title">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 id="price-title" className="text-[0.9rem] text-muted">
-            מחיר ללקוח, כולל מע״מ
-          </h2>
-          <p className="tnum text-[2rem] font-bold leading-none tracking-tight">{formatIls(totals.price.total)}</p>
-        </div>
+        <h2 id="price-title" className="text-[0.85rem] text-muted">
+          מחיר ללקוח, כולל מע״מ
+        </h2>
+        <p className="tnum mt-0.5 text-[2rem] font-bold leading-none tracking-tight">{formatIls(totals.price.total)}</p>
         {job.items.length === 0 ? (
           <p className="mt-3 text-muted">המחיר יופיע ברגע שיהיו שורות בכתב הכמויות.</p>
         ) : (
-          <dl className="tnum mt-3 grid grid-cols-2 gap-x-5 gap-y-1 border-t border-line pt-2.5 text-[0.9rem]">
+          <dl className="tnum mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-line pt-2.5 text-[0.85rem]">
             <PriceRow label="חומרים" value={totals.materials} />
             <PriceRow label="עבודה" value={totals.labor} />
             <PriceRow label={`תקורה ${fmtNum(settings.overhead_pct)}%`} value={totals.price.overhead} />
@@ -594,7 +592,7 @@ function BoqStep({ ctx }: { ctx: JobCtx }) {
 
 function PriceRow({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex justify-between gap-2">
+    <div className="flex justify-between gap-2 whitespace-nowrap">
       <dt className="text-muted">{label}</dt>
       <dd>{formatIls(value)}</dd>
     </div>
