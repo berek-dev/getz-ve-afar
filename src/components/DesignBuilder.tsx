@@ -467,7 +467,7 @@ function GridCanvas({
           const on = pending !== null && pending.join() === n.join();
           return (
             <g key={`n${i}-${j}`} onClick={() => onNode(n)} className="cursor-pointer">
-              <circle cx={sx(u)} cy={sy(v)} r="16" fill="transparent" />
+              <circle cx={sx(u)} cy={sy(v)} r="22" fill="transparent" />
               <circle cx={sx(u)} cy={sy(v)} r={on ? 7 : 5} strokeWidth="1.5" className={on ? 'fill-accent stroke-accent' : 'fill-card stroke-muted'} />
             </g>
           );
@@ -519,7 +519,7 @@ function NumberEditor({ value, onDone }: { value: number; onDone: (v: number) =>
       className="space-y-3"
     >
       <div className="flex items-center gap-2">
-        <button type="button" onClick={() => bump(-10)} className="btn-secondary h-12 w-14 shrink-0 text-lg" aria-label="פחות 10">
+        <button type="button" onClick={() => bump(-10)} dir="ltr" className="btn-secondary h-12 w-14 shrink-0 text-lg" aria-label="פחות 10">
           −10
         </button>
         <input
@@ -531,7 +531,7 @@ function NumberEditor({ value, onDone }: { value: number; onDone: (v: number) =>
           aria-label="מידה במ״מ"
           autoFocus
         />
-        <button type="button" onClick={() => bump(10)} className="btn-secondary h-12 w-14 shrink-0 text-lg" aria-label="עוד 10">
+        <button type="button" onClick={() => bump(10)} dir="ltr" className="btn-secondary h-12 w-14 shrink-0 text-lg" aria-label="עוד 10">
           +10
         </button>
       </div>

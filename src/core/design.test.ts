@@ -60,9 +60,32 @@ test('infill bars fill the gap between two rails, no gap wider than asked', () =
   const xs = bars.map((m) => m.from[0]).sort((a, b) => a - b);
   const gap = xs[1] - xs[0] - 16;
   assert.ok(gap <= 100 && gap > 90, `gap ${gap}`);
-  // From the bottom rail's top face to the top rail's underside
-  assert.equal(Math.round(bars[0].from[1]), 50);
+  // From the bottom rail's top face (the rail sits on the ground) to the top rail's underside
+  assert.equal(Math.round(bars[0].from[1]), 100);
   assert.equal(Math.round(bars[0].to[1]), 950);
+});
+
+test('a rail on the ground level sits on the ground, and the posts do not run below it', () => {
+  let d: Design = { ...newDesign(), grid: { x: [3000], y: [2000], z: [] } };
+  const c1 = addMember(d, [0, 0, 0], [0, 1, 0], col);
+  d = addMember(c1.design, [1, 0, 0], [1, 1, 0], col).design;
+  d = addMember(d, [0, 1, 0], [1, 1, 0], beam).design;
+  const rail = addMember(d, [0, 0, 0], [1, 0, 0], beam);
+  const p = prepareScene(compileDesign(rail.design, 'שער'));
+  assert.deepEqual(p.errors, []);
+  const lowest = Math.min(...p.scene.members.flatMap((m) => [m.from[1], m.to[1]]));
+  assert.equal(lowest, 0);
+  const r = p.scene.members.find((m) => m.id === rail.id);
+  assert.equal(r?.from[1], 50); // a 100-high rail: its center 50 above the ground
+  assert.equal(memberCutLengths(rail.design).get(c1.id as string), 2050); // from the ground to the top of the beam
+});
+
+test('a post standing on a sill on the ground starts on the sill', () => {
+  let d: Design = { ...newDesign(), grid: { x: [1500, 1500], y: [1000], z: [] } };
+  d = addMember(d, [0, 0, 0], [2, 0, 0], beam).design;
+  const post = addMember(d, [1, 0, 0], [1, 1, 0], col);
+  const m = prepareScene(compileDesign(post.design, 'x')).scene.members.find((x) => x.id === post.id);
+  assert.equal(Math.min(m?.from[1] ?? -1, m?.to[1] ?? -1), 100);
 });
 
 test('changing a bay moves everything on the far side; removing the last bay drops its members', () => {

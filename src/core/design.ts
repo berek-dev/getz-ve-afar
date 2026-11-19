@@ -169,6 +169,7 @@ export function nodeInGrid(grid: DesignGrid, n: DesignNode): boolean {
   return n[0] <= grid.x.length && n[1] <= grid.y.length && n[2] <= grid.z.length;
 }
 
+const UP: Vec3 = [0, 1, 0];
 const sameNode = (a: DesignNode, b: DesignNode) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 const isVertical = (d: Vec3) => Math.abs(d[1]) > 0.9;
 const parallel = (a: Vec3, b: Vec3) => Math.abs(dot(a, b)) > 0.995;
@@ -206,10 +207,19 @@ function resolveJoints(design: Design): Resolved[] {
   const adjust = new Map<Resolved, { a: number; b: number }>(list.map((r) => [r, { a: 0, b: 0 }]));
   const axesOf = (r: Resolved) => sectionAxes(r.dir);
   const rank = (r: Resolved) => (isVertical(r.dir) ? 1e6 : 0) + sectionSize(r.m) * 10 - list.indexOf(r) * 1e-3;
+  // A member lying on the ground level sits on the ground instead of half below it
+  const lift = new Map<Resolved, number>(
+    list.map((r) => {
+      const lying = !isVertical(r.dir) && Math.abs(r.from[1]) < 0.5 && Math.abs(r.to[1]) < 0.5;
+      const { f, n } = axesOf(r);
+      return [r, lying ? halfExtent(r.m, f, n, UP) : 0];
+    }),
+  );
 
   for (const [k, here] of ends) {
     const node = k.split(',').map(Number) as DesignNode;
     const p = nodePosition(grid, node);
+    const ground = Math.abs(p[1]) < 0.5;
     // Members this point lies on, between their ends
     const passing = list.filter((r) => {
       if (here.some((h) => h.r === r)) return false;
@@ -222,12 +232,16 @@ function resolveJoints(design: Design): Resolved[] {
     for (const { r, end } of here) {
       if (r === through || parallel(r.dir, through.dir)) continue;
       const { f, n } = axesOf(through);
-      (adjust.get(r) as { a: number; b: number })[end] += halfExtent(through.m, f, n, r.dir);
+      // A post standing on a member lying on the ground starts on its top face
+      const lifted = ground && isVertical(r.dir) ? (lift.get(through) ?? 0) : 0;
+      (adjust.get(r) as { a: number; b: number })[end] += halfExtent(through.m, f, n, r.dir) + lifted;
       const own = axesOf(r);
       extend = Math.max(extend, halfExtent(r.m, own.f, own.n, through.dir));
     }
     const mine = here.find((h) => h.r === through);
-    if (mine && extend > 0) (adjust.get(through) as { a: number; b: number })[mine.end] -= extend;
+    // A post never runs on below the ground: the members it carries there are lifted onto the ground instead
+    const intoGround = ground && isVertical(through.dir);
+    if (mine && extend > 0 && !intoGround) (adjust.get(through) as { a: number; b: number })[mine.end] -= extend;
   }
 
   return list.map((r) => {
@@ -237,7 +251,8 @@ function resolveJoints(design: Design): Resolved[] {
       const low = r.from[1] <= r.to[1] ? 'a' : 'b';
       if (Math.abs((low === 'a' ? r.from : r.to)[1]) < 0.5) adj[low] = Math.max(adj[low], r.m.base.t);
     }
-    return { ...r, from: add(r.from, scale(r.dir, adj.a)), to: sub(r.to, scale(r.dir, adj.b)) };
+    const up = scale(UP, lift.get(r) ?? 0);
+    return { ...r, from: add(add(r.from, scale(r.dir, adj.a)), up), to: add(sub(r.to, scale(r.dir, adj.b)), up) };
   });
 }
 
