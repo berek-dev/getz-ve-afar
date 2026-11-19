@@ -46,7 +46,7 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   models. Cloudflare cuts any request silent for 100 seconds (524), so the build endpoint answers with server-sent
   events: pings every 15 seconds, the result last. Builds use `geminiHedged`: if the best model hasn't started writing
   after 12 seconds, the next one is asked too and the first to finish wins. The model step also offers Yaal's own
-  Gemini/Claude app: copy the instructions and open it in one tap, paste the answer back from the clipboard.
+  Gemini/Claude/ChatGPT app: copy the instructions and open it in one tap, paste the answer back from the clipboard.
 
 ## Commands
 `npm test` · `npm run typecheck` · `npm run build` · `npm run dev` + `npm run dev:api` · `npm run db:migrate:local|remote`

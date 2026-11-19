@@ -496,7 +496,7 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
           )}
         </>
       ) : (
-        <p className="text-sm text-muted">היצירה האוטומטית לא מופעלת. אפשר דרך האפליקציה של Gemini או Claude, כאן למטה.</p>
+        <p className="text-sm text-muted">היצירה האוטומטית לא מופעלת. אפשר דרך Gemini, Claude או ChatGPT, כאן למטה.</p>
       )}
 
       <OtherChat chat={chat} reply={reply} setReply={setReply} />
@@ -507,10 +507,11 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
 const OTHER_CHATS = [
   { name: 'Gemini', url: 'https://gemini.google.com/app' },
   { name: 'Claude', url: 'https://claude.ai/new' },
+  { name: 'ChatGPT', url: 'https://chatgpt.com/' },
 ];
 
 /**
- * The same instructions through Yaal's own Gemini or Claude app (often faster than the API): one tap copies
+ * The same instructions through Yaal's own Gemini, Claude or ChatGPT app (often faster than the API): one tap copies
  * them and opens the app, one tap back here pastes the answer from the clipboard.
  */
 function OtherChat({ chat, reply, setReply }: { chat: Chat; reply: string; setReply: (v: string) => void }) {
@@ -533,13 +534,21 @@ function OtherChat({ chat, reply, setReply }: { chat: Chat; reply: string; setRe
     }
   };
   return (
-    <section className="rounded-md border border-line p-3" aria-label="דרך האפליקציה של Gemini או Claude">
-      <p className="text-sm text-muted">או דרך האפליקציה שלך, לרוב מהיר יותר:</p>
-      <div className="mt-2 grid grid-cols-2 gap-2">
+    <section className="rounded-md border border-line p-3" aria-label="דרך האפליקציה של Gemini, Claude או ChatGPT">
+      <p className="text-sm text-muted">או דרך האפליקציה שלך, לרוב מהיר יותר. העתק ופתח:</p>
+      <div className="mt-2 grid grid-cols-3 gap-2">
         {OTHER_CHATS.map((c) => (
-          <a key={c.name} href={c.url} target="_blank" rel="noreferrer" onClick={copy} className="btn-secondary text-[0.9rem]">
-            <Icon name="copy" size={18} />
-            העתק ופתח {c.name}
+          <a
+            key={c.name}
+            href={c.url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={copy}
+            aria-label={`העתק את ההנחיות ופתח את ${c.name}`}
+            className="btn-secondary gap-1.5 px-1 text-[0.9rem]"
+          >
+            <Icon name="copy" size={16} />
+            {c.name}
           </a>
         ))}
       </div>
