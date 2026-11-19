@@ -47,6 +47,12 @@ PARTS: hardware. "parts": [ { "kind": "hinge", "at": [x, y, z] } ]
 SURROUNDINGS (not steel, not in the cut list): "solids": [ { "kind": "stone", "center": [x, y, z], "size": [x, y, z] } ]
   kinds: concrete, stone, plaster, wood, paving. Use them for existing walls, pillars and paving the work attaches to.
 
+MEASUREMENTS (optional): "dimensions": [ { "from": [x, y, z], "to": [x, y, z], "label": "קטע מוחלף" } ]
+  Extra measurements the client cares about that the overall size does not show: an opening between walls, a
+  replaced pipe segment, a step height. The length is measured from "from" to "to"; "label" is a short NAME only,
+  never a number. Move them with the geometry when you change it. Overall width, height and each leaf are measured
+  automatically: do not add those.
+
 MOVING PARTS: "groups": [ { "id": "leaf-l", "label": "כנף שמאל", "motion": { "type": "swing", "pivot": [x, 0, z], "angle": 90 } } ]
   swing: about a vertical axis through pivot (the hinge line). Opening inward, away from the street:
          a leaf hinged on its LEFT side uses +90, a leaf hinged on its RIGHT side uses -90.
@@ -55,7 +61,7 @@ MOVING PARTS: "groups": [ { "id": "leaf-l", "label": "כנף שמאל", "motion"
 TOP LEVEL
 { "version": 1, "title": "...", "material": "black",
   "finish": { "color": "#2f3337", "name": "צביעה בתנור אפור גרפיט" },
-  "members": [...], "plates": [...], "parts": [...], "solids": [...], "groups": [...], "notes": ["..."] }
+  "members": [...], "plates": [...], "parts": [...], "solids": [...], "groups": [...], "dimensions": [...], "notes": ["..."] }
 - title, labels and notes in Hebrew. Write sizes as 60/40/2, never with ×. Never names, phone numbers or addresses of people.
 - notes: the assumptions you made (sizes you chose, measurements that were missing). Keep them short.
 - Realistic details: 10–20 mm between a leaf and its post on the hinge side, 10–15 mm between two leaves,

@@ -395,13 +395,10 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
     scene.remove(dims);
     disposeTree(dims);
     dims = new THREE.Group();
-    const sc = current.prepared.scene;
-    const b = C.workBounds(sc);
-    const zFront = b.max[2] + 350;
-    dims.add(dimLine(v3([b.min[0], 15, zFront]), v3([b.max[0], 15, zFront]), new THREE.Vector3(0, 1, 0), `${fmt(b.max[0] - b.min[0])} מ״מ`));
-    dims.add(dimLine(v3([b.max[0] + 350, 0, 0]), v3([b.max[0] + 350, b.max[1], 0]), new THREE.Vector3(1, 0, 0), `${fmt(b.max[1])} מ״מ`));
-    for (const d of sc.dimensions || []) {
-      dims.add(dimLine(v3(d.from), v3(d.to), new THREE.Vector3(0, 0, 1), d.label || `${fmt(C.len(C.sub(d.to, d.from)))} מ״מ`));
+    // Always measured from the geometry (C.dimensionLines): each leaf, overall width and height, extra dimensions
+    const NORMAL = { x: new THREE.Vector3(0, 1, 0), y: new THREE.Vector3(1, 0, 0), z: new THREE.Vector3(1, 0, 0) };
+    for (const d of C.dimensionLines(current.prepared.scene)) {
+      dims.add(dimLine(v3(d.from), v3(d.to), NORMAL[d.axis], `${d.name ? `${d.name} ` : ''}${fmt(d.mm)} מ״מ`));
     }
     dims.visible = showDims;
     scene.add(dims);

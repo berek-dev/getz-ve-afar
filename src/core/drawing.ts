@@ -3,7 +3,7 @@
  * and the cut list, on an A3 sheet. Pure string output (SVG), so it works in the app, on the server and
  * in tests. A fabrication aid, not an engineered drawing.
  */
-import { add, arcPoint, arcThrough, boundsOf, cutList, memberLength, norm, scale, sectionAxes, sub, workBounds } from './scene.ts';
+import { add, arcPoint, arcThrough, boundsOf, cutList, dimensionName, memberLength, norm, scale, sectionAxes, sub, workBounds } from './scene.ts';
 import type { CutList, ResolvedMember, ResolvedScene, Vec3 } from './scene.ts';
 import { BEAMS } from './sections.ts';
 
@@ -232,10 +232,14 @@ export function shopDrawingSvg(scene: ResolvedScene, opts: DrawingOptions = {}):
     if (l.minY > 5) dimV(0, l.minY, rightX + 15, rightX + 1, String(Math.round(l.minY)));
   }
   if (b.min[1] < -5) dimV(b.min[1], 0, X(b.min[0]) - 8, X(b.min[0]) - 1, String(Math.round(-b.min[1])));
+  // The layout's own dimensions: measured here, the label is only a name
   for (const d of scene.dimensions ?? []) {
+    const name = dimensionName(d.label);
     const horizontal = Math.abs(d.to[0] - d.from[0]) >= Math.abs(d.to[1] - d.from[1]);
-    if (horizontal) dimH(Math.min(d.from[0], d.to[0]), Math.max(d.from[0], d.to[0]), Y(Math.max(d.from[1], d.to[1])) - 6, Y(d.from[1]), d.label ?? String(Math.round(Math.abs(d.to[0] - d.from[0]))));
-    else dimV(Math.min(d.from[1], d.to[1]), Math.max(d.from[1], d.to[1]), X(Math.min(d.from[0], d.to[0])) - 6, X(d.from[0]), d.label ?? String(Math.round(Math.abs(d.to[1] - d.from[1]))));
+    const mm = Math.round(horizontal ? Math.abs(d.to[0] - d.from[0]) : Math.abs(d.to[1] - d.from[1]));
+    const label = name ? `${name} ${mm}` : String(mm);
+    if (horizontal) dimH(Math.min(d.from[0], d.to[0]), Math.max(d.from[0], d.to[0]), Y(Math.max(d.from[1], d.to[1])) - 6, Y(d.from[1]), label);
+    else dimV(Math.min(d.from[1], d.to[1]), Math.max(d.from[1], d.to[1]), X(Math.min(d.from[0], d.to[0])) - 6, X(d.from[0]), label);
   }
 
   // Piece marks: one bubble per mark, beside its first piece, nudged until it doesn't cover another bubble

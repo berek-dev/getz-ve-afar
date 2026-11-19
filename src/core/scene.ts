@@ -721,3 +721,44 @@ export function boundsOf(members: Member[], plates: Pick<Plate, 'center' | 'size
   for (const p of scene.plates) grow(p.center, Math.max(...p.size) / 2);
   return { min, max };
 }
+
+/** A dimension's label is a name ("פתח", "קטע מוחלף"); a number in it would go stale when the layout changes. */
+export function dimensionName(label: string | null | undefined): string | null {
+  const t = label?.trim();
+  return t && !/\d/.test(t) ? t : null;
+}
+
+export interface DimensionLine {
+  from: Vec3;
+  to: Vec3;
+  /** Measured length, mm */
+  mm: number;
+  name: string | null;
+  axis: Axis;
+}
+
+/**
+ * What the 3D view measures, always from the geometry: each moving leaf, the overall width and height,
+ * and the layout's own extra dimensions.
+ */
+export function dimensionLines(scene: ResolvedScene): DimensionLine[] {
+  const b = workBounds(scene);
+  const out: DimensionLine[] = [];
+  const front = b.max[2] + 350;
+  const leaves = scene.groups
+    .map((g) => scene.members.filter((m) => m.group === g.id))
+    .filter((ms) => ms.length > 0)
+    .map((ms) => boundsOf(ms));
+  for (const lb of leaves) {
+    out.push({ from: [lb.min[0], 15, front], to: [lb.max[0], 15, front], mm: Math.round(lb.max[0] - lb.min[0]), name: null, axis: 'x' });
+  }
+  const overallZ = leaves.length > 0 ? front + 400 : front;
+  out.push({ from: [b.min[0], 15, overallZ], to: [b.max[0], 15, overallZ], mm: Math.round(b.max[0] - b.min[0]), name: null, axis: 'x' });
+  out.push({ from: [b.max[0] + 350, 0, 0], to: [b.max[0] + 350, b.max[1], 0], mm: Math.round(b.max[1]), name: null, axis: 'y' });
+  for (const d of scene.dimensions ?? []) {
+    const v = sub(d.to, d.from);
+    const axis: Axis = Math.abs(v[1]) >= Math.abs(v[0]) && Math.abs(v[1]) >= Math.abs(v[2]) ? 'y' : Math.abs(v[0]) >= Math.abs(v[2]) ? 'x' : 'z';
+    out.push({ from: d.from, to: d.to, mm: Math.round(len(v)), name: dimensionName(d.label), axis });
+  }
+  return out;
+}

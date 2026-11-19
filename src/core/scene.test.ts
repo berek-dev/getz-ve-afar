@@ -116,3 +116,27 @@ test('section names match catalog item names', () => {
     assert.ok(names.has(n), n);
   }
 });
+
+test('dimensions are measured from the geometry; a label is only a name', async () => {
+  const { dimensionLines, dimensionName } = await import('./scene.ts');
+  assert.equal(dimensionName('פתח 4,000'), null);
+  assert.equal(dimensionName('קטע מוחלף'), 'קטע מוחלף');
+  const { scene } = prepareScene({
+    members: [
+      { id: 'p1', profile: 'rect_tube', size: [80, 80, 3], from: [40, -500, 0], to: [40, 1800, 0] },
+      { id: 'l1', group: 'g', profile: 'rect_tube', size: [40, 40, 2], from: [100, 50, 0], to: [100, 1750, 0] },
+      { id: 'l2', group: 'g', profile: 'rect_tube', size: [40, 40, 2], from: [1100, 50, 0], to: [1100, 1750, 0] },
+    ],
+    groups: [{ id: 'g', motion: { type: 'swing', pivot: [80, 0, 0], angle: 90 } }],
+    dimensions: [{ from: [0, 0, 0], to: [2500, 0, 0], label: 'פתח 4,000' }],
+  });
+  assert.deepEqual(
+    dimensionLines(scene).map((d) => [d.axis, d.mm, d.name]),
+    [
+      ['x', 1040, null],
+      ['x', 1120, null],
+      ['y', 1800, null],
+      ['x', 2500, null],
+    ],
+  );
+});
