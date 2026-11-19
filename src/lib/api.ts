@@ -228,6 +228,8 @@ export interface ModelRun {
   /** UTC, "YYYY-MM-DD HH:MM:SS" */
   created_at: string;
   finished_at: string | null;
+  /** Each Gemini attempt: model, HTTP status, ms to the first piece, total ms, characters */
+  attempts?: { model: string; status: number; firstMs: number | null; ms: number; chars: number }[];
 }
 
 export interface Features {

@@ -12,7 +12,7 @@ import type { PriceListItem } from '../../src/core/modelBoq.ts';
 import { cutList, prepareScene } from '../../src/core/scene.ts';
 import { isCutLine } from '../../src/core/quantities.ts';
 import { aiErrorCode, geminiText } from '../gemini.ts';
-import type { GeminiTurn } from '../gemini.ts';
+import type { GeminiAttempt, GeminiTurn } from '../gemini.ts';
 import { validateItem } from '../items.ts';
 import type { ItemInput } from '../items.ts';
 import { insertItems, touchJob } from '../sql.ts';
@@ -40,6 +40,7 @@ interface RunRow {
   model_id: number | null;
   created_at: string;
   finished_at: string | null;
+  log: string | null;
   stale: number;
 }
 
@@ -54,7 +55,7 @@ async function modelState(db: D1Database, jobId: number) {
     db.prepare('SELECT layout_json FROM job_models WHERE job_id = ? ORDER BY id DESC LIMIT 1').bind(jobId),
     db
       .prepare(
-        `SELECT id, status, error, request, mode, model_id, created_at, finished_at, created_at < datetime('now', ?) AS stale
+        `SELECT id, status, error, request, mode, model_id, created_at, finished_at, log, created_at < datetime('now', ?) AS stale
            FROM model_runs WHERE job_id = ? AND created_at > datetime('now', '-15 minutes') ORDER BY id DESC LIMIT 1`,
       )
       .bind(RUN_STALE, jobId),
@@ -71,6 +72,7 @@ async function modelState(db: D1Database, jobId: number) {
         model_id: r.model_id,
         created_at: r.created_at,
         finished_at: r.finished_at,
+        attempts: r.log ? (JSON.parse(r.log) as GeminiAttempt[]) : [],
       }
     : null;
   return { layout: row ? (JSON.parse(row.layout_json) as unknown) : null, history: history as unknown as VersionRow[], run };
@@ -197,10 +199,13 @@ export function registerModel(app: App): void {
       .prepare('DELETE FROM model_runs WHERE job_id = ? AND id NOT IN (SELECT id FROM model_runs WHERE job_id = ? ORDER BY id DESC LIMIT 20)')
       .bind(jobId, jobId)
       .run();
+    const attempts: GeminiAttempt[] = [];
     const finish = (status: 'done' | 'failed', error: string | null, modelId: number | null) =>
       db
-        .prepare(`UPDATE model_runs SET status = ?, error = ?, model_id = ?, finished_at = datetime('now') WHERE id = ? AND status = 'running'`)
-        .bind(status, error, modelId, runId)
+        .prepare(
+          `UPDATE model_runs SET status = ?, error = ?, model_id = ?, log = ?, finished_at = datetime('now') WHERE id = ? AND status = 'running'`,
+        )
+        .bind(status, error, modelId, JSON.stringify(attempts), runId)
         .run();
 
     const contents: GeminiTurn[] = [{ role: 'user', parts: [{ text: prompt }, ...(image ? [{ inlineData: image }] : [])] }];
@@ -218,6 +223,7 @@ export function registerModel(app: App): void {
             json: true,
             thinking: mode === 'edit' ? 'low' : undefined,
             deadlineAt: started + RUN_DEADLINE_MS,
+            onAttempt: (a) => attempts.push(a),
           });
           try {
             layout = parseLayoutReply(reply);

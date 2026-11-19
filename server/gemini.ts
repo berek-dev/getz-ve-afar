@@ -32,8 +32,20 @@ const realDeps: GeminiDeps = {
 
 /** Stop starting new attempts after this long (the run gives up at about 4 minutes). */
 const BUDGET_MS = 150_000;
-/** One attempt that streams nothing useful for this long is cut and the next model tries. */
-const ATTEMPT_MS = 110_000;
+/** An attempt silent for this long (thinking, or stuck in a queue) is cut and the next one tries. */
+const IDLE_MS = 90_000;
+/** An attempt still streaming this long after the deadline is cut. */
+const OVERTIME_MS = 90_000;
+
+/** What one attempt did, for the run's log */
+export interface GeminiAttempt {
+  model: string;
+  status: number;
+  /** ms until the first piece of the reply (null: none came) */
+  firstMs: number | null;
+  ms: number;
+  chars: number;
+}
 
 type Thinking = 'minimal' | 'low' | 'medium' | 'high';
 
@@ -41,7 +53,7 @@ type Thinking = 'minimal' | 'low' | 'medium' | 'high';
  * Reads Gemini's server-sent events: each event carries the next piece of the reply. Returns the text,
  * or throws { status } for an error Google sends mid-stream.
  */
-export async function readGeminiStream(res: Response): Promise<string> {
+export async function readGeminiStream(res: Response, onPiece: (chars: number) => void = () => undefined): Promise<string> {
   if (!res.body) return '';
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -57,6 +69,7 @@ export async function readGeminiStream(res: Response): Promise<string> {
     };
     if (ev.error) throw Object.assign(new Error('stream_error'), { status: ev.error.code ?? 500 });
     for (const p of ev.candidates?.[0]?.content?.parts ?? []) if (!p.thought && p.text) text += p.text;
+    onPiece(text.length);
   };
   for (;;) {
     const { done, value } = await reader.read();
@@ -90,6 +103,7 @@ export async function geminiText(
     thinking?: Thinking;
     /** No new attempt after this time (ms since epoch) */
     deadlineAt?: number;
+    onAttempt?: (a: GeminiAttempt) => void;
   },
   deps: GeminiDeps = realDeps,
 ): Promise<string> {
@@ -115,8 +129,20 @@ export async function geminiText(
     for (let attempt = 0; attempt < 2; attempt++) {
       if (deps.now() > stopAt) break;
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), ATTEMPT_MS);
+      const t0 = deps.now();
+      let firstMs: number | null = null;
+      let chars = 0;
+      // Cut the attempt after IDLE_MS without a piece of the reply, or well past the deadline
+      let idle = setTimeout(() => ctl.abort(), IDLE_MS);
+      const hard = setTimeout(() => ctl.abort(), Math.max(IDLE_MS, stopAt + OVERTIME_MS - deps.now()));
+      const alive = (n: number) => {
+        if (firstMs === null) firstMs = deps.now() - t0;
+        chars = n;
+        clearTimeout(idle);
+        idle = setTimeout(() => ctl.abort(), IDLE_MS);
+      };
       let status = 0;
+      let text: string | null = null;
       try {
         const res = await deps.fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
@@ -128,17 +154,18 @@ export async function geminiText(
           },
         );
         status = res.status;
-        if (res.ok) {
-          const text = await readGeminiStream(res);
-          if (!text.trim()) throw new Error('ai_empty');
-          return text;
-        }
+        if (res.ok) text = await readGeminiStream(res, alive);
       } catch (e) {
-        if (e instanceof Error && e.message === 'ai_empty') throw e;
-        // cut mid-way, too slow, or an error event in the stream
+        // cut mid-way, silent too long, or an error event in the stream
         status = (e as { status?: number }).status ?? 503;
       } finally {
-        clearTimeout(timer);
+        clearTimeout(idle);
+        clearTimeout(hard);
+      }
+      request.onAttempt?.({ model, status: text !== null ? 200 : status, firstMs, ms: deps.now() - t0, chars });
+      if (text !== null) {
+        if (!text.trim()) throw new Error('ai_empty');
+        return text;
       }
       lastStatus = status;
       if (status === 400 && thinking) {

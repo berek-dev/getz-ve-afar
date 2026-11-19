@@ -88,3 +88,16 @@ test('a bad request is not retried', async () => {
   await assert.rejects(geminiText(env, ask, deps), /ai_failed_400/);
   assert.equal(calls.length, 1);
 });
+
+test('each attempt is reported, with when the reply started', async () => {
+  const seen: { model: string; status: number; chars: number }[] = [];
+  const { deps } = fake([503, 'abc']);
+  await geminiText(env, { ...ask, onAttempt: (a) => seen.push(a) }, deps);
+  assert.deepEqual(
+    seen.map((a) => [a.status, a.chars]),
+    [
+      [503, 0],
+      [200, 3],
+    ],
+  );
+});
