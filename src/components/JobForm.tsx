@@ -76,15 +76,15 @@ export function JobForm({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => set('kind', kind)}
-                className={`relative flex min-h-24 flex-col items-start gap-1 rounded-[10px] border-2 p-3 text-start ${
-                  selected ? 'border-hivis bg-steel-950' : 'border-steel-700 bg-steel-900'
+                className={`relative flex min-h-24 flex-col items-start gap-1 rounded-md border-2 p-3 text-start ${
+                  selected ? 'border-accent bg-accent-soft' : 'border-line bg-card'
                 }`}
               >
-                <Icon name={KIND_ICON[kind]} size={28} className={selected ? 'text-hivis' : 'text-steel-300'} />
+                <Icon name={KIND_ICON[kind]} size={28} className={selected ? 'text-accent' : 'text-muted'} />
                 <span className="font-semibold">{JOB_KIND_LABELS[kind]}</span>
-                <span className="text-sm leading-tight text-steel-300">{KIND_HINT[kind]}</span>
+                <span className="text-sm leading-tight text-muted">{KIND_HINT[kind]}</span>
                 {selected && (
-                  <span className="absolute end-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-hivis text-steel-950">
+                  <span className="absolute end-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-accent text-white">
                     <Icon name="check" size={16} />
                   </span>
                 )}
@@ -130,7 +130,7 @@ export function JobForm({
           aria-describedby={titleMissing ? 'title-error' : undefined}
         />
         {titleMissing && (
-          <span id="title-error" className="mt-1.5 block text-sm text-primer-light">
+          <span id="title-error" className="mt-1.5 block text-sm text-danger">
             כתוב במילה או שתיים מה העבודה, כדי שתזהה אותה ברשימה.
           </span>
         )}
@@ -159,7 +159,7 @@ export function JobForm({
           placeholder="050-0000000"
           autoComplete="off"
         />
-        <span className="mt-1.5 block text-sm text-steel-300">כדי לשלוח לו הצעת מחיר בוואטסאפ בלחיצה.</span>
+        <span className="mt-1.5 block text-sm text-muted">כדי לשלוח לו הצעת מחיר בוואטסאפ בלחיצה.</span>
       </label>
 
       <label className="block">
@@ -180,14 +180,14 @@ export function JobForm({
           onChange={(e) => set('description', e.target.value)}
           placeholder="מידות, חומרים, מה הלקוח ביקש"
         />
-        <span className="mt-1.5 flex items-center gap-1.5 text-sm text-steel-300">
+        <span className="mt-1.5 flex items-center gap-1.5 text-sm text-muted">
           <Icon name="mic" size={16} />
           אפשר להכתיב: לוחצים על המיקרופון במקלדת.
         </span>
       </label>
 
       {error && (
-        <p className="text-primer-light" role="alert">
+        <p className="text-danger" role="alert">
           {error}
         </p>
       )}

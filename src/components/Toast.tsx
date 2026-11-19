@@ -31,7 +31,7 @@ export function Toaster() {
       className="pointer-events-none fixed inset-x-0 bottom-[calc(9.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4"
     >
       {message && (
-        <div className="sheet flex items-center gap-2 rounded-xl border-s-4 border-hivis bg-steel-950 px-4 py-3 font-semibold shadow-lg shadow-black/40">
+        <div className="sheet flex items-center gap-2 rounded-md border-s-4 border-accent bg-accent-soft px-4 py-3 font-semibold shadow-lg shadow-black/40">
           {message}
         </div>
       )}

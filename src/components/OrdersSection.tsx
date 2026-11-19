@@ -12,41 +12,41 @@ export function OrdersSection({ job, cutPlans, businessName }: { job: JobDetail;
   const orders = useMemo(() => buildOrders(job.items, cutPlans), [job.items, cutPlans]);
 
   if (job.items.length === 0) {
-    return <p className="mt-4 text-steel-300">רשימת הקניות נבנית מכתב הכמויות. קודם מוסיפים שורות.</p>;
+    return <p className="mt-4 text-muted">רשימת הקניות נבנית מכתב הכמויות. קודם מוסיפים שורות.</p>;
   }
   if (orders.length === 0) {
-    return <p className="mt-4 text-steel-300">אין בעבודה הזו חומרים לקנות, רק עבודה וציוד.</p>;
+    return <p className="mt-4 text-muted">אין בעבודה הזו חומרים לקנות, רק עבודה וציוד.</p>;
   }
 
   return (
     <div className="mt-4 space-y-4">
-      <p className="text-steel-300">
+      <p className="text-muted">
         הפרופילים מוזמנים במוטות שלמים לפי תוכנית החיתוך. כל ספק מקבל רק את מה שלו, בלי פרטי הלקוח.
       </p>
       {orders.map((order) => {
         const text = orderMessage(order, { businessName, jobTitle: job.title });
         return (
-          <section key={order.supplierId ?? 'none'} className="plate rounded-[10px] p-4">
+          <section key={order.supplierId ?? 'none'} className="plate rounded-md p-4">
             <div className="flex items-baseline justify-between gap-3">
               <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <Icon name="truck" size={20} className="text-steel-300" />
+                <Icon name="truck" size={20} className="text-muted" />
                 {order.supplierName ?? 'בלי ספק קבוע'}
               </h3>
-              <span className="tnum shrink-0 text-sm text-steel-300">בערך {formatIls(order.cost)}</span>
+              <span className="tnum shrink-0 text-sm text-muted">בערך {formatIls(order.cost)}</span>
             </div>
             <ul className="mt-3 space-y-2">
               {order.lines.map((l, i) => (
-                <li key={i} className="flex items-baseline justify-between gap-3 border-b border-steel-700 pb-2 last:border-0 last:pb-0">
+                <li key={i} className="flex items-baseline justify-between gap-3 border-b border-line pb-2 last:border-0 last:pb-0">
                   <span className="min-w-0">
                     {l.name}
-                    {l.note && <span className="mt-0.5 block text-sm text-hivis">{l.note}</span>}
+                    {l.note && <span className="mt-0.5 block text-sm text-accent">{l.note}</span>}
                   </span>
                   <span className="tnum shrink-0 font-semibold">{l.qty}</span>
                 </li>
               ))}
             </ul>
             {order.supplierId === null && (
-              <p className="mt-3 text-sm text-steel-300">
+              <p className="mt-3 text-sm text-muted">
                 כדי שפריטים יגיעו לספק הנכון, קבע ספק לכל פריט במחירון. בינתיים אפשר לשלוח את הרשימה לכל ספק.
               </p>
             )}
@@ -64,7 +64,7 @@ export function OrdersSection({ job, cutPlans, businessName }: { job: JobDetail;
                     .then(() => toast('ההזמנה הועתקה'))
                     .catch(() => toast('לא הצלחתי להעתיק'));
                 }}
-                className="grid min-h-12 w-12 place-items-center rounded-xl border border-steel-500"
+                className="grid min-h-12 w-12 place-items-center rounded-md border border-line-strong"
               >
                 <Icon name="copy" size={20} />
               </button>
@@ -72,7 +72,7 @@ export function OrdersSection({ job, cutPlans, businessName }: { job: JobDetail;
           </section>
         );
       })}
-      <p className="text-sm text-steel-500">המחירים לפי המחירון שלך, לפני מע״מ. הספק יאשר מחיר סופי.</p>
+      <p className="text-sm text-faint">המחירים לפי המחירון שלך, לפני מע״מ. הספק יאשר מחיר סופי.</p>
     </div>
   );
 }

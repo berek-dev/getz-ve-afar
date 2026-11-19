@@ -75,9 +75,9 @@ export function ElementBrowser({
       .filter((el) => matches(el, q))
       .sort((a, b) => familyOrder(a.family) - familyOrder(b.family) || bySize(a, b))
       .slice(0, 80);
-    if (found.length === 0) return <p className="mt-6 text-center text-steel-300">לא נמצא. נסה מילה אחרת, למשל ״60/40״ או ״ציר״.</p>;
+    if (found.length === 0) return <p className="mt-6 text-center text-muted">לא נמצא. נסה מילה אחרת, למשל ״60/40״ או ״ציר״.</p>;
     return (
-      <ul className="plate mt-3 divide-y divide-steel-700 rounded-[10px]">
+      <ul className="plate mt-3 divide-y divide-line rounded-md">
         {found.map((el) => (
           <ItemRow key={el.id} el={el} selected={el.id === selectedId} onPick={onPick} showFamily />
         ))}
@@ -96,7 +96,7 @@ export function ElementBrowser({
             aria-selected={c === active}
             onClick={() => setCategory(c)}
             className={`min-h-11 shrink-0 rounded-full border px-4 font-semibold ${
-              c === active ? 'border-hivis bg-hivis text-steel-950' : 'border-steel-700 text-steel-300'
+              c === active ? 'border-accent bg-accent text-white' : 'border-line text-muted'
             }`}
           >
             {ELEMENT_CATEGORY_LABELS[c]}
@@ -151,7 +151,7 @@ function FamilyBlock({
   const def = familyDef(family);
 
   return (
-    <section className="plate rounded-[10px]">
+    <section className="plate rounded-md">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -160,17 +160,17 @@ function FamilyBlock({
       >
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">{family}</span>
-          <span className="block text-sm text-steel-300">
+          <span className="block text-sm text-muted">
             {items.length} פריטים
             {mats.length > 0 && `, ${mats.map((m) => MATERIALS.find((x) => x.key === m)?.short).join(', ')}`}
-            {missing > 0 && <span className="text-hivis">, {missing} בלי מחיר</span>}
+            {missing > 0 && <span className="text-accent">, {missing} בלי מחיר</span>}
           </span>
         </span>
-        <Icon name={open ? 'close' : 'plus'} size={18} className="shrink-0 text-steel-500" />
+        <Icon name={open ? 'close' : 'plus'} size={18} className="shrink-0 text-faint" />
       </button>
 
       {open && (
-        <div className="border-t border-steel-700 p-3">
+        <div className="border-t border-line p-3">
           {mats.length > 1 && (
             <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="חומר">
               {mats.map((m) => (
@@ -180,7 +180,7 @@ function FamilyBlock({
                   aria-pressed={m === mat}
                   onClick={() => setMat(m)}
                   className={`min-h-10 rounded-lg border px-3 text-sm font-semibold ${
-                    m === mat ? 'border-soapstone bg-soapstone text-steel-950' : 'border-steel-700 text-steel-300'
+                    m === mat ? 'border-ink bg-ink text-white' : 'border-line text-muted'
                   }`}
                 >
                   {MATERIALS.find((x) => x.key === m)?.short}
@@ -189,7 +189,7 @@ function FamilyBlock({
             </div>
           )}
           {perKg && shown.some((i) => i.price_by_kg) && (
-            <p className="mb-2 text-sm text-steel-300">
+            <p className="mb-2 text-sm text-muted">
               {perKg.price_per_kg > 0
                 ? `לפי ${formatIls(perKg.price_per_kg)} לק״ג (${perKg.name}). המחיר לק״ג מתעדכן למעלה.`
                 : `עוד לא נקבע מחיר לק״ג ל${perKg.name}. קבע אותו למעלה ומחירי כל המידות יתעדכנו.`}
@@ -206,11 +206,11 @@ function FamilyBlock({
                     aria-pressed={el.id === selectedId}
                     aria-label={`${el.name}, ${priceText(el)}`}
                     className={`flex min-h-14 w-full flex-col items-center justify-center rounded-lg border px-1 py-1.5 ${
-                      el.id === selectedId ? 'border-hivis bg-steel-950' : 'border-steel-700 bg-steel-900 active:bg-steel-700'
+                      el.id === selectedId ? 'border-accent bg-accent-soft' : 'border-line bg-card active:bg-sunken'
                     }`}
                   >
                     <span className="tnum font-semibold leading-tight">{el.size}</span>
-                    <span className={`tnum text-xs ${el.unit_cost > 0 ? 'text-steel-300' : 'text-hivis'}`}>
+                    <span className={`tnum text-xs ${el.unit_cost > 0 ? 'text-muted' : 'text-accent'}`}>
                       {el.unit_cost > 0 ? formatIls(el.unit_cost) : 'חסר מחיר'}
                     </span>
                   </button>
@@ -218,7 +218,7 @@ function FamilyBlock({
               ))}
             </ul>
           ) : (
-            <ul className="-mx-3 divide-y divide-steel-700">
+            <ul className="-mx-3 divide-y divide-line">
               {shown.map((el) => (
                 <ItemRow key={el.id} el={el} selected={el.id === selectedId} onPick={onPick} />
               ))}
@@ -226,7 +226,7 @@ function FamilyBlock({
           )}
 
           {grid && shown[0]?.weight_kg_per_unit ? (
-            <p className="mt-2 text-xs text-steel-500">
+            <p className="mt-2 text-xs text-faint">
               מחיר {UNIT_PER[shown[0].unit]}. משקל לדוגמה: {shown[0].size}, {fmtNum(shown[0].weight_kg_per_unit)} ק״ג {UNIT_PER[shown[0].unit]}.
             </p>
           ) : null}
@@ -235,7 +235,7 @@ function FamilyBlock({
             <button
               type="button"
               onClick={() => onAdd(mat)}
-              className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-steel-500 font-semibold text-steel-300"
+              className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line-strong font-semibold text-muted"
             >
               <Icon name="plus" size={18} />
               {def?.shape ? 'הוסף מידה' : 'הוסף פריט'}
@@ -264,16 +264,16 @@ function ItemRow({
         type="button"
         onClick={() => onPick(el)}
         aria-pressed={selected}
-        className={`flex min-h-14 w-full items-center gap-3 px-4 py-2.5 text-start ${selected ? 'bg-steel-950' : 'active:bg-steel-700'}`}
+        className={`flex min-h-14 w-full items-center gap-3 px-4 py-2.5 text-start ${selected ? 'bg-accent-soft' : 'active:bg-sunken'}`}
       >
         <span className="min-w-0 flex-1">
           <span className="block font-semibold leading-snug">{el.name}</span>
-          <span className="block text-sm text-steel-300">
+          <span className="block text-sm text-muted">
             {[showFamily && el.family, el.supplier_name].filter(Boolean).join(', ') || ELEMENT_CATEGORY_LABELS[el.category]}
           </span>
         </span>
-        <span className={`tnum shrink-0 text-end text-sm font-semibold ${el.unit_cost > 0 ? '' : 'text-hivis'}`}>{priceText(el)}</span>
-        {selected && <Icon name="check" size={18} className="shrink-0 text-hivis" />}
+        <span className={`tnum shrink-0 text-end text-sm font-semibold ${el.unit_cost > 0 ? '' : 'text-accent'}`}>{priceText(el)}</span>
+        {selected && <Icon name="check" size={18} className="shrink-0 text-accent" />}
       </button>
     </li>
   );

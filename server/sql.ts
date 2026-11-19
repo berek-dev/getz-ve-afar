@@ -1,5 +1,6 @@
 /** Shared queries and helpers for route modules. */
 import type { ItemInput } from './items.ts';
+import { effectiveQuoteStatus } from '../src/core/quote.ts';
 
 /** Job lines with their price-list element and supplier joined in. */
 export const ITEM_SELECT = `SELECT ji.*, e.name AS element_name, e.category, e.weight_kg_per_unit, e.stock_length_mm,
@@ -8,8 +9,24 @@ export const ITEM_SELECT = `SELECT ji.*, e.name AS element_name, e.category, e.w
   LEFT JOIN elements e ON e.id = ji.element_id
   LEFT JOIN suppliers s ON s.id = e.supplier_id`;
 
-export const JOB_SELECT = `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone
-  FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id`;
+/** A job with its client and what its steps need to know (src/core/phases.ts). */
+export const JOB_SELECT = `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone,
+    (SELECT COUNT(*) FROM job_items ji WHERE ji.job_id = j.id) AS item_count,
+    (SELECT COUNT(*) FROM job_models m WHERE m.job_id = j.id) AS model_versions,
+    (SELECT COUNT(*) FROM photos ph WHERE ph.job_id = j.id) AS photo_count,
+    (SELECT COUNT(*) FROM expenses x WHERE x.job_id = j.id) AS expense_count,
+    (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.job_id = j.id) AS paid_total,
+    q.status AS quote_status, q.created_at AS quote_created_at, q.total AS quote_total, q.valid_until AS quote_valid_until
+  FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id
+  LEFT JOIN quotes q ON q.id = (SELECT q2.id FROM quotes q2 WHERE q2.job_id = j.id ORDER BY q2.version DESC LIMIT 1)`;
+
+/** The quote status as the client sees it (a sent quote past its date is expired). */
+export function withQuoteStatus<T extends { quote_status?: unknown; quote_valid_until?: unknown }>(row: T): T {
+  if (row.quote_status === 'sent' && typeof row.quote_valid_until === 'string') {
+    return { ...row, quote_status: effectiveQuoteStatus('sent', row.quote_valid_until, new Date().toISOString().slice(0, 10)) };
+  }
+  return row;
+}
 
 export async function touchJob(db: D1Database, jobId: number): Promise<void> {
   await db.prepare("UPDATE jobs SET updated_at = datetime('now') WHERE id = ?").bind(jobId).run();

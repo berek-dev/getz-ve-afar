@@ -20,6 +20,15 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   number's order. Inches are written `8 צול`, angles `90 מעלות`.
 - Never commit secrets, real client data or real price lists – the repo may be public.
 
+## Structure and look
+- Bottom bar: היום (what to do now) · עבודות · ＋ פנייה חדשה · יומן · עסק (money, price list, settings).
+- A job is four phases of numbered steps (`src/core/phases.ts`): פנייה, תכנון והצעה, ביצוע, תשלום וסגירה. Steps tick
+  themselves off from the job's data; `nextAction` says what to do next. Each step is its own screen, `#/jobs/:id/:step`,
+  built in `src/components/JobSteps.tsx` from the existing sections. New features go into a step, not a new tab.
+- Look "shop sheet": light, IBM Plex Sans Hebrew only, one orange (`accent`) for the main action of a screen, hairline
+  cards (`plate`), steps numbered in circles (`mark`). Use the semantic colors in `src/styles.css`
+  (page, card, sunken, line, ink, muted, faint, accent, ok, danger), never raw hex in components.
+
 ## 3D
 - The AI writes layout JSON only (`src/core/scene.ts`); the viewer (`src/viewer3d/viewer.js`, plain JS shared with the
   prototype, types in `viewer.d.ts`), cut list and shop drawing (`src/core/drawing.ts`) are deterministic code.

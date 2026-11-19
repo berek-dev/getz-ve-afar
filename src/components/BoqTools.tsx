@@ -34,7 +34,7 @@ export function SaveTemplateForm({ job, onDone }: { job: JobDetail; onDone: () =
 
   return (
     <form onSubmit={submit} className="space-y-5" noValidate>
-      <p className="text-steel-300">
+      <p className="text-muted">
         {job.items.length} השורות של העבודה יישמרו. בעבודה הבאה מאותו סוג מתחילים מהן ומשנים רק מידות. המחירים יילקחו
         מהמחירון של אותו יום.
       </p>
@@ -47,7 +47,7 @@ export function SaveTemplateForm({ job, onDone }: { job: JobDetail; onDone: () =
         <input className="field" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="לא חובה" />
       </label>
       {error && (
-        <p className="text-primer-light" role="alert">
+        <p className="text-danger" role="alert">
           {error}
         </p>
       )}
@@ -81,18 +81,18 @@ export function TemplatePicker({
       .catch((e: unknown) => setError(errorMessage(e)));
   }, []);
 
-  if (error) return <p className="text-primer-light">{error}</p>;
-  if (!templates) return <p className="text-steel-300">טוען...</p>;
+  if (error) return <p className="text-danger">{error}</p>;
+  if (!templates) return <p className="text-muted">טוען...</p>;
   if (templates.length === 0) {
     return (
-      <p className="text-steel-300">
+      <p className="text-muted">
         עוד אין תבניות. פותחים עבודה שהשורות שלה טובות, ולוחצים בתחתית כתב הכמויות על ״שמור כתבנית״.
       </p>
     );
   }
 
   return (
-    <ul className="plate divide-y divide-steel-700 rounded-[10px]">
+    <ul className="plate divide-y divide-line rounded-md">
       {templates.map((t) => (
         <li key={t.id} className="flex items-center gap-2 px-3 py-2">
           <button
@@ -110,14 +110,14 @@ export function TemplatePicker({
             }}
             className="flex min-h-14 min-w-0 flex-1 items-center gap-3 text-start"
           >
-            <Icon name="layers" size={22} className="shrink-0 text-hivis" />
+            <Icon name="layers" size={22} className="shrink-0 text-accent" />
             <span className="min-w-0">
               <span className="block font-semibold">{t.name}</span>
-              <span className="block text-sm text-steel-300">
+              <span className="block text-sm text-muted">
                 {busyId === t.id ? 'מוסיף...' : `${t.item_count} שורות${t.description ? `, ${t.description}` : ''}`}
               </span>
             </span>
-            <span className="ms-auto shrink-0 text-sm font-semibold text-hivis">{actionLabel}</span>
+            <span className="ms-auto shrink-0 text-sm font-semibold text-accent">{actionLabel}</span>
           </button>
           {allowDelete && (
             <DeleteButton
@@ -184,8 +184,8 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
   if (drafts && drafts.length > 0) {
     return (
       <div className="space-y-4">
-        <p className="text-steel-300">זו טיוטה. סמן מה להוסיף; אחר כך אפשר לתקן כל שורה בכתב הכמויות.</p>
-        <ul className="plate divide-y divide-steel-700 rounded-[10px]">
+        <p className="text-muted">זו טיוטה. סמן מה להוסיף; אחר כך אפשר לתקן כל שורה בכתב הכמויות.</p>
+        <ul className="plate divide-y divide-line rounded-md">
           {drafts.map((d, i) => {
             const el = d.element_id != null ? byId.get(d.element_id) : undefined;
             return (
@@ -193,7 +193,7 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
                 <label className="flex min-h-14 items-start gap-3 px-4 py-3">
                   <input
                     type="checkbox"
-                    className="mt-1 h-6 w-6 shrink-0 accent-hivis"
+                    className="mt-1 h-6 w-6 shrink-0 accent-accent"
                     checked={picked.has(i)}
                     onChange={(e) =>
                       setPicked((s) => {
@@ -206,7 +206,7 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold">{d.description}</span>
-                    <span className="tnum block text-sm text-steel-300">
+                    <span className="tnum block text-sm text-muted">
                       {d.group_name ? `${d.group_name}: ` : ''}
                       {d.pieces && d.length_mm
                         ? `${d.pieces} יח׳ באורך ${fmtNum(d.length_mm)} מ״מ`
@@ -214,9 +214,9 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
                       {d.unit_cost > 0 ? `, ${formatIls(d.unit_cost)} ${UNIT_PER[d.unit]}` : ''}
                     </span>
                     {el ? (
-                      <span className="block text-sm text-steel-500">מהמחירון: {el.name}</span>
+                      <span className="block text-sm text-faint">מהמחירון: {el.name}</span>
                     ) : (
-                      d.unit_cost === 0 && <span className="block text-sm text-hivis">אין במחירון. צריך להשלים מחיר</span>
+                      d.unit_cost === 0 && <span className="block text-sm text-accent">אין במחירון. צריך להשלים מחיר</span>
                     )}
                   </span>
                 </label>
@@ -225,9 +225,9 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
           })}
         </ul>
         {notes.length > 0 && (
-          <div className="rounded-[10px] border border-steel-700 p-3">
+          <div className="rounded-md border border-line p-3">
             <p className="font-semibold">הנחות שכדאי לבדוק</p>
-            <ul className="mt-1 list-disc space-y-1 ps-5 text-steel-300">
+            <ul className="mt-1 list-disc space-y-1 ps-5 text-muted">
               {notes.map((n, i) => (
                 <li key={i}>{n}</li>
               ))}
@@ -235,7 +235,7 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
           </div>
         )}
         {error && (
-          <p className="text-primer-light" role="alert">
+          <p className="text-danger" role="alert">
             {error}
           </p>
         )}
@@ -243,7 +243,7 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
           <Icon name="plus" />
           {busy ? 'מוסיף...' : `הוסף ${picked.size} שורות`}
         </button>
-        <button type="button" onClick={() => setDrafts(null)} className="min-h-11 w-full text-steel-300 underline underline-offset-4">
+        <button type="button" onClick={() => setDrafts(null)} className="min-h-11 w-full text-muted underline underline-offset-4">
           חזרה לתיאור
         </button>
       </div>
@@ -254,7 +254,7 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
     <div className="space-y-4">
       <label className="block">
         <span className="mb-1.5 block font-semibold">מה צריך לבנות?</span>
-        <span className="mb-2 block text-sm text-steel-300">
+        <span className="mb-2 block text-sm text-muted">
           כמו שהיית מסביר לעובד: מידות, פרופילים, פרזול, גמר, התקנה. אפשר להכתיב עם המיקרופון במקלדת.
         </span>
         <textarea
@@ -268,17 +268,17 @@ export function AiDraft({ job, elements, onAdded }: { job: JobDetail; elements: 
         <button
           type="button"
           onClick={mic.toggle}
-          className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border font-semibold ${
-            mic.listening ? 'border-primer bg-primer text-soapstone' : 'border-steel-500'
+          className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-md border font-semibold ${
+            mic.listening ? 'border-danger bg-danger text-white' : 'border-line-strong'
           }`}
         >
           <Icon name="mic" size={20} />
           {mic.listening ? 'מקשיב... לחץ לסיום' : 'הכתבה'}
         </button>
       )}
-      <p className="text-sm text-steel-500">הטקסט והמחירון נשלחים לשירות של Google. בלי שמות וטלפונים של לקוחות.</p>
+      <p className="text-sm text-faint">הטקסט והמחירון נשלחים לשירות של Google. בלי שמות וטלפונים של לקוחות.</p>
       {error && (
-        <p className="text-primer-light" role="alert">
+        <p className="text-danger" role="alert">
           {error}
         </p>
       )}

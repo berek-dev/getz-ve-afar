@@ -1,20 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { Job } from '../core/types.ts';
-import { JOB_STATUS_LABELS } from '../core/types.ts';
-import { addDays, businessToday } from '../core/calendar.ts';
+import { addDays, businessToday, jobEvents } from '../core/calendar.ts';
+import type { JobEvent } from '../core/calendar.ts';
 import { fmtHours, fmtSlotDay, fmtSlotTime } from '../lib/format.ts';
 import { Icon } from '../components/Icon.tsx';
-import { KIND_ICON } from '../components/JobForm.tsx';
-import { slotLabel } from '../components/ScheduleBlock.tsx';
-
-const ACTIVE = new Set(['lead', 'visit', 'quoted', 'approved', 'in_progress']);
+import { PageHeader, SectionTitle } from '../components/ui.tsx';
 
 export function wazeLink(address: string): string {
   return `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
 }
 
-/** What's on: visits and work days, nearest first, plus what still needs a date. */
+/** Measuring visits and work days, nearest first, plus what still needs a date. */
 export function CalendarPage() {
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,19 +27,19 @@ export function CalendarPage() {
   const tomorrow = addDays(today, 1);
 
   const { days, late, needDate, needVisit } = useMemo(() => {
-    const list = (jobs ?? []).filter((j) => ACTIVE.has(j.status));
-    const dated = list.filter((j) => j.scheduled_at).sort((a, b) => (a.scheduled_at ?? '').localeCompare(b.scheduled_at ?? ''));
-    const byDay = new Map<string, Job[]>();
-    for (const j of dated) {
-      const d = (j.scheduled_at as string).slice(0, 10);
+    const list = jobs ?? [];
+    const events = jobEvents(list);
+    const byDay = new Map<string, JobEvent<Job>[]>();
+    for (const e of events) {
+      const d = e.start.slice(0, 10);
       if (d < today) continue;
-      byDay.set(d, [...(byDay.get(d) ?? []), j]);
+      byDay.set(d, [...(byDay.get(d) ?? []), e]);
     }
     return {
       days: [...byDay.entries()],
-      late: dated.filter((j) => (j.scheduled_at as string).slice(0, 10) < today && j.status !== 'quoted'),
+      late: events.filter((e) => e.start.slice(0, 10) < today && !(e.kind === 'work' && e.job.status === 'quoted')),
       needDate: list.filter((j) => !j.scheduled_at && (j.status === 'approved' || j.status === 'in_progress')),
-      needVisit: list.filter((j) => !j.scheduled_at && j.status === 'lead'),
+      needVisit: list.filter((j) => !j.visit_at && j.status === 'lead'),
     };
   }, [jobs, today]);
 
@@ -50,71 +47,73 @@ export function CalendarPage() {
 
   return (
     <div>
-      <h1 className="font-display text-[3rem] leading-none">יומן</h1>
+      <PageHeader title="יומן" />
       {error && (
-        <p className="mt-4 rounded-[10px] border border-primer bg-primer/15 p-3 text-primer-light" role="alert">
+        <p className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-danger" role="alert">
           {error}
         </p>
       )}
-      {!jobs && !error && <p className="mt-4 text-steel-300">טוען...</p>}
+      {!jobs && !error && <p className="text-muted">טוען...</p>}
 
       {jobs && days.length === 0 && (
-        <p className="mt-4 rounded-[10px] border-2 border-dashed border-steel-700 p-5 text-center text-steel-300">
-          אין מועדים קרובים. קובעים מועד מתוך העבודה, מתחת לשלב שלה.
-        </p>
+        <p className="plate rounded-md p-5 text-center text-muted">אין מועדים קרובים. ביקור קובעים בשלב הפנייה, ומועד לעבודה בלוח הזמנים של העבודה.</p>
       )}
 
-      {days.map(([day, list]) => (
-        <section key={day} className="mt-6" aria-label={dayTitle(day)}>
-          <h2 className={`mb-2 text-lg font-semibold ${day === today ? 'text-hivis' : ''}`}>
-            {dayTitle(day)}
-            {day === today || day === tomorrow ? <span className="ms-2 text-sm font-normal text-steel-300">{fmtSlotDay(`${day}T00:00`)}</span> : null}
-          </h2>
-          <ul className="space-y-2">
-            {list.map((j) => (
-              <SlotCard key={j.id} job={j} />
-            ))}
-          </ul>
-        </section>
-      ))}
+      <div className="space-y-6">
+        {days.map(([day, list]) => (
+          <section key={day} aria-label={dayTitle(day)}>
+            <SectionTitle aside={day === today || day === tomorrow ? fmtSlotDay(`${day}T00:00`) : undefined}>
+              <span className={day === today ? 'text-accent' : undefined}>{dayTitle(day)}</span>
+            </SectionTitle>
+            <ul className="plate divide-y divide-line rounded-md">
+              {list.map((e) => (
+                <EventRow key={`${e.job.id}-${e.kind}`} event={e} />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
 
       {late.length > 0 && (
-        <Waiting title="המועד עבר" hint="עדכן מועד חדש או קדם את העבודה לשלב הבא." jobs={late} showDate />
+        <Waiting
+          title="המועד עבר"
+          hint="לקבוע מועד חדש, או לקדם את העבודה לשלב הבא."
+          rows={late.map((e) => ({ job: e.job, step: e.kind === 'visit' ? 'visit' : 'schedule', text: `${e.kind === 'visit' ? 'ביקור' : 'עבודה'}, ${fmtSlotDay(e.start)}` }))}
+        />
       )}
-      {needDate.length > 0 && <Waiting title="מאושרות, בלי מועד" hint="הלקוח אישר. נשאר לתאם מתי מבצעים." jobs={needDate} />}
-      {needVisit.length > 0 && <Waiting title="פניות שמחכות לביקור" hint="לתאם מדידה בשטח." jobs={needVisit} />}
+      {needDate.length > 0 && (
+        <Waiting title="מאושרות, בלי מועד" hint="הלקוח אישר. נשאר לתאם מתי מבצעים." rows={needDate.map((job) => ({ job, step: 'schedule', text: job.client_name ?? '' }))} />
+      )}
+      {needVisit.length > 0 && (
+        <Waiting title="פניות שמחכות לביקור" hint="לתאם מדידה בשטח." rows={needVisit.map((job) => ({ job, step: 'visit', text: job.client_name ?? '' }))} />
+      )}
     </div>
   );
 }
 
-function SlotCard({ job }: { job: Job }) {
-  const at = job.scheduled_at as string;
+function EventRow({ event: e }: { event: JobEvent<Job> }) {
+  const job = e.job;
   return (
-    <li className="plate flex items-stretch rounded-[10px]">
-      <a href={`#/jobs/${job.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-3">
-        <span className="tnum w-14 shrink-0 text-center">
-          <span className="block text-lg font-semibold leading-tight">{fmtSlotTime(at)}</span>
-          {job.scheduled_hours ? <span className="block text-xs text-steel-300">{fmtHours(job.scheduled_hours)}</span> : null}
+    <li className="flex items-stretch">
+      <a href={`#/jobs/${job.id}/${e.kind === 'visit' ? 'visit' : 'install'}`} className="flex min-w-0 flex-1 items-center gap-3 px-3.5 py-2.5 active:bg-sunken">
+        <span className="tnum w-12 shrink-0">
+          <span className="block font-semibold leading-tight">{fmtSlotTime(e.start)}</span>
+          {e.kind === 'work' && job.scheduled_hours ? <span className="block text-xs text-muted">{fmtHours(job.scheduled_hours)}</span> : null}
         </span>
-        <span className="min-w-0 flex-1 border-s border-steel-700 ps-3">
-          <span className="flex items-center gap-1.5 text-sm text-steel-300">
-            <Icon name={KIND_ICON[job.kind]} size={16} />
-            {slotLabel(job)}
-          </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[0.85rem] text-muted">{e.kind === 'visit' ? 'ביקור ומדידה' : 'עבודה'}</span>
           <span className="block truncate font-semibold">{job.title}</span>
-          <span className="block truncate text-sm text-steel-300">
-            {[job.client_name, job.site_address].filter(Boolean).join(', ')}
-          </span>
+          <span className="block truncate text-[0.85rem] text-muted">{[job.client_name, job.site_address].filter(Boolean).join(', ')}</span>
         </span>
       </a>
-      <span className="flex shrink-0 flex-col justify-center gap-1 pe-2">
+      <span className="flex shrink-0 flex-col justify-center pe-1.5">
         {job.site_address && (
-          <a href={wazeLink(job.site_address)} target="_blank" rel="noreferrer" aria-label="ניווט בוויז" className="grid h-11 w-11 place-items-center rounded-lg text-steel-300">
+          <a href={wazeLink(job.site_address)} target="_blank" rel="noreferrer" aria-label="ניווט בוויז" className="grid h-11 w-11 place-items-center text-muted">
             <Icon name="navigate" size={20} />
           </a>
         )}
         {job.client_phone && (
-          <a href={`tel:${job.client_phone}`} aria-label={`התקשר ל${job.client_name ?? 'לקוח'}`} className="grid h-11 w-11 place-items-center rounded-lg text-steel-300">
+          <a href={`tel:${job.client_phone}`} aria-label={`התקשר ל${job.client_name ?? 'לקוח'}`} className="grid h-11 w-11 place-items-center text-muted">
             <Icon name="phone" size={20} />
           </a>
         )}
@@ -123,24 +122,20 @@ function SlotCard({ job }: { job: Job }) {
   );
 }
 
-function Waiting({ title, hint, jobs, showDate = false }: { title: string; hint: string; jobs: Job[]; showDate?: boolean }) {
+function Waiting({ title, hint, rows }: { title: string; hint: string; rows: { job: Job; step: string; text: string }[] }) {
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="text-sm text-steel-300">{hint}</p>
-      <ul className="plate mt-2 divide-y divide-steel-700 rounded-[10px]">
-        {jobs.map((j) => (
-          <li key={j.id}>
-            <a href={`#/jobs/${j.id}`} className="flex min-h-14 items-center gap-3 px-4 py-2">
-              <Icon name={KIND_ICON[j.kind]} size={20} className="shrink-0 text-steel-300" />
+      <SectionTitle>{title}</SectionTitle>
+      <p className="-mt-1 mb-2 px-1 text-[0.85rem] text-muted">{hint}</p>
+      <ul className="plate divide-y divide-line rounded-md">
+        {rows.map(({ job, step, text }) => (
+          <li key={`${job.id}-${step}`}>
+            <a href={`#/jobs/${job.id}/${step}`} className="flex min-h-14 items-center gap-3 px-3.5 py-2 active:bg-sunken">
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold">{j.title}</span>
-                <span className="block truncate text-sm text-steel-300">
-                  {showDate && j.scheduled_at ? `${fmtSlotDay(j.scheduled_at)}, ` : ''}
-                  {j.client_name ?? JOB_STATUS_LABELS[j.status]}
-                </span>
+                <span className="block truncate font-semibold">{job.title}</span>
+                {text && <span className="block truncate text-[0.85rem] text-muted">{text}</span>}
               </span>
-              <Icon name="forward" size={18} className="shrink-0 text-steel-500" />
+              <Icon name="forward" size={18} className="shrink-0 text-faint" />
             </a>
           </li>
         ))}

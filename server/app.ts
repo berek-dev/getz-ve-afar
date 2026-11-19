@@ -14,7 +14,7 @@ import { deleteJobPhotos, registerPhotos } from './routes/photos.ts';
 import { registerTemplates, templateLines } from './routes/templates.ts';
 import { registerAi } from './routes/ai.ts';
 import { registerModel } from './routes/model.ts';
-import { ITEM_SELECT, insertItems, touchJob } from './sql.ts';
+import { ITEM_SELECT, JOB_SELECT, insertItems, touchJob, withQuoteStatus } from './sql.ts';
 import {
   SESSION_COOKIE,
   SESSION_RENEW_BELOW_MS,
@@ -183,30 +183,19 @@ app.post('/clients', async (c) => {
 
 // --- Jobs
 app.get('/jobs', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone
-       FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id
-      ORDER BY j.updated_at DESC
-      LIMIT 200`,
-  ).all();
-  return c.json(results);
+  const { results } = await c.env.DB.prepare(`${JOB_SELECT} ORDER BY j.updated_at DESC LIMIT 200`).all<{ quote_status: unknown }>();
+  return c.json(results.map(withQuoteStatus));
 });
 
 app.get('/jobs/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isInteger(id)) return c.json({ error: 'bad id' }, 400);
-  const job = await c.env.DB.prepare(
-    `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone,
-            (SELECT COUNT(*) FROM job_models m WHERE m.job_id = j.id) AS model_versions
-       FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id WHERE j.id = ?`,
-  )
-    .bind(id)
-    .first();
+  const job = await c.env.DB.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(id).first<{ quote_status: unknown }>();
   if (!job) return c.json({ error: 'not found' }, 404);
   const { results: items } = await c.env.DB.prepare(`${ITEM_SELECT} WHERE ji.job_id = ? ORDER BY ji.sort_order, ji.id`)
     .bind(id)
     .all();
-  return c.json({ ...job, items });
+  return c.json({ ...withQuoteStatus(job), items });
 });
 
 // --- Job lines (bill of quantities)
@@ -348,12 +337,33 @@ app.patch('/jobs/:id', async (c) => {
   )
     .bind(title, kind, clientId, body.site_address?.trim() || null, body.description?.trim() || null, id)
     .run();
-  const row = await c.env.DB.prepare(
-    `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone FROM jobs j LEFT JOIN clients cl ON cl.id = j.client_id WHERE j.id = ?`,
-  )
-    .bind(id)
+  const row = await c.env.DB.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(id).first<{ quote_status: unknown }>();
+  return c.json(row && withQuoteStatus(row));
+});
+
+/** Small per-step fields: notes from the site, materials ordered (true = today, false = not yet). */
+app.patch('/jobs/:id/fields', async (c) => {
+  const id = parseId(c.req.param('id'));
+  if (!id) return c.json({ error: 'bad id' }, 400);
+  const body = await c.req.json<{ site_notes?: unknown; ordered?: unknown }>();
+  const sets: string[] = [];
+  const values: (string | null)[] = [];
+  if (body.site_notes !== undefined) {
+    if (body.site_notes !== null && typeof body.site_notes !== 'string') return c.json({ error: 'invalid site_notes' }, 400);
+    sets.push('site_notes = ?');
+    values.push(body.site_notes?.trim().slice(0, 3000) || null);
+  }
+  if (body.ordered !== undefined) {
+    sets.push('ordered_at = ?');
+    values.push(body.ordered === true ? new Date().toISOString().slice(0, 10) : null);
+  }
+  if (sets.length === 0) return c.json({ error: 'nothing to update' }, 400);
+  const updated = await c.env.DB.prepare(`UPDATE jobs SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ? RETURNING id`)
+    .bind(...values, id)
     .first();
-  return c.json(row);
+  if (!updated) return c.json({ error: 'not found' }, 404);
+  const row = await c.env.DB.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(id).first<{ quote_status: unknown }>();
+  return c.json(row && withQuoteStatus(row));
 });
 
 app.delete('/jobs/:id', async (c) => {
@@ -371,13 +381,12 @@ app.patch('/jobs/:id/status', async (c) => {
   if (!status || !(JOB_STATUSES as readonly string[]).includes(status)) {
     return c.json({ error: 'invalid status' }, 400);
   }
-  const row = await c.env.DB.prepare(
-    "UPDATE jobs SET status = ?, updated_at = datetime('now') WHERE id = ? RETURNING *",
-  )
+  const updated = await c.env.DB.prepare("UPDATE jobs SET status = ?, updated_at = datetime('now') WHERE id = ? RETURNING id")
     .bind(status, id)
     .first();
-  if (!row) return c.json({ error: 'not found' }, 404);
-  return c.json(row);
+  if (!updated) return c.json({ error: 'not found' }, 404);
+  const row = await c.env.DB.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(id).first<{ quote_status: unknown }>();
+  return c.json(row && withQuoteStatus(row));
 });
 
 

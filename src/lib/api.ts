@@ -108,8 +108,10 @@ export const api = {
   addItems: (jobId: number, items: ItemDraft[], source: 'ai' | 'manual') =>
     request<JobItem[]>(`/jobs/${jobId}/items/bulk`, { method: 'POST', body: JSON.stringify({ items, source }) }),
 
-  schedule: (jobId: number, scheduled_at: string | null, scheduled_hours: number | null) =>
-    request<Job>(`/jobs/${jobId}/schedule`, { method: 'PATCH', body: JSON.stringify({ scheduled_at, scheduled_hours }) }),
+  schedule: (jobId: number, kind: 'visit' | 'work', at: string | null, hours: number | null) =>
+    request<Job>(`/jobs/${jobId}/schedule`, { method: 'PATCH', body: JSON.stringify({ kind, scheduled_at: at, scheduled_hours: hours }) }),
+  jobFields: (jobId: number, fields: { site_notes?: string | null; ordered?: boolean }) =>
+    request<Job>(`/jobs/${jobId}/fields`, { method: 'PATCH', body: JSON.stringify(fields) }),
 
   jobMoney: (jobId: number) => request<JobMoney>(`/jobs/${jobId}/money`),
   addPayment: (jobId: number, p: PaymentDraft) =>
@@ -148,7 +150,8 @@ export const api = {
 
 export const photoUrl = (id: number) => `/api/photos/${id}`;
 export const receiptUrl = (expenseId: number) => `/api/expenses/${expenseId}/receipt`;
-export const icsUrl = (jobId: number) => `/api/jobs/${jobId}/calendar.ics`;
+export const icsUrl = (jobId: number, kind: 'visit' | 'work' = 'work') =>
+  `/api/jobs/${jobId}/calendar.ics${kind === 'visit' ? '?kind=visit' : ''}`;
 export const exportUrl = (month: string) => `/api/export?month=${month}`;
 
 export interface ModelVersion {

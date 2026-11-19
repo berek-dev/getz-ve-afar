@@ -26,13 +26,12 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-steel-950">
-      <div className="weld-bead" aria-hidden="true" />
+    <div className="flex min-h-dvh flex-col bg-page">
       <main className="flex flex-1 items-center justify-center px-6 pb-[env(safe-area-inset-bottom)]">
         <form onSubmit={submit} className="w-full max-w-sm">
-          <img src="/icons/icon-192.png" alt="" className="h-20 w-20 rounded-[18px]" />
-          <h1 className="mt-5 font-display text-[4.5rem] leading-[0.85]">גץ ועפר</h1>
-          <p className="mt-2 text-lg text-steel-300">מסגרות, ריתוך ועבודות עפר</p>
+          <img src="/icons/icon-192.png" alt="" className="h-16 w-16 rounded-[14px]" />
+          <h1 className="mt-5 text-[2rem] font-bold leading-tight">גץ ועפר</h1>
+          <p className="mt-2 text-lg text-muted">מסגרות, ריתוך ועבודות עפר</p>
 
           <label className="mt-10 block">
             <span className="mb-1.5 block font-semibold">סיסמה</span>
@@ -52,7 +51,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
                 onClick={() => setShow((s) => !s)}
                 aria-label={show ? 'הסתר סיסמה' : 'הצג סיסמה'}
                 aria-pressed={show}
-                className={`absolute inset-y-0 end-0 grid w-13 place-items-center ${show ? 'text-hivis' : 'text-steel-500'}`}
+                className={`absolute inset-y-0 end-0 grid w-13 place-items-center ${show ? 'text-accent' : 'text-faint'}`}
               >
                 <Icon name="eye" size={22} />
               </button>
@@ -60,7 +59,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
           </label>
 
           {error && (
-            <p id="login-error" className="mt-2 text-primer-light" role="alert">
+            <p id="login-error" className="mt-2 text-danger" role="alert">
               {error}
             </p>
           )}
@@ -69,7 +68,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
             {busy ? 'נכנס...' : 'כניסה'}
           </button>
 
-          <p className="mt-6 text-sm text-steel-500">שכחת את הסיסמה? ברק יכול להגדיר סיסמה חדשה.</p>
+          <p className="mt-6 text-sm text-faint">שכחת את הסיסמה? ברק יכול להגדיר סיסמה חדשה.</p>
         </form>
       </main>
     </div>

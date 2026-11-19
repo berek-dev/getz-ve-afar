@@ -150,7 +150,9 @@ scripts/        helpers (password hash)
 - ✅ Templates, draft lines from a description (Gemini, optional)
 - ✅ 3D model per job: built and changed by talking to it, undo, check against the BOQ, lines from the model,
   shop drawing to share, and the model in the client's quote
-- Next: offline mode, Android tablet + Bluetooth laser, earthworks pricing
+- ✅ Organized by the order of the work: a Today screen with what needs doing, and each job as four phases
+  (request, planning and quote, execution, payment) of numbered steps that tick themselves off
+- Next: invoices through an Israeli invoicing service, offline mode, Android tablet + Bluetooth laser, earthworks pricing
 
 ## 3D visualization
 

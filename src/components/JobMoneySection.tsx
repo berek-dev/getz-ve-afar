@@ -18,12 +18,15 @@ export function JobMoneySection({
   vatPct,
   businessName,
   onStatus,
+  part = 'all',
 }: {
   job: JobDetail;
   currentTotal: number;
   vatPct: number;
   businessName: string;
   onStatus: (s: JobStatus) => void;
+  /** One step's share of the screen: collecting payments, or the job's expenses and what is left */
+  part?: 'all' | 'payments' | 'expenses';
 }) {
   const [data, setData] = useState<JobMoney | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,8 +40,8 @@ export function JobMoneySection({
       .catch((e: unknown) => setError(errorMessage(e)));
   }, [job.id]);
 
-  if (error) return <p className="mt-4 text-primer-light">{error}</p>;
-  if (!data) return <p className="mt-4 text-steel-300">טוען...</p>;
+  if (error) return <p className="mt-4 text-danger">{error}</p>;
+  if (!data) return <p className="mt-4 text-muted">טוען...</p>;
 
   const approved = data.due != null;
   const due = data.due ?? (currentTotal > 0 ? currentTotal : null);
@@ -70,22 +73,27 @@ export function JobMoneySection({
     }
   };
 
+  const showPayments = part !== 'expenses';
+  const showExpenses = part !== 'payments';
+
   return (
     <div className="mt-4 space-y-8">
-      <section className="plate rounded-[10px] p-4" aria-label="גבייה">
+      {showPayments && (
+      <>
+      <section className="plate rounded-md p-4" aria-label="גבייה">
         <div className="flex items-baseline justify-between">
-          <h3 className="text-steel-300">{b.balance !== null && b.balance <= 0.5 ? 'שולם במלואו' : 'נשאר לגבות'}</h3>
-          {b.due !== null && <span className="tnum text-sm text-steel-300">מתוך {formatIls(b.due)}</span>}
+          <h3 className="text-muted">{b.balance !== null && b.balance <= 0.5 ? 'שולם במלואו' : 'נשאר לגבות'}</h3>
+          {b.due !== null && <span className="tnum text-sm text-muted">מתוך {formatIls(b.due)}</span>}
         </div>
-        <p className="tnum mt-1 font-display text-[3.25rem] leading-none text-hivis">
+        <p className="tnum mt-1 text-[2rem] font-bold leading-none tracking-tight">
           {formatIls(b.balance !== null ? Math.max(0, b.balance) : 0)}
         </p>
         {b.share !== null && (
-          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-steel-950" role="img" aria-label={`שולמו ${Math.round(b.share * 100)}%`}>
-            <div className="h-full rounded-full bg-hivis" style={{ width: `${b.share * 100}%` }} />
+          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-sunken" role="img" aria-label={`שולמו ${Math.round(b.share * 100)}%`}>
+            <div className="h-full rounded-full bg-accent" style={{ width: `${b.share * 100}%` }} />
           </div>
         )}
-        <p className="mt-2 text-sm text-steel-300">
+        <p className="mt-2 text-sm text-muted">
           {approved
             ? `לפי הצעה ${job.id}-${data.due_version} שהלקוח אישר. התקבל עד עכשיו ${formatIls(b.paid)}.`
             : due
@@ -102,7 +110,7 @@ export function JobMoneySection({
             href={whatsappLink(job.client_phone, reminder)}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 flex min-h-12 items-center justify-center gap-2 rounded-xl border border-steel-500 font-semibold"
+            className="mt-2 flex min-h-12 items-center justify-center gap-2 rounded-md border border-line-strong font-semibold"
           >
             <Icon name="whatsapp" size={20} />
             תזכורת ללקוח על היתרה
@@ -112,7 +120,7 @@ export function JobMoneySection({
           <button
             type="button"
             onClick={() => onStatus('paid')}
-            className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-hivis font-semibold text-hivis"
+            className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-accent font-semibold text-accent"
           >
             <Icon name="check" size={20} />
             סמן את העבודה כשולמה
@@ -121,18 +129,18 @@ export function JobMoneySection({
       </section>
 
       <section aria-labelledby="payments-title">
-        <h3 id="payments-title" className="font-display text-[2rem] leading-none">
+        <h3 id="payments-title" className="text-[1.2rem] font-bold leading-tight">
           תשלומים שהתקבלו
         </h3>
         {data.payments.length === 0 ? (
-          <p className="mt-2 text-steel-300">עוד לא התקבל תשלום.</p>
+          <p className="mt-2 text-muted">עוד לא התקבל תשלום.</p>
         ) : (
-          <ul className="plate mt-2 divide-y divide-steel-700 rounded-[10px]">
+          <ul className="plate mt-2 divide-y divide-line rounded-md">
             {data.payments.map((p) => (
               <li key={p.id} className="flex items-center gap-3 px-4 py-3">
                 <span className="min-w-0 flex-1">
                   <span className="tnum block font-semibold">{formatIls(p.amount)}</span>
-                  <span className="block text-sm text-steel-300">
+                  <span className="block text-sm text-muted">
                     {[fmtDate(p.paid_at), p.method && PAYMENT_METHOD_LABELS[p.method], p.notes].filter(Boolean).join(', ')}
                   </span>
                 </span>
@@ -142,37 +150,40 @@ export function JobMoneySection({
           </ul>
         )}
       </section>
+      </>
+      )}
 
+      {showExpenses && (
       <section aria-labelledby="job-expenses-title">
         <div className="flex items-center justify-between">
-          <h3 id="job-expenses-title" className="font-display text-[2rem] leading-none">
+          <h3 id="job-expenses-title" className="text-[1.2rem] font-bold leading-tight">
             הוצאות על העבודה
           </h3>
           <button
             type="button"
             onClick={() => setAdding('expense')}
-            className="flex min-h-11 items-center gap-1.5 rounded-lg border border-hivis px-3 font-semibold text-hivis"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg border border-accent px-3 font-semibold text-accent"
           >
             <Icon name="plus" size={20} />
             הוצאה
           </button>
         </div>
         {data.expenses.length === 0 ? (
-          <p className="mt-2 text-steel-300">חומרים, צביעה, קבלן משנה. מה שתרשום כאן נכנס גם לדוח החודשי.</p>
+          <p className="mt-2 text-muted">חומרים, צביעה, קבלן משנה. מה שתרשום כאן נכנס גם לדוח החודשי.</p>
         ) : (
-          <ul className="plate mt-2 divide-y divide-steel-700 rounded-[10px]">
+          <ul className="plate mt-2 divide-y divide-line rounded-md">
             {data.expenses.map((x) => (
               <li key={x.id} className="flex items-center gap-3 px-4 py-3">
                 <span className="min-w-0 flex-1">
                   <span className="tnum block font-semibold">{formatIls(x.amount)}</span>
-                  <span className="block text-sm text-steel-300">
+                  <span className="block text-sm text-muted">
                     {[fmtDate(x.spent_at), x.category && EXPENSE_CATEGORY_LABELS[x.category], x.supplier_name, x.notes]
                       .filter(Boolean)
                       .join(', ')}
                   </span>
                 </span>
                 {x.receipt_key && (
-                  <a href={receiptUrl(x.id)} target="_blank" rel="noreferrer" aria-label="הקבלה" className="grid h-11 w-11 place-items-center text-steel-300">
+                  <a href={receiptUrl(x.id)} target="_blank" rel="noreferrer" aria-label="הקבלה" className="grid h-11 w-11 place-items-center text-muted">
                     <Icon name="receipt" size={20} />
                   </a>
                 )}
@@ -183,22 +194,23 @@ export function JobMoneySection({
         )}
         {(data.expenses.length > 0 || b.paid > 0) && (
           <dl className="tnum mt-3 space-y-1 text-[0.95rem]">
-            <div className="flex justify-between text-steel-300">
+            <div className="flex justify-between text-muted">
               <dt>נכנס (לפני מע״מ)</dt>
               <dd>{formatIls(incomeNet)}</dd>
             </div>
-            <div className="flex justify-between text-steel-300">
+            <div className="flex justify-between text-muted">
               <dt>יצא על העבודה (לפני מע״מ)</dt>
               <dd>{formatIls(spentNet)}</dd>
             </div>
-            <div className="flex justify-between border-t border-steel-700 pt-1 font-semibold">
+            <div className="flex justify-between border-t border-line pt-1 font-semibold">
               <dt>נשאר אצלך עד עכשיו</dt>
               <dd>{formatIls(round2(incomeNet - spentNet))}</dd>
             </div>
-            {spent > 0 && <p className="text-sm text-steel-500">סה״כ הוצאות כולל מע״מ: {formatIls(spent)}</p>}
+            {spent > 0 && <p className="text-sm text-faint">סה״כ הוצאות כולל מע״מ: {formatIls(spent)}</p>}
           </dl>
         )}
       </section>
+      )}
 
       <Sheet open={adding === 'payment'} onClose={() => setAdding(null)} title="תשלום מהלקוח">
         {adding === 'payment' && (
@@ -236,7 +248,7 @@ export function DeleteButton({ armed, onClick }: { armed: boolean; onClick: () =
       onClick={onClick}
       aria-label={armed ? 'לחץ שוב כדי למחוק' : 'מחק'}
       className={`flex min-h-11 shrink-0 items-center justify-center gap-1 rounded-lg px-2.5 text-sm font-semibold ${
-        armed ? 'bg-primer text-soapstone' : 'text-steel-500'
+        armed ? 'bg-danger text-white' : 'text-faint'
       }`}
     >
       <Icon name="trash" size={18} />

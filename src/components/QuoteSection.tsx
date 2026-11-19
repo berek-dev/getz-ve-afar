@@ -21,7 +21,10 @@ export function QuoteSection({
   currentTotal,
   businessName,
   onJobStatusMaybeChanged,
+  bare = false,
 }: {
+  /** Inside the quote step: no section title of its own */
+  bare?: boolean;
   job: JobDetail;
   currentTotal: number;
   businessName: string;
@@ -63,25 +66,27 @@ export function QuoteSection({
 
   const modelToggle = hasModel && (!latest || latest.status !== 'approved') && (
     <label className="mt-3 flex min-h-11 items-center gap-3">
-      <input type="checkbox" className="h-6 w-6 accent-hivis" checked={withModel} onChange={(e) => setWithModel(e.target.checked)} />
+      <input type="checkbox" className="h-6 w-6 accent-accent" checked={withModel} onChange={(e) => setWithModel(e.target.checked)} />
       <span>
         לצרף את ההדמיה בתלת־ממד
-        <span className="block text-sm text-steel-300">הלקוח יוכל לסובב את המודל ולפתוח את השער.</span>
+        <span className="block text-sm text-muted">הלקוח יוכל לסובב את המודל ולפתוח את השער.</span>
       </span>
     </label>
   );
 
   return (
-    <section className="mt-8" aria-labelledby="quote-title">
-      <h2 id="quote-title" className="font-display text-[2.2rem] leading-none">
-        הצעת מחיר ללקוח
-      </h2>
+    <section className={bare ? '' : 'mt-8'} aria-labelledby={bare ? undefined : 'quote-title'} aria-label={bare ? 'הצעת מחיר ללקוח' : undefined}>
+      {!bare && (
+        <h2 id="quote-title" className="text-[1.2rem] font-bold leading-tight">
+          הצעת מחיר ללקוח
+        </h2>
+      )}
 
-      {quotes === null && !error && <p className="mt-3 text-steel-300">טוען...</p>}
+      {quotes === null && !error && <p className="mt-3 text-muted">טוען...</p>}
 
       {quotes !== null && !latest && (
         <div className="mt-3">
-          <p className="text-steel-300">
+          <p className="text-muted">
             הלקוח מקבל לינק עם מה שכלול בעבודה והמחיר הסופי, בלי העלויות שלך. הוא יכול לאשר בלחיצה, וזה מסמן את העבודה
             כמאושרת.
           </p>
@@ -90,19 +95,19 @@ export function QuoteSection({
             <Icon name="link" />
             {busy ? 'מכין...' : 'הכן הצעה לשליחה'}
           </button>
-          {job.items.length === 0 && <p className="mt-2 text-sm text-steel-500">קודם מוסיפים שורות לכתב הכמויות.</p>}
+          {job.items.length === 0 && <p className="mt-2 text-sm text-faint">קודם מוסיפים שורות לכתב הכמויות.</p>}
         </div>
       )}
 
       {latest && (
-        <div className="plate mt-3 rounded-[10px] p-4">
+        <div className="plate mt-3 rounded-md p-4">
           <div className="flex items-baseline justify-between gap-3">
             <p className="font-semibold">
               הצעה {job.id}-{latest.version}
             </p>
             <p className="tnum font-semibold">{formatIls(latest.total ?? 0)}</p>
           </div>
-          <p className={`mt-1 flex items-center gap-1.5 ${latest.status === 'approved' ? 'text-heat-7' : 'text-steel-300'}`}>
+          <p className={`mt-1 flex items-center gap-1.5 ${latest.status === 'approved' ? 'text-ok' : 'text-muted'}`}>
             {latest.status === 'approved' && <Icon name="check" size={18} />}
             {latest.status === 'approved'
               ? `${latest.approved_name} אישר/ה, ${fmtDateTime(latest.approved_at)}`
@@ -110,7 +115,7 @@ export function QuoteSection({
           </p>
 
           {outdated && latest.status !== 'approved' && (
-            <p className="mt-3 rounded-lg border border-hivis/60 p-2.5 text-sm">
+            <p className="mt-3 rounded-lg border border-accent/60 p-2.5 text-sm">
               המחיר בעבודה השתנה מאז ({formatIls(currentTotal)}). הכן גרסה חדשה כדי שהלקוח יראה את המחיר המעודכן.
             </p>
           )}
@@ -134,7 +139,7 @@ export function QuoteSection({
                     .then(() => toast('הלינק הועתק'))
                     .catch(() => toast(url));
                 }}
-                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-steel-500 font-semibold"
+                className="flex min-h-12 items-center justify-center gap-2 rounded-md border border-line-strong font-semibold"
               >
                 <Icon name="copy" size={20} />
                 העתק לינק
@@ -143,7 +148,7 @@ export function QuoteSection({
                 href={url}
                 target="_blank"
                 rel="noreferrer"
-                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-steel-500 font-semibold"
+                className="flex min-h-12 items-center justify-center gap-2 rounded-md border border-line-strong font-semibold"
               >
                 <Icon name="eye" size={20} />
                 כמו שהלקוח רואה
@@ -157,13 +162,13 @@ export function QuoteSection({
               type="button"
               onClick={create}
               disabled={busy}
-              className="mt-3 min-h-11 w-full rounded-xl text-steel-300 underline underline-offset-4"
+              className="mt-3 min-h-11 w-full rounded-md text-muted underline underline-offset-4"
             >
               {busy ? 'מכין...' : 'הכן גרסה חדשה מהמחיר הנוכחי'}
             </button>
           )}
           {latest.status === 'approved' && (
-            <a href={url} target="_blank" rel="noreferrer" className="mt-3 block text-steel-300 underline underline-offset-4">
+            <a href={url} target="_blank" rel="noreferrer" className="mt-3 block text-muted underline underline-offset-4">
               צפייה בהצעה המאושרת
             </a>
           )}
@@ -171,7 +176,7 @@ export function QuoteSection({
       )}
 
       {older.length > 0 && (
-        <details className="mt-3 text-sm text-steel-300">
+        <details className="mt-3 text-sm text-muted">
           <summary className="min-h-11 cursor-pointer py-2">גרסאות קודמות ({older.length})</summary>
           <ul className="space-y-1">
             {older.map((q) => (
@@ -187,7 +192,7 @@ export function QuoteSection({
       )}
 
       {error && (
-        <p className="mt-3 text-primer-light" role="alert">
+        <p className="mt-3 text-danger" role="alert">
           {error}
         </p>
       )}

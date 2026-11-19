@@ -53,6 +53,19 @@ export function fmtSlotDay(slot: string): string {
   return slotDayFmt.format(slotDate(slot));
 }
 
+const shortDayFmt = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+const longDayFmt = new Intl.DateTimeFormat('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+
+/** "24.11" */
+export function fmtShortDay(slot: string): string {
+  return shortDayFmt.format(slotDate(slot));
+}
+
+/** "יום חמישי, 19 בנובמבר" */
+export function fmtLongDay(slot: string): string {
+  return longDayFmt.format(slotDate(slot));
+}
+
 /** "08:00" */
 export function fmtSlotTime(slot: string): string {
   return slotTimeFmt.format(slotDate(slot));

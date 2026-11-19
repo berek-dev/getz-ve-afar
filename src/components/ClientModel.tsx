@@ -12,7 +12,7 @@ export default function ClientModel({ layout }: { layout: unknown }) {
       <h2 id="model-title" className="text-lg font-semibold">
         הדמיה
       </h2>
-      <p className="mt-0.5 text-sm text-steel-300">מסובבים באצבע, מגדילים בשתי אצבעות. המידות במילימטרים.</p>
+      <p className="mt-0.5 text-sm text-muted">מסובבים באצבע, מגדילים בשתי אצבעות. המידות במילימטרים.</p>
       <ModelView prepared={prepared} cut={cut} designKey="client" title={prepared.scene.title} showGround={false} />
     </section>
   );

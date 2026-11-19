@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon.tsx';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
@@ -91,25 +92,29 @@ export function SettingsPage() {
   };
 
   if (!draft) {
-    return <p className="text-steel-300">{error ?? 'טוען...'}</p>;
+    return <p className="text-muted">{error ?? 'טוען...'}</p>;
   }
 
   return (
     <form onSubmit={save}>
-      <h2 className="font-display text-[2.6rem] leading-none">הגדרות תמחור</h2>
-      <p className="mt-2 max-w-md text-steel-300">
+      <a href="#/business" className="-ms-1 inline-flex min-h-11 items-center gap-0.5 px-1 font-medium text-accent">
+        <Icon name="back" size={20} />
+        עסק
+      </a>
+      <h1 className="text-[1.75rem] font-bold leading-tight">הגדרות</h1>
+      <p className="mt-2 max-w-md text-muted">
         המספרים האלה קובעים כמה תעלה כל הצעת מחיר. אפשר לשנות אותם בכל רגע, ההצעות החדשות יתעדכנו.
       </p>
 
       {GROUPS.map((group) => (
         <fieldset key={group.title} className="mt-6">
           <legend className="mb-2 text-lg font-semibold">{group.title}</legend>
-          <div className="plate divide-y divide-steel-700 rounded-[10px]">
+          <div className="plate divide-y divide-line rounded-md">
             {group.fields.map((f) => (
               <label key={f.key} className="flex items-center gap-4 px-4 py-3.5">
                 <span className="flex-1">
                   <span className="block font-semibold">{f.label}</span>
-                  <span className="mt-0.5 block text-sm leading-snug text-steel-300">{f.help}</span>
+                  <span className="mt-0.5 block text-sm leading-snug text-muted">{f.help}</span>
                 </span>
                 <span className="relative w-32 shrink-0">
                   <input
@@ -122,7 +127,7 @@ export function SettingsPage() {
                     onChange={(e) => setDraft((d) => (d ? { ...d, [f.key]: e.target.value } : d))}
                     className="field tnum pe-3 ps-11 text-left text-lg font-semibold"
                   />
-                  <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-sm text-steel-500">
+                  <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-sm text-faint">
                     {f.unit}
                   </span>
                 </span>
@@ -134,10 +139,10 @@ export function SettingsPage() {
 
       <fieldset className="mt-6">
         <legend className="mb-2 text-lg font-semibold">הצעת מחיר ללקוח</legend>
-        <div className="plate space-y-4 rounded-[10px] p-4">
+        <div className="plate space-y-4 rounded-md p-4">
           <label className="block">
             <span className="block font-semibold">טלפון של העסק</span>
-            <span className="mb-1.5 block text-sm text-steel-300">מופיע בראש ההצעה, כדי שהלקוח יוכל להתקשר.</span>
+            <span className="mb-1.5 block text-sm text-muted">מופיע בראש ההצעה, כדי שהלקוח יוכל להתקשר.</span>
             <input
               className="field"
               type="tel"
@@ -162,7 +167,7 @@ export function SettingsPage() {
           </label>
           <label className="block">
             <span className="block font-semibold">תנאים בסוף ההצעה</span>
-            <span className="mb-1.5 block text-sm text-steel-300">מקדמה, זמני אספקה, אחריות. מה שתכתוב כאן יופיע בכל הצעה.</span>
+            <span className="mb-1.5 block text-sm text-muted">מקדמה, זמני אספקה, אחריות. מה שתכתוב כאן יופיע בכל הצעה.</span>
             <textarea
               className="field min-h-28"
               value={quoteDraft.quote_terms}
@@ -174,11 +179,11 @@ export function SettingsPage() {
       </fieldset>
 
       {example && (
-        <section className="mt-6 rounded-[10px] border border-steel-700 p-4" aria-labelledby="example-title">
+        <section className="mt-6 rounded-md border border-line p-4" aria-labelledby="example-title">
           <h3 id="example-title" className="font-semibold">
             ככה זה נראה בהצעה
           </h3>
-          <p className="mt-0.5 text-sm text-steel-300">
+          <p className="mt-0.5 text-sm text-muted">
             עבודה עם חומרים ב־{formatIls(EXAMPLE.materials)} ו־{EXAMPLE.hours} שעות עבודה:
           </p>
           <dl className="tnum mt-3 space-y-1.5 text-[0.95rem]">
@@ -188,15 +193,15 @@ export function SettingsPage() {
             <Row label="רווח" value={example.margin} />
             <Row label="מע״מ" value={example.vat} />
           </dl>
-          <div className="mt-3 flex items-baseline justify-between border-t border-steel-700 pt-3">
+          <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
             <span className="font-semibold">הלקוח משלם</span>
-            <span className="tnum font-display text-[2.4rem] leading-none text-hivis">{formatIls(example.total)}</span>
+            <span className="tnum text-[1.5rem] font-bold leading-none tracking-tight">{formatIls(example.total)}</span>
           </div>
         </section>
       )}
 
       {error && (
-        <p className="mt-4 text-primer-light" role="alert">
+        <p className="mt-4 text-danger" role="alert">
           {error}
         </p>
       )}
@@ -213,7 +218,7 @@ export function SettingsPage() {
             .catch(() => undefined)
             .finally(() => window.location.reload());
         }}
-        className="mx-auto mt-8 block min-h-11 px-4 text-steel-300 underline underline-offset-4"
+        className="mx-auto mt-8 block min-h-11 px-4 text-muted underline underline-offset-4"
       >
         יציאה מהאפליקציה
       </button>
@@ -224,7 +229,7 @@ export function SettingsPage() {
 function Row({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex justify-between">
-      <dt className="text-steel-300">{label}</dt>
+      <dt className="text-muted">{label}</dt>
       <dd>{formatIls(value)}</dd>
     </div>
   );

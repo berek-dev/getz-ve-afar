@@ -34,7 +34,7 @@ function Chips<T extends string>({
             aria-pressed={value === o}
             onClick={() => onChange(o)}
             className={`min-h-11 rounded-lg border px-3 font-semibold ${
-              value === o ? 'border-hivis bg-hivis text-steel-950' : 'border-steel-500'
+              value === o ? 'border-accent bg-accent text-white' : 'border-line-strong'
             }`}
           >
             {labels[o]}
@@ -50,7 +50,7 @@ function AmountField({ value, onChange, label }: { value: string; onChange: (v: 
     <label className="block">
       <span className="mb-1.5 block font-semibold">{label}</span>
       <span className="relative block">
-        <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-lg text-steel-300">₪</span>
+        <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-lg text-muted">₪</span>
         <input
           className="field tnum ps-9 text-left text-xl font-semibold"
           type="number"
@@ -102,7 +102,7 @@ export function PaymentForm({ jobId, suggested, onSaved }: { jobId: number; sugg
         <input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="למשל: מקדמה, מספר צ׳ק" />
       </label>
       {error && (
-        <p className="text-primer-light" role="alert">
+        <p className="text-danger" role="alert">
           {error}
         </p>
       )}
@@ -180,9 +180,9 @@ export function ExpenseForm({
     <form onSubmit={submit} className="space-y-5" noValidate>
       <AmountField label="סכום בקבלה" value={amount} onChange={setAmount} />
       <label className="flex min-h-11 items-center gap-3">
-        <input type="checkbox" checked={hasVat} onChange={(e) => setHasVat(e.target.checked)} className="h-6 w-6 accent-hivis" />
+        <input type="checkbox" checked={hasVat} onChange={(e) => setHasVat(e.target.checked)} className="h-6 w-6 accent-accent" />
         <span>
-          הסכום כולל מע״מ <span className="text-sm text-steel-300">(בטל אם הספק עוסק פטור)</span>
+          הסכום כולל מע״מ <span className="text-sm text-muted">(בטל אם הספק עוסק פטור)</span>
         </span>
       </label>
       <Chips legend="על מה" options={EXPENSE_CATEGORIES} labels={EXPENSE_CATEGORY_LABELS} value={category} onChange={setCategory} />
@@ -230,7 +230,7 @@ export function ExpenseForm({
           />
           <label
             htmlFor="receipt-input"
-            className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-steel-500 font-semibold"
+            className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-line-strong font-semibold"
           >
             <Icon name="receipt" size={20} />
             {receipt ? 'הקבלה צורפה. להחלפה לחץ שוב' : 'צלם את הקבלה'}
@@ -242,7 +242,7 @@ export function ExpenseForm({
         <input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
       {error && (
-        <p className="text-primer-light" role="alert">
+        <p className="text-danger" role="alert">
           {error}
         </p>
       )}

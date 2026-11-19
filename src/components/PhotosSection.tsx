@@ -51,7 +51,7 @@ export function PhotosSection({ jobId, onCount }: { jobId: number; onCount?: (n:
 
   if (!features.photos) {
     return (
-      <p className="mt-4 rounded-[10px] border border-steel-700 p-4 text-steel-300">
+      <p className="mt-4 rounded-md border border-line p-4 text-muted">
         שמירת תמונות תופעל אוטומטית בעדכון הבא של השרת. בינתיים אפשר לצלם כרגיל ולשלוח בוואטסאפ.
       </p>
     );
@@ -72,16 +72,16 @@ export function PhotosSection({ jobId, onCount }: { jobId: number; onCount?: (n:
         <Icon name="camera" />
         {uploading > 0 ? `מעלה ${uploading}...` : 'צלם או בחר תמונות'}
       </label>
-      <p className="mt-2 text-sm text-steel-300">התמונות מוקטנות לפני השליחה, כדי לחסוך בחבילת הגלישה.</p>
+      <p className="mt-2 text-sm text-muted">התמונות מוקטנות לפני השליחה, כדי לחסוך בחבילת הגלישה.</p>
 
       {error && (
-        <p className="mt-3 text-primer-light" role="alert">
+        <p className="mt-3 text-danger" role="alert">
           {error}
         </p>
       )}
 
       {photos && photos.length === 0 && uploading === 0 && (
-        <p className="mt-6 text-center text-steel-300">עוד אין תמונות. צלם את המקום והמידות לפני שמתחילים.</p>
+        <p className="mt-6 text-center text-muted">עוד אין תמונות. צלם את המקום והמידות לפני שמתחילים.</p>
       )}
 
       {photos && photos.length > 0 && (
@@ -91,7 +91,7 @@ export function PhotosSection({ jobId, onCount }: { jobId: number; onCount?: (n:
               <button
                 type="button"
                 onClick={() => setViewing(p)}
-                className="block aspect-square w-full overflow-hidden rounded-lg bg-steel-800"
+                className="block aspect-square w-full overflow-hidden rounded-lg bg-sunken"
                 aria-label={p.caption ?? `תמונה מ־${fmtDateTime(p.created_at)}`}
               >
                 <img src={photoUrl(p.id)} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -148,8 +148,8 @@ function PhotoViewer({
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/95" role="dialog" aria-modal="true" aria-label="תמונה">
       <div className="flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2">
-        <span className="text-sm text-steel-300">{fmtDateTime(photo.created_at)}</span>
-        <button type="button" onClick={onClose} aria-label="סגור" className="grid h-12 w-12 place-items-center rounded-full bg-steel-800">
+        <span className="text-sm text-muted">{fmtDateTime(photo.created_at)}</span>
+        <button type="button" onClick={onClose} aria-label="סגור" className="grid h-12 w-12 place-items-center rounded-full bg-sunken">
           <Icon name="close" />
         </button>
       </div>
@@ -180,8 +180,8 @@ function PhotoViewer({
               toast(errorMessage(e));
             }
           }}
-          className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border font-semibold ${
-            confirm ? 'border-primer bg-primer text-soapstone' : 'border-steel-700 text-primer-light'
+          className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-md border font-semibold ${
+            confirm ? 'border-danger bg-danger text-white' : 'border-line text-danger'
           }`}
         >
           <Icon name="trash" size={20} />

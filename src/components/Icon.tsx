@@ -44,9 +44,23 @@ export type IconName =
   | 'ruler'
   | 'facade'
   | 'rotate'
-  | 'ground';
+  | 'ground'
+  | 'today'
+  | 'briefcase';
 
 const PATHS: Record<IconName, ReactNode> = {
+  today: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="m8.5 12 2.5 2.5 4.5-5" />
+    </>
+  ),
+  briefcase: (
+    <>
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M3 13h18" />
+    </>
+  ),
   cube: (
     <>
       <path d="M12 2 3 7v10l9 5 9-5V7z" />

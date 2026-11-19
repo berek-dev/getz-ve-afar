@@ -151,12 +151,25 @@ export interface Job {
   kind: JobKind;
   status: JobStatus;
   description: string | null;
+  /** The work date, "YYYY-MM-DDTHH:MM" business time */
   scheduled_at: string | null;
   scheduled_hours: number | null;
+  /** The measuring visit, "YYYY-MM-DDTHH:MM" */
+  visit_at?: string | null;
+  site_notes?: string | null;
+  /** Day the materials were ordered */
+  ordered_at?: string | null;
   created_at: string;
   updated_at: string;
-  /** Saved 3D layout versions (job detail only) */
+  // What the job's steps look at (src/core/phases.ts), sent with every job
+  item_count?: number;
   model_versions?: number;
+  photo_count?: number;
+  expense_count?: number;
+  paid_total?: number;
+  quote_status?: QuoteSummary['status'] | null;
+  quote_created_at?: string | null;
+  quote_total?: number | null;
 }
 
 export interface QuoteSummary {

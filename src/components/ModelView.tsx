@@ -94,7 +94,7 @@ export function ModelView({
 
   return (
     <div
-      className={full ? 'fixed inset-0 z-50 flex flex-col bg-steel-950 px-2' : 'mt-4'}
+      className={full ? 'fixed inset-0 z-50 flex flex-col bg-card px-2' : 'mt-4'}
       style={full ? { paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 6px)' } : undefined}
       role={full ? 'dialog' : undefined}
       aria-modal={full || undefined}
@@ -106,7 +106,7 @@ export function ModelView({
           <button
             type="button"
             onClick={() => setFull(false)}
-            className="flex min-h-11 items-center gap-1.5 rounded-lg border border-steel-500 px-3 text-sm font-semibold"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg border border-line-strong px-3 text-sm font-semibold"
           >
             <Icon name="shrink" size={18} />
             יציאה
@@ -115,20 +115,20 @@ export function ModelView({
       )}
       <div
         className={`relative overflow-hidden bg-[#d9dee2] ${
-          full ? 'min-h-0 flex-1 rounded-lg' : 'aspect-[4/3] max-h-[62vh] w-full rounded-[10px] border border-steel-700'
+          full ? 'min-h-0 flex-1 rounded-lg' : 'aspect-[4/3] max-h-[62vh] w-full rounded-md border border-line'
         }`}
       >
         <div ref={host} className="absolute inset-0" />
-        {state === 'loading' && <p className="absolute inset-0 grid place-items-center text-steel-700">טוען תלת־ממד...</p>}
+        {state === 'loading' && <p className="absolute inset-0 grid place-items-center text-faint">טוען תלת־ממד...</p>}
         {state === 'failed' && (
-          <p className="absolute inset-0 grid place-items-center p-6 text-center text-steel-950">
+          <p className="absolute inset-0 grid place-items-center p-6 text-center text-ink">
             התלת־ממד לא נטען בדפדפן הזה. השרטוט ורשימת החיתוך למטה עדיין זמינים.
           </p>
         )}
         {pick && (
-          <div className="absolute inset-x-2 top-2 flex items-center gap-2 rounded-lg bg-steel-950/90 py-1 ps-3 pe-1 text-sm shadow">
+          <div className="absolute inset-x-2 top-2 flex items-center gap-2 rounded-lg bg-ink/90 text-white py-1 ps-3 pe-1 text-sm shadow">
             <p className="min-w-0 flex-1 leading-snug">
-              {pick.mark && <b className="text-hivis">{pick.mark} </b>}
+              {pick.mark && <b className="text-accent">{pick.mark} </b>}
               {pick.text}
             </p>
             <button
@@ -159,7 +159,7 @@ export function ModelView({
 
       {movers && (
         <div className="flex items-center gap-3 pt-3">
-          <span className="text-sm text-steel-300">סגור</span>
+          <span className="text-sm text-muted">סגור</span>
           <input
             type="range"
             min={0}
@@ -167,13 +167,13 @@ export function ModelView({
             value={Math.round(open * 100)}
             onChange={(e) => viewer.current?.setOpen(Number(e.target.value) / 100)}
             aria-label="פתיחת השער"
-            className="min-w-0 flex-1 accent-hivis"
+            className="min-w-0 flex-1 accent-accent"
           />
-          <span className="text-sm text-steel-300">פתוח</span>
+          <span className="text-sm text-muted">פתוח</span>
           <button
             type="button"
             onClick={() => viewer.current?.animateOpen(open > 0.5 ? 0 : 1)}
-            className="min-h-11 min-w-16 rounded-lg border border-steel-500 px-3 text-sm font-semibold"
+            className="min-h-11 min-w-16 rounded-lg border border-line-strong px-3 text-sm font-semibold"
           >
             {open > 0.5 ? 'סגור' : 'פתח'}
           </button>
@@ -218,7 +218,7 @@ function Tool({ icon, label, onClick, pressed }: { icon: IconName; label: string
       onClick={onClick}
       aria-pressed={pressed}
       className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-lg text-[0.75rem] font-semibold ${
-        pressed ? 'bg-steel-700 text-soapstone' : 'text-steel-300'
+        pressed ? 'bg-sunken text-ink' : 'text-muted'
       }`}
     >
       <Icon name={icon} size={20} />

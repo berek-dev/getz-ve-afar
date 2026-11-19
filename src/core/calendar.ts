@@ -132,6 +132,11 @@ export function icsEvent(slot: Slot, ev: CalendarEvent, uid: string, now: Date =
   return `${lines.map(fold).join('\r\n')}\r\n`;
 }
 
+/** "YYYY-MM-DDTHH:MM" now in business time (compares with stored slots) */
+export function businessNow(now: Date = new Date()): string {
+  return new Date(now.getTime() + tzOffsetMinutes(now) * 60000).toISOString().slice(0, 16);
+}
+
 /** "YYYY-MM-DD" of today in business time */
 export function businessToday(now: Date = new Date()): string {
   return new Date(now.getTime() + tzOffsetMinutes(now) * 60000).toISOString().slice(0, 10);
@@ -141,4 +146,27 @@ export function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+export interface JobEvent<J> {
+  job: J;
+  kind: 'visit' | 'work';
+  /** "YYYY-MM-DDTHH:MM" business time */
+  start: string;
+  hours: number;
+}
+
+const OPEN_STATUSES = new Set(['lead', 'visit', 'quoted', 'approved', 'in_progress']);
+
+/** The measuring visits and work dates of open jobs, earliest first. */
+export function jobEvents<J extends { status: string; visit_at?: string | null; scheduled_at: string | null; scheduled_hours: number | null }>(
+  jobs: J[],
+): JobEvent<J>[] {
+  const events: JobEvent<J>[] = [];
+  for (const job of jobs) {
+    if (!OPEN_STATUSES.has(job.status)) continue;
+    if (job.visit_at && (job.status === 'lead' || job.status === 'visit')) events.push({ job, kind: 'visit', start: job.visit_at, hours: 1 });
+    if (job.scheduled_at) events.push({ job, kind: 'work', start: job.scheduled_at, hours: job.scheduled_hours ?? 8 });
+  }
+  return events.sort((a, b) => a.start.localeCompare(b.start));
 }

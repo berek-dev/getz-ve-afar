@@ -58,12 +58,12 @@ export default function ModelSection({
 
   if (error) {
     return (
-      <p className="mt-6 rounded-[10px] border border-primer bg-primer/15 p-3 text-primer-light" role="alert">
+      <p className="mt-6 rounded-md border border-danger bg-danger-soft p-3 text-danger" role="alert">
         {error}
       </p>
     );
   }
-  if (!model) return <p className="mt-6 text-steel-300">טוען את ההדמיה...</p>;
+  if (!model) return <p className="mt-6 text-muted">טוען את ההדמיה...</p>;
 
   const undo = async () => {
     try {
@@ -75,11 +75,11 @@ export default function ModelSection({
   };
 
   const busyOverlay = chat.busy && (
-    <div className="absolute inset-0 grid place-items-center bg-steel-950/55 p-6 text-center" role="status">
+    <div className="absolute inset-0 grid place-items-center bg-ink/55 text-white p-6 text-center" role="status">
       <div>
         <p className="font-semibold">{chat.mode === 'edit' ? 'מעדכן את המודל' : 'בונה את המודל'}...</p>
-        <p className="tnum mt-1 text-sm text-steel-300">{chat.seconds} שנ׳. לרוב פחות מדקה.</p>
-        <button type="button" onClick={chat.stop} className="mt-3 min-h-11 rounded-lg border border-steel-300 px-4 text-sm font-semibold">
+        <p className="tnum mt-1 text-sm text-muted">{chat.seconds} שנ׳. לרוב פחות מדקה.</p>
+        <button type="button" onClick={chat.stop} className="mt-3 min-h-11 rounded-lg border border-muted px-4 text-sm font-semibold">
           עצור
         </button>
       </div>
@@ -100,24 +100,24 @@ export default function ModelSection({
           />
           <div className="mt-3">
             <h2 className="text-xl font-semibold leading-snug">{ok.scene.title}</h2>
-            <p className="tnum mt-0.5 text-sm text-steel-300">{summary(cut)}</p>
-            {ok.scene.finish?.name && <p className="text-sm text-steel-300">גמר: {ok.scene.finish.name}</p>}
+            <p className="tnum mt-0.5 text-sm text-muted">{summary(cut)}</p>
+            {ok.scene.finish?.name && <p className="text-sm text-muted">גמר: {ok.scene.finish.name}</p>}
             {(ok.scene.notes ?? []).length > 0 && (
-              <ul className="mt-2 list-disc space-y-0.5 ps-5 text-sm text-steel-300">
+              <ul className="mt-2 list-disc space-y-0.5 ps-5 text-sm text-muted">
                 {(ok.scene.notes ?? []).map((n, i) => (
                   <li key={i}>{n}</li>
                 ))}
               </ul>
             )}
             {warnings.length > 0 && (
-              <p className="mt-2 rounded-lg border border-hivis/60 p-2.5 text-sm">בדיקת הפריסה: {warnings.slice(0, 4).join('; ')}</p>
+              <p className="mt-2 rounded-lg border border-accent/60 p-2.5 text-sm">בדיקת הפריסה: {warnings.slice(0, 4).join('; ')}</p>
             )}
           </div>
         </>
       ) : (
-        <div className="mt-6 rounded-[10px] border-2 border-dashed border-steel-700 px-5 py-7 text-center">
-          <Icon name="cube" size={36} className="mx-auto text-steel-500" />
-          <p className="mt-3 text-steel-300">
+        <div className="mt-6 rounded-md border-2 border-dashed border-line px-5 py-7 text-center">
+          <Icon name="cube" size={36} className="mx-auto text-faint" />
+          <p className="mt-3 text-muted">
             {prepared
               ? `הפריסה השמורה לא תקינה (${prepared.errors.slice(0, 2).join(', ')}). אפשר לבטל אותה או לתאר מחדש.`
               : 'מתארים את העבודה במילים, עם תמונה או סקיצה אם יש, ומקבלים מודל תלת־ממד, שרטוט ורשימת חיתוך. כתב הכמויות נשלח יחד עם התיאור.'}
@@ -125,7 +125,7 @@ export default function ModelSection({
         </div>
       )}
 
-      <section className="plate mt-6 rounded-[10px] p-4" aria-labelledby="chat-title">
+      <section className="plate mt-6 rounded-md p-4" aria-labelledby="chat-title">
         <div className="flex items-baseline justify-between gap-3">
           <h2 id="chat-title" className="text-lg font-semibold">
             {chat.mode === 'edit' ? 'מה לשנות?' : 'מה בונים?'}
@@ -134,7 +134,7 @@ export default function ModelSection({
             <button
               type="button"
               onClick={() => chat.setStartNew(!chat.startNew)}
-              className="min-h-11 text-sm text-steel-300 underline underline-offset-4"
+              className="min-h-11 text-sm text-muted underline underline-offset-4"
             >
               {chat.startNew ? 'חזרה לשינויים' : 'עיצוב חדש מההתחלה'}
             </button>
@@ -143,12 +143,12 @@ export default function ModelSection({
         <ChatComposer chat={chat} />
 
         {(requests.length > 0 || model.history.length > 0) && (
-          <div className="mt-4 border-t border-steel-700 pt-3">
+          <div className="mt-4 border-t border-line pt-3">
             {requests.length > 0 && (
-              <ol className="space-y-1 text-sm text-steel-300">
+              <ol className="space-y-1 text-sm text-muted">
                 {requests.slice(-6).map((r, i) => (
                   <li key={i} className="flex gap-2">
-                    <Icon name="check" size={16} className="mt-0.5 shrink-0 text-steel-500" />
+                    <Icon name="check" size={16} className="mt-0.5 shrink-0 text-faint" />
                     <span>{r}</span>
                   </li>
                 ))}
@@ -159,7 +159,7 @@ export default function ModelSection({
                 type="button"
                 onClick={() => void undo()}
                 disabled={chat.busy}
-                className="mt-2 flex min-h-11 items-center gap-1.5 text-sm font-semibold text-steel-300"
+                className="mt-2 flex min-h-11 items-center gap-1.5 text-sm font-semibold text-muted"
               >
                 <Icon name="undo" size={18} />
                 {model.history.length > 1 ? 'בטל את השינוי האחרון' : 'מחק את ההדמיה'}
@@ -173,7 +173,7 @@ export default function ModelSection({
         <>
           <BoqCheck job={job} cut={cut} onItems={onItems} />
           <ModelDrawing scene={ok.scene} cut={cut} businessName={businessName} />
-          <p className="mt-6 text-sm text-steel-300">
+          <p className="mt-6 text-sm text-muted">
             ההדמיה מצורפת להצעת המחיר שנשלחת ללקוח (אפשר לבטל בהצעה). הלקוח רואה את המודל, בלי מחירים ובלי רשימת חיתוך.
           </p>
         </>
@@ -334,7 +334,7 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
             onClick={chat.mic.toggle}
             aria-label={chat.mic.listening ? 'סיום הכתבה' : 'הכתבה'}
             aria-pressed={chat.mic.listening}
-            className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl border ${chat.mic.listening ? 'border-primer bg-primer' : 'border-steel-500'}`}
+            className={`grid h-12 w-12 shrink-0 place-items-center rounded-md border ${chat.mic.listening ? 'border-danger bg-danger' : 'border-line-strong'}`}
           >
             <Icon name="mic" size={20} />
           </button>
@@ -343,7 +343,7 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
           type="button"
           onClick={() => void chat.send()}
           disabled={chat.busy || chat.text.trim().length < 3}
-          className="grid h-12 shrink-0 place-items-center rounded-xl bg-hivis px-4 font-semibold text-steel-950 disabled:opacity-50"
+          className="grid h-12 shrink-0 place-items-center rounded-md bg-accent px-4 font-semibold text-white disabled:opacity-50"
         >
           עדכן
         </button>
@@ -368,21 +368,21 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
             onClick={chat.mic.toggle}
             aria-pressed={chat.mic.listening}
             className={`flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold ${
-              chat.mic.listening ? 'border-primer bg-primer text-soapstone' : 'border-steel-500'
+              chat.mic.listening ? 'border-danger bg-danger text-white' : 'border-line-strong'
             }`}
           >
             <Icon name="mic" size={18} />
             {chat.mic.listening ? 'מקשיב... לחץ לסיום' : 'הכתבה'}
           </button>
         )}
-        <label className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-steel-500 px-3 text-sm font-semibold">
+        <label className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-line-strong px-3 text-sm font-semibold">
           <Icon name="camera" size={18} />
           {chat.image ? 'תמונה אחרת' : 'תמונה או סקיצה'}
           <input type="file" accept="image/*" className="sr-only" onChange={(e) => void chat.attach(e.target.files?.[0])} />
         </label>
       </div>
       {chat.image && (
-        <p className="flex items-center gap-2 text-sm text-steel-300">
+        <p className="flex items-center gap-2 text-sm text-muted">
           מצורף: {chat.image.name}
           <button type="button" onClick={() => void chat.attach(undefined)} className="min-h-11 underline underline-offset-4">
             הסר
@@ -390,7 +390,7 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
         </p>
       )}
       {chat.error && (
-        <p className="text-primer-light" role="alert">
+        <p className="text-danger" role="alert">
           {chat.error}
         </p>
       )}
@@ -402,24 +402,24 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
             {chat.busy ? `עובד... ${chat.seconds} שנ׳` : chat.mode === 'edit' ? 'עדכן את המודל' : 'צור הדמיה'}
           </button>
           {chat.busy && (
-            <button type="button" onClick={chat.stop} className="min-h-11 w-full text-steel-300 underline underline-offset-4">
+            <button type="button" onClick={chat.stop} className="min-h-11 w-full text-muted underline underline-offset-4">
               עצור
             </button>
           )}
-          <p className="text-sm text-steel-500">
+          <p className="text-sm text-faint">
             התיאור, כתב הכמויות והתמונה נשלחים לשירות של Google. בלי שמות וטלפונים של לקוחות.
           </p>
         </>
       ) : (
-        <p className="text-sm text-steel-300">
+        <p className="text-sm text-muted">
           היצירה האוטומטית עוד לא הופעלה בשרת. בינתיים: מעתיקים את ההנחיות, מדביקים אותן ב־Claude או ב־Gemini, ומדביקים כאן
           את התשובה.
         </p>
       )}
 
-      <details className="rounded-lg border border-steel-700 p-3" open={!chat.ai}>
+      <details className="rounded-lg border border-line p-3" open={!chat.ai}>
         <summary className="min-h-11 cursor-pointer py-2 font-semibold">הדבקה ידנית מצ׳אט אחר</summary>
-        <ol className="mt-1 list-decimal space-y-3 ps-5 text-sm text-steel-300">
+        <ol className="mt-1 list-decimal space-y-3 ps-5 text-sm text-muted">
           <li>
             כותבים למעלה מה לבנות או לשנות, ואז
             <button
@@ -430,7 +430,7 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
                   () => toast('לא הצלחתי להעתיק'),
                 );
               }}
-              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-steel-500 font-semibold text-soapstone"
+              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-line-strong font-semibold text-ink"
             >
               <Icon name="copy" size={18} />
               העתק הנחיות
@@ -451,7 +451,7 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
               type="button"
               onClick={() => void chat.paste(reply).then((ok) => ok && setReply(''))}
               disabled={reply.trim().length < 10}
-              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-steel-700 font-semibold text-soapstone disabled:opacity-50"
+              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-sunken font-semibold text-ink disabled:opacity-50"
             >
               <Icon name="cube" size={18} />
               הצג את המודל
@@ -466,10 +466,10 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
 // -------------------------------------------------------------------------------------- BOQ check
 
 const STATUS: Record<BoqCheckRow['status'], { text: string; className: string }> = {
-  match: { text: 'תואם', className: 'text-heat-7' },
-  differs: { text: 'שונה', className: 'text-hivis' },
-  model_only: { text: 'רק בהדמיה', className: 'text-hivis' },
-  boq_only: { text: 'רק בכתב הכמויות', className: 'text-steel-300' },
+  match: { text: 'תואם', className: 'text-ok' },
+  differs: { text: 'שונה', className: 'text-accent' },
+  model_only: { text: 'רק בהדמיה', className: 'text-accent' },
+  boq_only: { text: 'רק בכתב הכמויות', className: 'text-muted' },
 };
 
 const amount = (pieces: number, mm: number) => (mm > 0 ? `${pieces} יח׳, ${fmtNum(Math.round(mm / 100) / 10)} מ׳` : '–');
@@ -497,32 +497,32 @@ function BoqCheck({ job, cut, onItems }: { job: JobDetail; cut: CutList; onItems
 
   return (
     <section className="mt-8" aria-labelledby="check-title">
-      <h2 id="check-title" className="font-display text-[2.2rem] leading-none">
+      <h2 id="check-title" className="text-[1.2rem] font-bold leading-tight">
         מול כתב הכמויות
       </h2>
       {ownCut || fromModel ? (
-        <p className="mt-1 text-sm text-steel-300">
+        <p className="mt-1 text-sm text-muted">
           {matching} מתוך {rows.length} פרופילים תואמים (עד 3% הפרש).
           {fromModel > 0 && ` ${fromModel} שורות כבר נוספו מההדמיה.`}
         </p>
       ) : (
-        <p className="mt-1 text-sm text-steel-300">עוד אין פרופילים בכתב הכמויות. אפשר להוסיף את כל מה שבמודל בלחיצה.</p>
+        <p className="mt-1 text-sm text-muted">עוד אין פרופילים בכתב הכמויות. אפשר להוסיף את כל מה שבמודל בלחיצה.</p>
       )}
-      <ul className="plate mt-3 divide-y divide-steel-700 rounded-[10px]">
+      <ul className="plate mt-3 divide-y divide-line rounded-md">
         {rows.map((r) => (
           <li key={r.name} className="px-4 py-2.5">
             <div className="flex items-baseline justify-between gap-3">
               <span className="font-semibold">{r.name}</span>
               <span className={`shrink-0 text-sm font-semibold ${STATUS[r.status].className}`}>{STATUS[r.status].text}</span>
             </div>
-            <p className="tnum mt-0.5 text-sm text-steel-300">
+            <p className="tnum mt-0.5 text-sm text-muted">
               הדמיה: {amount(r.modelPieces, r.modelMm)}. כתב כמויות: {amount(r.boqPieces, r.boqMm)}
             </p>
           </li>
         ))}
       </ul>
       {ownCut && (
-        <p className="mt-3 text-sm text-steel-300">
+        <p className="mt-3 text-sm text-muted">
           כתב הכמויות כבר כולל פרופילים. השורות מההדמיה נכנסות לקבוצה נפרדת, &quot;{MODEL_GROUP}&quot;. מוחקים את מה שכפול.
         </p>
       )}
@@ -530,14 +530,14 @@ function BoqCheck({ job, cut, onItems }: { job: JobDetail; cut: CutList; onItems
         type="button"
         onClick={() => void add()}
         disabled={busy}
-        className={`mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border font-semibold ${
-          ownCut ? 'border-steel-500' : 'border-hivis text-hivis'
+        className={`mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-md border font-semibold ${
+          ownCut ? 'border-line-strong' : 'border-accent text-accent'
         }`}
       >
         <Icon name="plus" size={20} />
         {busy ? 'מוסיף...' : fromModel ? `עדכן את "${MODEL_GROUP}" לפי המודל` : 'הוסף את המודל לכתב הכמויות'}
       </button>
-      <p className="mt-2 text-sm text-steel-500">פרופילים לפי אורכי חיתוך, פחים ופרזול. עבודה, צביעה והתקנה מוסיפים בנפרד.</p>
+      <p className="mt-2 text-sm text-faint">פרופילים לפי אורכי חיתוך, פחים ופרזול. עבודה, צביעה והתקנה מוסיפים בנפרד.</p>
     </section>
   );
 }

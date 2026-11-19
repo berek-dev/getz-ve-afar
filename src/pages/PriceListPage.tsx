@@ -122,15 +122,19 @@ export function PriceListPage() {
 
   return (
     <section>
-      <h2 className="font-display text-[2.6rem] leading-none">מחירון</h2>
-      <p className="mt-2 max-w-md text-steel-300">
+      <a href="#/business" className="-ms-1 inline-flex min-h-11 items-center gap-0.5 px-1 font-medium text-accent">
+        <Icon name="back" size={20} />
+        עסק
+      </a>
+      <h1 className="text-[1.75rem] font-bold leading-tight">מחירון וחומרים</h1>
+      <p className="mt-2 max-w-md text-muted">
         כל מה שאתה קונה ומוכר, לפי משפחות ומידות. מכאן נבחרות השורות לכתב הכמויות של כל עבודה.
       </p>
 
       {catalog && catalog.missing > 0 && (
-        <div className="plate mt-4 rounded-[10px] p-4">
+        <div className="plate mt-4 rounded-md p-4">
           <p className="font-semibold">{catalog.missing === catalog.total ? 'קטלוג מוכן להוספה' : 'יש מידות חדשות בקטלוג'}</p>
-          <p className="mt-1 text-sm text-steel-300">
+          <p className="mt-1 text-sm text-muted">
             {catalog.missing} פריטים סטנדרטיים: פרופילים, זוויתנים, פלחים ומוטות בכל המידות, צינורות, קורות ופחים בברזל שחור,
             מגולוון, נירוסטה ואלומיניום, וגם אביזרי צנרת, פרזול, מתכלים וצביעה. פריטים שכבר יש לך נשארים כמו שהם.
           </p>
@@ -153,7 +157,7 @@ export function PriceListPage() {
 
       <label className="relative mt-4 block">
         <span className="sr-only">חיפוש במחירון</span>
-        <Icon name="search" size={20} className="pointer-events-none absolute inset-y-0 start-3 my-auto text-steel-500" />
+        <Icon name="search" size={20} className="pointer-events-none absolute inset-y-0 start-3 my-auto text-faint" />
         <input
           className="field ps-10"
           type="search"
@@ -164,13 +168,13 @@ export function PriceListPage() {
       </label>
 
       {error && (
-        <p className="mt-4 rounded-[10px] border border-primer bg-primer/15 p-3 text-primer-light" role="alert">
+        <p className="mt-4 rounded-md border border-danger bg-danger-soft p-3 text-danger" role="alert">
           {error}
         </p>
       )}
-      {elements === null && !error && <p className="mt-6 text-steel-300">טוען...</p>}
+      {elements === null && !error && <p className="mt-6 text-muted">טוען...</p>}
       {elements !== null && elements.length === 0 && (
-        <p className="mt-8 text-center text-steel-300">המחירון ריק. הוסף את הקטלוג או פריט ראשון.</p>
+        <p className="mt-8 text-center text-muted">המחירון ריק. הוסף את הקטלוג או פריט ראשון.</p>
       )}
 
       {elements !== null && elements.length > 0 && (
@@ -183,7 +187,7 @@ export function PriceListPage() {
         />
       )}
 
-      <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 bg-gradient-to-t from-steel-900 via-steel-900/90 to-transparent pb-3 pt-6">
+      <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-10 bg-gradient-to-t from-page via-page/90 to-transparent pb-3 pt-6">
         <div className="mx-auto max-w-xl px-4">
           <button type="button" className="btn-primary" onClick={() => setEditing('new')}>
             <Icon name="plus" />
@@ -242,17 +246,17 @@ function MaterialPrices({
   };
 
   return (
-    <fieldset className="plate mt-4 rounded-[10px] p-4">
+    <fieldset className="plate mt-4 rounded-md p-4">
       <legend className="sr-only">מחיר לק״ג</legend>
       <p className="font-semibold">מחיר לק״ג, לפני מע״מ</p>
-      <p className="text-sm text-steel-300">מחיר אחד לכל חומר, וכל המידות שמתומחרות לפי משקל מתעדכנות לבד.</p>
+      <p className="text-sm text-muted">מחיר אחד לכל חומר, וכל המידות שמתומחרות לפי משקל מתעדכנות לבד.</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         {materials.map((m) => (
           <label key={m.key} className="block">
             <span className="mb-1 block text-sm font-semibold">{m.name}</span>
             <span className="relative block">
               <input
-                className={`field tnum ps-9 ${m.price_per_kg ? '' : 'border-hivis'}`}
+                className={`field tnum ps-9 ${m.price_per_kg ? '' : 'border-accent'}`}
                 type="number"
                 inputMode="decimal"
                 min="0"
@@ -267,7 +271,7 @@ function MaterialPrices({
                   if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                 }}
               />
-              <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-steel-500">₪</span>
+              <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-faint">₪</span>
             </span>
           </label>
         ))}
@@ -397,7 +401,7 @@ function ElementForm({
                 aria-pressed={category === cat}
                 onClick={() => pickCategory(cat)}
                 className={`min-h-11 rounded-full border px-3.5 text-[0.95rem] font-semibold ${
-                  category === cat ? 'border-hivis bg-hivis text-steel-950' : 'border-steel-700 text-steel-300'
+                  category === cat ? 'border-accent bg-accent text-white' : 'border-line text-muted'
                 }`}
               >
                 {ELEMENT_CATEGORY_LABELS[cat]}
@@ -438,16 +442,16 @@ function ElementForm({
       </div>
 
       {isMetal && (
-        <div className="rounded-[10px] border border-steel-700">
+        <div className="rounded-md border border-line">
           <button
             type="button"
             onClick={() => setCalcOpen((o) => !o)}
             aria-expanded={calcOpen}
             className="flex min-h-12 w-full items-center gap-2 px-4 text-start font-semibold"
           >
-            <Icon name="scale" size={20} className="text-steel-300" />
+            <Icon name="scale" size={20} className="text-muted" />
             <span className="flex-1">שם, מידה ומשקל לפי מידות</span>
-            <Icon name={calcOpen ? 'close' : 'plus'} size={18} className="text-steel-500" />
+            <Icon name={calcOpen ? 'close' : 'plus'} size={18} className="text-faint" />
           </button>
           {calcOpen && (
             <WeightCalculator
@@ -507,7 +511,7 @@ function ElementForm({
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
               />
-              <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-sm text-steel-500">ק״ג</span>
+              <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-sm text-faint">ק״ג</span>
             </span>
           </label>
           {isBar && (
@@ -524,7 +528,7 @@ function ElementForm({
                   value={stock}
                   onChange={(e) => setStock(e.target.value)}
                 />
-                <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-sm text-steel-500">מ״מ</span>
+                <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-sm text-faint">מ״מ</span>
               </span>
             </label>
           )}
@@ -532,13 +536,13 @@ function ElementForm({
       )}
 
       {isMetal && (
-        <div className="rounded-[10px] border border-steel-700 p-3">
+        <div className="rounded-md border border-line p-3">
           <label className="flex min-h-11 items-center gap-3">
-            <input type="checkbox" className="h-6 w-6 accent-hivis" checked={byKg} onChange={(e) => setByKg(e.target.checked)} />
+            <input type="checkbox" className="h-6 w-6 accent-accent" checked={byKg} onChange={(e) => setByKg(e.target.checked)} />
             <span className="font-semibold">מחיר לפי משקל</span>
           </label>
           {byKg ? (
-            <p className="tnum mt-1 text-steel-300">
+            <p className="tnum mt-1 text-muted">
               {!material || !(Number(weight) > 0)
                 ? 'צריך חומר ומשקל כדי לחשב.'
                 : kgPrice > 0
@@ -564,7 +568,7 @@ function ElementForm({
           ))}
           <option value="new">+ ספק חדש</option>
         </select>
-        <span className="mt-1.5 block text-sm text-steel-300">לפי הספק נבנית רשימת ההזמנה של כל עבודה.</span>
+        <span className="mt-1.5 block text-sm text-muted">לפי הספק נבנית רשימת ההזמנה של כל עבודה.</span>
       </label>
       {supplierId === 'new' && (
         <div className="grid grid-cols-2 gap-3">
@@ -581,7 +585,7 @@ function ElementForm({
       )}
 
       {error && (
-        <p className="text-primer-light" role="alert">
+        <p className="text-danger" role="alert">
           {error}
         </p>
       )}
@@ -595,15 +599,15 @@ function ElementForm({
           type="button"
           onClick={remove}
           disabled={saving}
-          className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border font-semibold ${
-            confirmRemove ? 'border-primer bg-primer text-soapstone' : 'border-steel-700 text-primer-light'
+          className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-md border font-semibold ${
+            confirmRemove ? 'border-danger bg-danger text-white' : 'border-line text-danger'
           }`}
         >
           <Icon name="trash" size={20} />
           {confirmRemove ? 'לחץ שוב כדי להסיר' : 'הסר מהמחירון'}
         </button>
       )}
-      {element && <p className="-mt-3 text-center text-sm text-steel-500">עבודות קיימות שומרות את המחיר שהיה בהן.</p>}
+      {element && <p className="-mt-3 text-center text-sm text-faint">עבודות קיימות שומרות את המחיר שהיה בהן.</p>}
     </form>
   );
 }
@@ -623,7 +627,7 @@ function PriceField({ unit, value, onChange }: { unit: Unit; value: string; onCh
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
-        <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-steel-500">₪</span>
+        <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-faint">₪</span>
       </span>
     </label>
   );
@@ -655,7 +659,7 @@ function WeightCalculator({
   const kg = ready ? kgFor(shape, values, density) : 0;
 
   return (
-    <div className="space-y-3 border-t border-steel-700 p-4">
+    <div className="space-y-3 border-t border-line p-4">
       <select
         className="field"
         value={shape}
@@ -673,7 +677,7 @@ function WeightCalculator({
       <div className="grid grid-cols-3 gap-2">
         {spec.dims.map((label, i) => (
           <label key={label} className="block">
-            <span className="mb-1 block text-sm text-steel-300">{label} (מ״מ)</span>
+            <span className="mb-1 block text-sm text-muted">{label} (מ״מ)</span>
             <input
               className="field tnum"
               type="number"
@@ -694,14 +698,14 @@ function WeightCalculator({
         ))}
       </div>
       <div className="flex items-center justify-between gap-3">
-        <span className="tnum text-steel-300">
+        <span className="tnum text-muted">
           {ready ? `${sizeFor(shape, values)}: ${fmtNum(kg)} ק״ג ${spec.unit === 'm' ? 'למטר' : 'למ״ר'}` : 'מלא את כל המידות'}
         </span>
         <button
           type="button"
           disabled={!ready}
           onClick={() => onApply(values, shape, kg, spec.unit)}
-          className="min-h-11 shrink-0 rounded-lg bg-soapstone px-4 font-semibold text-steel-950 disabled:opacity-40"
+          className="min-h-11 shrink-0 rounded-lg bg-ink px-4 font-semibold text-white disabled:opacity-40"
         >
           השתמש
         </button>
