@@ -7,6 +7,7 @@ import { isCutLine } from './quantities.ts';
 import type { QuantityLine } from './quantities.ts';
 import { PART_LABELS } from './scene.ts';
 import type { CutList, PartKind, ResolvedScene } from './scene.ts';
+import { MODEL_GROUP } from './types.ts';
 import type { Unit } from './types.ts';
 
 export interface BoqCheckRow {
@@ -80,7 +81,7 @@ const PART_CATALOG: Partial<Record<PartKind, string>> = {
   cap: 'item:cap-steel',
 };
 
-export const MODEL_GROUP = 'לפי ההדמיה';
+export { MODEL_GROUP };
 
 /** BOQ lines for everything in the model: profiles as pieces × length, plates by area, hardware by count. */
 export function linesFromModel(scene: ResolvedScene, cut: CutList, priceList: PriceListItem[]): ModelLine[] {

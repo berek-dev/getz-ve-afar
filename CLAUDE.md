@@ -25,6 +25,8 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
 - A job is four phases of numbered steps (`src/core/phases.ts`): פנייה, תכנון והצעה, ביצוע, תשלום וסגירה. Steps tick
   themselves off from the job's data; `nextAction` says what to do next. Each step is its own screen, `#/jobs/:id/:step`,
   built in `src/components/JobSteps.tsx` from the existing sections. New features go into a step, not a new tab.
+- Planning: הדמיה (optional) → מחיר וכתב כמויות → לוח זמנים → הצעת מחיר. Execution: שרטוט ייצור → הזמנת חומרים →
+  חיתוך → ייצור והתקנה → מסירה. One short line of text per screen; details go behind a tap.
 - Look "shop sheet": light, IBM Plex Sans Hebrew only, one orange (`accent`) for the main action of a screen, hairline
   cards (`plate`), steps numbered in circles (`mark`). Use the semantic colors in `src/styles.css`
   (page, card, sunken, line, ink, muted, faint, accent, ok, danger), never raw hex in components.
@@ -35,6 +37,9 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   AI instructions: `src/core/layoutPrompt.ts`. `npm run build:3d` inlines `src/core` and the viewer into the prototype.
 - three.js is loaded lazily (job tab, client quote page); keep it out of the main bundle.
 - Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).
+- "ההדמיה מוכנה" approves the newest version (`jobs.model_approved_id`, `POST /jobs/:id/model/approve`) and replaces
+  the BOQ group "לפי ההדמיה" with its materials; labor, paint and installation are added by hand. A newer version
+  means "changed since approval": the model, BOQ, drawing and cutting steps show it and offer re-approval.
 
 ## Commands
 `npm test` · `npm run typecheck` · `npm run build` · `npm run dev` + `npm run dev:api` · `npm run db:migrate:local|remote`

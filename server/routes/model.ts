@@ -3,12 +3,14 @@
  * from the model. The layout is validated with the same core code the viewer draws with.
  */
 import type { App } from '../types.ts';
+import type { JobItem } from '../../src/core/types.ts';
 import { parseId } from '../types.ts';
 import { buildLayoutPrompt, designRequests, parseLayoutReply } from '../../src/core/layoutPrompt.ts';
 import type { PromptBoqLine } from '../../src/core/layoutPrompt.ts';
 import { MODEL_GROUP, linesFromModel } from '../../src/core/modelBoq.ts';
 import type { PriceListItem } from '../../src/core/modelBoq.ts';
 import { cutList, prepareScene } from '../../src/core/scene.ts';
+import { isCutLine } from '../../src/core/quantities.ts';
 import { aiErrorCode, geminiText } from '../gemini.ts';
 import type { GeminiTurn } from '../gemini.ts';
 import { validateItem } from '../items.ts';
@@ -172,25 +174,52 @@ export function registerModel(app: App): void {
     }
   });
 
-  /** Replaces the job's "לפי ההדמיה" lines with lines computed from the current model. */
-  app.post('/jobs/:id/model/boq', async (c) => {
+  /**
+   * "ההדמיה מוכנה": approve the newest version and put its materials in the BOQ (the "לפי ההדמיה" group is
+   * replaced). Body: { dry_run?: boolean, replace?: boolean }. Hand-written lines the model now covers (profile
+   * cuts, or the same price-list item) are "conflicts": dry_run counts them, replace removes them.
+   */
+  app.post('/jobs/:id/model/approve', async (c) => {
     const jobId = parseId(c.req.param('id'));
     if (!jobId) return c.json({ error: 'bad id' }, 400);
     const db = c.env.DB;
-    const { layout } = await modelState(db, jobId);
-    if (!layout) return c.json({ error: 'no_model' }, 400);
-    const prepared = prepareScene(layout);
+    const body = await c.req.json<{ dry_run?: unknown; replace?: unknown }>().catch(() => ({ dry_run: undefined, replace: undefined }));
+    const latest = await db
+      .prepare('SELECT id, layout_json FROM job_models WHERE job_id = ? ORDER BY id DESC LIMIT 1')
+      .bind(jobId)
+      .first<{ id: number; layout_json: string }>();
+    if (!latest) return c.json({ error: 'no_model' }, 400);
+    const prepared = prepareScene(JSON.parse(latest.layout_json));
     if (prepared.errors.length) return c.json({ error: 'invalid_layout', details: prepared.errors }, 400);
-    const { results: priceList } = await db
-      .prepare('SELECT id, name, unit, unit_cost, catalog_key FROM elements WHERE active = 1')
-      .all<PriceListItem>();
+    const [{ results: priceList }, { results: existing }] = await Promise.all([
+      db.prepare('SELECT id, name, unit, unit_cost, catalog_key FROM elements WHERE active = 1').all<PriceListItem>(),
+      db
+        .prepare('SELECT * FROM job_items WHERE job_id = ?')
+        .bind(jobId)
+        .all<JobItem>(),
+    ]);
     const items: ItemInput[] = [];
     for (const line of linesFromModel(prepared.scene, cutList(prepared.scene), priceList)) {
       const v = validateItem({ ...line, description: line.description.slice(0, 200) });
       if (v.ok) items.push(v.item);
     }
-    await db.prepare('DELETE FROM job_items WHERE job_id = ? AND group_name = ?').bind(jobId, MODEL_GROUP).run();
+    const covered = new Set(items.map((i) => i.element_id).filter((id): id is number => id !== null));
+    const conflicts = existing.filter(
+      (l) => l.group_name !== MODEL_GROUP && (isCutLine(l) || (l.element_id !== null && covered.has(l.element_id))),
+    );
+    if (body.dry_run === true) return c.json({ lines: items.length, conflicts: conflicts.length });
+
+    const remove = [
+      db.prepare('DELETE FROM job_items WHERE job_id = ? AND group_name = ?').bind(jobId, MODEL_GROUP),
+      ...(body.replace === true ? conflicts.map((l) => db.prepare('DELETE FROM job_items WHERE id = ?').bind(l.id)) : []),
+      db.prepare('UPDATE jobs SET model_approved_id = ? WHERE id = ?').bind(latest.id, jobId),
+    ];
+    await db.batch(remove);
     await insertItems(db, jobId, items, 'ai');
-    return c.json({ lines: items.length, unpriced: items.filter((i) => i.unit_cost === 0).length });
+    return c.json({
+      lines: items.length,
+      unpriced: items.filter((i) => i.unit_cost === 0).length,
+      replaced: body.replace === true ? conflicts.length : 0,
+    });
   });
 }

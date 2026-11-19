@@ -18,7 +18,8 @@ test('after the visit: measurements, then the BOQ, then the quote and waiting fo
   const visited = { ...base, status: 'visit' as const, visit_at: '2026-11-18T08:00' };
   assert.equal(currentPhase(visited, NOW), 'planning');
   assert.equal(nextAction(visited, NOW)?.step, 'site');
-  assert.equal(nextAction({ ...visited, site_notes: 'פתח 4 מ׳' }, NOW)?.step, 'boq');
+  assert.equal(nextAction({ ...visited, site_notes: 'פתח 4 מ׳' }, NOW)?.step, 'model');
+  assert.equal(nextAction({ ...visited, kind: 'pipe' as const, site_notes: 'פתח 4 מ׳' }, NOW)?.step, 'boq');
   assert.equal(nextAction({ ...visited, photo_count: 3, item_count: 12 }, NOW)?.label, 'לשלוח הצעת מחיר');
 
   const quoted = { ...visited, status: 'quoted' as const, item_count: 12, quote_status: 'sent', quote_created_at: '2026-11-15 10:00:00' };
@@ -36,7 +37,7 @@ test('approved: order materials, set the date, start, hand over', () => {
   const approved = { ...base, status: 'approved' as const, item_count: 12, quote_status: 'approved', quote_total: 14860 };
   assert.equal(currentPhase(approved, NOW), 'execution');
   assert.equal(nextAction(approved, NOW)?.step, 'orders');
-  assert.equal(nextAction({ ...approved, ordered_at: '2026-11-19' }, NOW)?.step, 'schedule');
+  assert.equal(nextAction({ ...approved, ordered_at: '2026-11-19' }, NOW)?.step, 'install');
   const ready = { ...approved, ordered_at: '2026-11-19', scheduled_at: '2026-11-24T08:00' };
   assert.deepEqual(nextAction(ready, NOW)?.advance, { status: 'in_progress', label: 'התחלתי לעבוד' });
   assert.deepEqual(nextAction({ ...ready, status: 'in_progress' }, NOW)?.advance, { status: 'done', label: 'נמסר ללקוח' });
@@ -51,7 +52,7 @@ test('done: collect the balance, then close', () => {
 });
 
 test('steps tick themselves off from the data; optional steps never become "next"', () => {
-  const f = { ...base, status: 'quoted' as const, description: 'שער', visit_at: '2026-11-10T08:00', item_count: 4, model_versions: 2, quote_status: 'sent' };
+  const f = { ...base, status: 'quoted' as const, description: 'שער', visit_at: '2026-11-10T08:00', item_count: 4, model_versions: 2, model_latest_id: 7, model_approved_id: 7, quote_status: 'sent' };
   assert.equal(isStepDone('model', f), true);
   assert.equal(isStepDone('schedule', f), false);
   const planning = phaseStatus('planning', f, NOW);
@@ -60,12 +61,13 @@ test('steps tick themselves off from the data; optional steps never become "next
     [
       ['model', 'done'],
       ['boq', 'done'],
-      ['drawing', 'done'],
       ['schedule', 'todo'],
       ['quote', 'next'],
     ],
   );
   assert.deepEqual([planning.done, planning.total], [1, 3]);
+  assert.equal(isStepDone('drawing', f), true);
+  assert.equal(isStepDone('model', { ...f, model_latest_id: 8 }), false);
   assert.equal(phaseStatus('payment', f, NOW).steps.find((s) => s.id === 'invoice')?.state, 'optional');
 });
 
@@ -108,4 +110,15 @@ test('calendar events: visits of new requests and work dates of open jobs', asyn
       [1, 'visit', '2026-11-20T08:00', 1],
     ],
   );
+});
+
+test('a model has to be approved before the price; a change after approval asks again', () => {
+  const visited = { ...base, status: 'visit' as const, visit_at: '2026-11-18T08:00', photo_count: 2 };
+  assert.deepEqual(nextAction(visited, NOW), { step: 'model', label: 'להתחיל בהדמיה', kind: 'do' });
+  assert.deepEqual(nextAction({ ...visited, kind: 'service' }, NOW)?.step, 'boq');
+  const drafted = { ...visited, model_versions: 2, model_latest_id: 5 };
+  assert.equal(nextAction(drafted, NOW)?.label, 'לסיים את ההדמיה ולאשר');
+  const approved = { ...drafted, model_approved_id: 5, item_count: 9 };
+  assert.equal(nextAction(approved, NOW)?.label, 'לשלוח הצעת מחיר');
+  assert.equal(nextAction({ ...approved, model_latest_id: 6 }, NOW)?.label, 'ההדמיה השתנתה, לאשר מחדש');
 });

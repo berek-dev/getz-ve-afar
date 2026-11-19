@@ -13,6 +13,7 @@ export const ITEM_SELECT = `SELECT ji.*, e.name AS element_name, e.category, e.w
 export const JOB_SELECT = `SELECT j.*, cl.name AS client_name, cl.phone AS client_phone,
     (SELECT COUNT(*) FROM job_items ji WHERE ji.job_id = j.id) AS item_count,
     (SELECT COUNT(*) FROM job_models m WHERE m.job_id = j.id) AS model_versions,
+    (SELECT MAX(m.id) FROM job_models m WHERE m.job_id = j.id) AS model_latest_id,
     (SELECT COUNT(*) FROM photos ph WHERE ph.job_id = j.id) AS photo_count,
     (SELECT COUNT(*) FROM expenses x WHERE x.job_id = j.id) AS expense_count,
     (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.job_id = j.id) AS paid_total,

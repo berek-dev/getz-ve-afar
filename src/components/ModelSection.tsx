@@ -6,31 +6,28 @@ import { cutList, prepareScene } from '../core/scene.ts';
 import type { CutList } from '../core/scene.ts';
 import { buildLayoutPrompt, designRequests, parseLayoutReply } from '../core/layoutPrompt.ts';
 import type { PromptBoqLine } from '../core/layoutPrompt.ts';
-import { MODEL_GROUP, checkModelAgainstBoq } from '../core/modelBoq.ts';
-import type { BoqCheckRow } from '../core/modelBoq.ts';
-import { isCutLine } from '../core/quantities.ts';
+import { MODEL_GROUP } from '../core/modelBoq.ts';
 import { compressImage } from '../lib/image.ts';
 import { appendText, useDictation } from '../lib/speech.ts';
 import { useFeatures } from '../lib/features.ts';
 import { fmtNum } from '../lib/format.ts';
 import { ModelView } from './ModelView.tsx';
-import { ModelDrawing } from './ModelDrawing.tsx';
 import { Icon } from './Icon.tsx';
+import { Sheet } from './Sheet.tsx';
 import { toast } from './Toast.tsx';
 
 type Mode = 'new' | 'edit';
 
-/** The job's "הדמיה" tab: 3D model, talk to it, check it against the BOQ, shop drawing. Loaded lazily. */
+/** The model step: the 3D model, talking to it until it is right, then "ההדמיה מוכנה". Loaded lazily. */
 export default function ModelSection({
   job,
-  businessName,
-  onItems,
-  onVersions,
+  onApproved,
+  onModelChange,
 }: {
   job: JobDetail;
-  businessName: string;
-  onItems: (items: JobItem[]) => void;
-  onVersions: (n: number) => void;
+  /** After approval: reload the job (its lines changed) and move on */
+  onApproved: () => Promise<void>;
+  onModelChange: (m: { versions: number; latestId: number | null }) => void;
 }) {
   const [model, setModel] = useState<JobModel | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +43,7 @@ export default function ModelSection({
   const apply = (m: JobModel) => {
     setModel(m);
     setWarnings(m.warnings ?? []);
-    onVersions(m.history.length);
+    onModelChange({ versions: m.history.length, latestId: m.history[0]?.id ?? null });
   };
 
   const prepared = useMemo(() => (model?.layout ? prepareScene(model.layout) : null), [model]);
@@ -58,12 +55,12 @@ export default function ModelSection({
 
   if (error) {
     return (
-      <p className="mt-6 rounded-md border border-danger bg-danger-soft p-3 text-danger" role="alert">
+      <p className="rounded-md border border-danger bg-danger-soft p-3 text-danger" role="alert">
         {error}
       </p>
     );
   }
-  if (!model) return <p className="mt-6 text-muted">טוען את ההדמיה...</p>;
+  if (!model) return <p className="text-muted">טוען את ההדמיה...</p>;
 
   const undo = async () => {
     try {
@@ -75,16 +72,18 @@ export default function ModelSection({
   };
 
   const busyOverlay = chat.busy && (
-    <div className="absolute inset-0 grid place-items-center bg-ink/55 text-white p-6 text-center" role="status">
+    <div className="absolute inset-0 grid place-items-center bg-ink/60 p-6 text-center text-white" role="status">
       <div>
         <p className="font-semibold">{chat.mode === 'edit' ? 'מעדכן את המודל' : 'בונה את המודל'}...</p>
-        <p className="tnum mt-1 text-sm text-muted">{chat.seconds} שנ׳. לרוב פחות מדקה.</p>
-        <button type="button" onClick={chat.stop} className="mt-3 min-h-11 rounded-lg border border-muted px-4 text-sm font-semibold">
+        <p className="tnum mt-1 text-sm text-white/80">{chat.seconds} שנ׳, לרוב פחות מדקה</p>
+        <button type="button" onClick={chat.stop} className="mt-3 min-h-11 rounded-md border border-white/60 px-4 text-sm font-semibold">
           עצור
         </button>
       </div>
     </div>
   );
+
+  const notes = ok?.scene.notes ?? [];
 
   return (
     <div>
@@ -98,55 +97,40 @@ export default function ModelSection({
             overlay={busyOverlay}
             footer={<ChatComposer chat={chat} compact />}
           />
-          <div className="mt-3">
-            <h2 className="text-xl font-semibold leading-snug">{ok.scene.title}</h2>
-            <p className="tnum mt-0.5 text-sm text-muted">{summary(cut)}</p>
-            {ok.scene.finish?.name && <p className="text-sm text-muted">גמר: {ok.scene.finish.name}</p>}
-            {(ok.scene.notes ?? []).length > 0 && (
-              <ul className="mt-2 list-disc space-y-0.5 ps-5 text-sm text-muted">
-                {(ok.scene.notes ?? []).map((n, i) => (
-                  <li key={i}>{n}</li>
-                ))}
-              </ul>
-            )}
-            {warnings.length > 0 && (
-              <p className="mt-2 rounded-lg border border-accent/60 p-2.5 text-sm">בדיקת הפריסה: {warnings.slice(0, 4).join('; ')}</p>
-            )}
-          </div>
+          <p className="tnum mt-2 px-1 text-[0.85rem] text-muted">
+            {summary(cut)}
+            {ok.scene.finish?.name ? `, ${ok.scene.finish.name}` : ''}
+          </p>
+          {warnings.length > 0 && <p className="mt-2 rounded-md border border-accent/60 p-2.5 text-sm">לבדוק: {warnings.slice(0, 3).join('; ')}</p>}
+          <ApproveBar job={job} latestId={model.history[0]?.id ?? null} onApproved={onApproved} />
         </>
       ) : (
-        <div className="mt-6 rounded-md border-2 border-dashed border-line px-5 py-7 text-center">
-          <Icon name="cube" size={36} className="mx-auto text-faint" />
-          <p className="mt-3 text-muted">
-            {prepared
-              ? `הפריסה השמורה לא תקינה (${prepared.errors.slice(0, 2).join(', ')}). אפשר לבטל אותה או לתאר מחדש.`
-              : 'מתארים את העבודה במילים, עם תמונה או סקיצה אם יש, ומקבלים מודל תלת־ממד, שרטוט ורשימת חיתוך. כתב הכמויות נשלח יחד עם התיאור.'}
+        <div className="plate rounded-md px-5 py-6 text-center">
+          <Icon name="cube" size={32} className="mx-auto text-faint" />
+          <p className="mt-2 text-muted">
+            {prepared ? `הפריסה השמורה לא תקינה (${prepared.errors.slice(0, 2).join(', ')}). אפשר לבטל אותה או לתאר מחדש.` : 'מתארים במילים, עם תמונה או סקיצה, ומקבלים מודל.'}
           </p>
         </div>
       )}
 
-      <section className="plate mt-6 rounded-md p-4" aria-labelledby="chat-title">
+      <section className="plate mt-5 rounded-md p-4" aria-labelledby="chat-title">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 id="chat-title" className="text-lg font-semibold">
+          <h2 id="chat-title" className="font-semibold">
             {chat.mode === 'edit' ? 'מה לשנות?' : 'מה בונים?'}
           </h2>
           {model.layout != null && (
-            <button
-              type="button"
-              onClick={() => chat.setStartNew(!chat.startNew)}
-              className="min-h-11 text-sm text-muted underline underline-offset-4"
-            >
-              {chat.startNew ? 'חזרה לשינויים' : 'עיצוב חדש מההתחלה'}
+            <button type="button" onClick={() => chat.setStartNew(!chat.startNew)} className="min-h-11 text-sm text-muted underline underline-offset-4">
+              {chat.startNew ? 'חזרה לשינויים' : 'מההתחלה'}
             </button>
           )}
         </div>
         <ChatComposer chat={chat} />
 
-        {(requests.length > 0 || model.history.length > 0) && (
-          <div className="mt-4 border-t border-line pt-3">
+        {(requests.length > 0 || model.history.length > 0 || notes.length > 0) && (
+          <div className="mt-4 space-y-2 border-t border-line pt-3">
             {requests.length > 0 && (
               <ol className="space-y-1 text-sm text-muted">
-                {requests.slice(-6).map((r, i) => (
+                {requests.slice(-4).map((r, i) => (
                   <li key={i} className="flex gap-2">
                     <Icon name="check" size={16} className="mt-0.5 shrink-0 text-faint" />
                     <span>{r}</span>
@@ -154,13 +138,18 @@ export default function ModelSection({
                 ))}
               </ol>
             )}
+            {notes.length > 0 && (
+              <details className="text-sm text-muted">
+                <summary className="min-h-11 cursor-pointer py-2.5">הנחות של המודל ({notes.length})</summary>
+                <ul className="list-disc space-y-0.5 ps-5">
+                  {notes.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
             {model.history.length > 0 && (
-              <button
-                type="button"
-                onClick={() => void undo()}
-                disabled={chat.busy}
-                className="mt-2 flex min-h-11 items-center gap-1.5 text-sm font-semibold text-muted"
-              >
+              <button type="button" onClick={() => void undo()} disabled={chat.busy} className="flex min-h-11 items-center gap-1.5 text-sm font-semibold text-muted">
                 <Icon name="undo" size={18} />
                 {model.history.length > 1 ? 'בטל את השינוי האחרון' : 'מחק את ההדמיה'}
               </button>
@@ -168,16 +157,75 @@ export default function ModelSection({
           </div>
         )}
       </section>
+    </div>
+  );
+}
 
-      {ok && cut && (
+/** "ההדמיה מוכנה": approve the model, which fills the materials in the price. */
+function ApproveBar({ job, latestId, onApproved }: { job: JobDetail; latestId: number | null; onApproved: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [conflicts, setConflicts] = useState<number | null>(null);
+  const approvedId = job.model_approved_id ?? null;
+  const state = approvedId === null ? 'draft' : approvedId === latestId ? 'approved' : 'changed';
+
+  const approve = async (replace?: boolean) => {
+    setBusy(true);
+    try {
+      if (replace === undefined) {
+        const dry = await api.approveModel(job.id, { dryRun: true });
+        if ((dry.conflicts ?? 0) > 0) {
+          setConflicts(dry.conflicts ?? 0);
+          return;
+        }
+      }
+      const r = await api.approveModel(job.id, { replace: replace === true });
+      setConflicts(null);
+      toast(`ההדמיה אושרה: ${r.lines} שורות חומרים במחיר${r.unpriced ? `, ${r.unpriced} בלי מחיר` : ''}`);
+      await onApproved();
+    } catch (e) {
+      toast(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3">
+      {state === 'approved' ? (
+        <div className="flex items-center justify-between gap-3 rounded-md bg-ok-soft px-3.5 py-2.5">
+          <span className="flex items-center gap-2 font-semibold text-ok">
+            <Icon name="check" size={20} />
+            ההדמיה אושרה
+          </span>
+          <a href={`#/jobs/${job.id}/boq`} className="text-[0.9rem] font-semibold text-accent">
+            למחיר
+          </a>
+        </div>
+      ) : (
         <>
-          <BoqCheck job={job} cut={cut} onItems={onItems} />
-          <ModelDrawing scene={ok.scene} cut={cut} businessName={businessName} />
-          <p className="mt-6 text-sm text-muted">
-            ההדמיה מצורפת להצעת המחיר שנשלחת ללקוח (אפשר לבטל בהצעה). הלקוח רואה את המודל, בלי מחירים ובלי רשימת חיתוך.
-          </p>
+          {state === 'changed' && <p className="mb-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">ההדמיה השתנתה מאז שאושרה.</p>}
+          <button type="button" onClick={() => void approve()} disabled={busy} className="btn-primary">
+            <Icon name="check" />
+            {busy ? 'מעדכן...' : state === 'changed' ? 'לאשר מחדש ולעדכן את המחיר' : 'ההדמיה מוכנה'}
+          </button>
+          <p className="mt-1.5 px-1 text-[0.85rem] text-muted">החומרים ייכנסו למחיר, והשרטוט והחיתוך יוכנו ממנה.</p>
         </>
       )}
+      <Sheet open={conflicts !== null} onClose={() => setConflicts(null)} title="שורות שכבר במחיר">
+        {conflicts !== null && (
+          <div className="space-y-3">
+            <p>
+              בכתב הכמויות כבר יש {conflicts === 1 ? 'שורה אחת' : `${conflicts} שורות`} של פרופילים או פרזול שנכתבו ביד, וגם ההדמיה כוללת אותם.
+            </p>
+            <button type="button" onClick={() => void approve(true)} disabled={busy} className="btn-primary">
+              להחליף אותן בשורות מההדמיה
+            </button>
+            <button type="button" onClick={() => void approve(false)} disabled={busy} className="btn-secondary w-full">
+              להשאיר גם אותן
+            </button>
+          </div>
+        )}
+      </Sheet>
     </div>
   );
 }
@@ -406,19 +454,13 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
               עצור
             </button>
           )}
-          <p className="text-sm text-faint">
-            התיאור, כתב הכמויות והתמונה נשלחים לשירות של Google. בלי שמות וטלפונים של לקוחות.
-          </p>
         </>
       ) : (
-        <p className="text-sm text-muted">
-          היצירה האוטומטית עוד לא הופעלה בשרת. בינתיים: מעתיקים את ההנחיות, מדביקים אותן ב־Claude או ב־Gemini, ומדביקים כאן
-          את התשובה.
-        </p>
+        <p className="text-sm text-muted">היצירה האוטומטית לא מופעלת. אפשר דרך צ׳אט אחר, כאן למטה.</p>
       )}
 
-      <details className="rounded-lg border border-line p-3" open={!chat.ai}>
-        <summary className="min-h-11 cursor-pointer py-2 font-semibold">הדבקה ידנית מצ׳אט אחר</summary>
+      <details className="rounded-md border border-line p-3 text-sm" open={!chat.ai}>
+        <summary className="min-h-11 cursor-pointer py-2 font-semibold text-muted">דרך צ׳אט אחר (Claude או Gemini)</summary>
         <ol className="mt-1 list-decimal space-y-3 ps-5 text-sm text-muted">
           <li>
             כותבים למעלה מה לבנות או לשנות, ואז
@@ -460,84 +502,5 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
         </ol>
       </details>
     </div>
-  );
-}
-
-// -------------------------------------------------------------------------------------- BOQ check
-
-const STATUS: Record<BoqCheckRow['status'], { text: string; className: string }> = {
-  match: { text: 'תואם', className: 'text-ok' },
-  differs: { text: 'שונה', className: 'text-accent' },
-  model_only: { text: 'רק בהדמיה', className: 'text-accent' },
-  boq_only: { text: 'רק בכתב הכמויות', className: 'text-muted' },
-};
-
-const amount = (pieces: number, mm: number) => (mm > 0 ? `${pieces} יח׳, ${fmtNum(Math.round(mm / 100) / 10)} מ׳` : '–');
-
-function BoqCheck({ job, cut, onItems }: { job: JobDetail; cut: CutList; onItems: (items: JobItem[]) => void }) {
-  const [busy, setBusy] = useState(false);
-  const own = job.items.filter((i) => i.group_name !== MODEL_GROUP);
-  const fromModel = job.items.length - own.length;
-  const ownCut = own.some(isCutLine);
-  const rows = checkModelAgainstBoq(cut, ownCut ? own : job.items);
-  const matching = rows.filter((r) => r.status === 'match').length;
-
-  const add = async () => {
-    setBusy(true);
-    try {
-      const r = await api.modelToBoq(job.id);
-      onItems((await api.job(job.id)).items);
-      toast(`${r.lines} שורות ב"${MODEL_GROUP}"${r.unpriced ? `, ${r.unpriced} בלי מחיר` : ''}`);
-    } catch (e) {
-      toast(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <section className="mt-8" aria-labelledby="check-title">
-      <h2 id="check-title" className="text-[1.2rem] font-bold leading-tight">
-        מול כתב הכמויות
-      </h2>
-      {ownCut || fromModel ? (
-        <p className="mt-1 text-sm text-muted">
-          {matching} מתוך {rows.length} פרופילים תואמים (עד 3% הפרש).
-          {fromModel > 0 && ` ${fromModel} שורות כבר נוספו מההדמיה.`}
-        </p>
-      ) : (
-        <p className="mt-1 text-sm text-muted">עוד אין פרופילים בכתב הכמויות. אפשר להוסיף את כל מה שבמודל בלחיצה.</p>
-      )}
-      <ul className="plate mt-3 divide-y divide-line rounded-md">
-        {rows.map((r) => (
-          <li key={r.name} className="px-4 py-2.5">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="font-semibold">{r.name}</span>
-              <span className={`shrink-0 text-sm font-semibold ${STATUS[r.status].className}`}>{STATUS[r.status].text}</span>
-            </div>
-            <p className="tnum mt-0.5 text-sm text-muted">
-              הדמיה: {amount(r.modelPieces, r.modelMm)}. כתב כמויות: {amount(r.boqPieces, r.boqMm)}
-            </p>
-          </li>
-        ))}
-      </ul>
-      {ownCut && (
-        <p className="mt-3 text-sm text-muted">
-          כתב הכמויות כבר כולל פרופילים. השורות מההדמיה נכנסות לקבוצה נפרדת, &quot;{MODEL_GROUP}&quot;. מוחקים את מה שכפול.
-        </p>
-      )}
-      <button
-        type="button"
-        onClick={() => void add()}
-        disabled={busy}
-        className={`mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-md border font-semibold ${
-          ownCut ? 'border-line-strong' : 'border-accent text-accent'
-        }`}
-      >
-        <Icon name="plus" size={20} />
-        {busy ? 'מוסיף...' : fromModel ? `עדכן את "${MODEL_GROUP}" לפי המודל` : 'הוסף את המודל לכתב הכמויות'}
-      </button>
-      <p className="mt-2 text-sm text-faint">פרופילים לפי אורכי חיתוך, פחים ופרזול. עבודה, צביעה והתקנה מוסיפים בנפרד.</p>
-    </section>
   );
 }

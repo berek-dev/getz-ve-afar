@@ -164,6 +164,9 @@ export interface Job {
   // What the job's steps look at (src/core/phases.ts), sent with every job
   item_count?: number;
   model_versions?: number;
+  model_latest_id?: number | null;
+  /** The model version approved as ready (materials, drawing and cutting follow it) */
+  model_approved_id?: number | null;
   photo_count?: number;
   expense_count?: number;
   paid_total?: number;
@@ -220,3 +223,6 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   paid: 'שולם',
   lost: 'לא יצא',
 };
+
+/** BOQ group of the lines made from the approved 3D model (replaced on each approval) */
+export const MODEL_GROUP = 'לפי ההדמיה';

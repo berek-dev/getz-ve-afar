@@ -142,7 +142,11 @@ export const api = {
   undoModel: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model/undo`, { method: 'POST' }),
   aiModel: (jobId: number, body: { request: string; mode: 'new' | 'edit'; image?: { mime: string; data: string } | null }, signal?: AbortSignal) =>
     request<JobModel>(`/jobs/${jobId}/model/ai`, { method: 'POST', body: JSON.stringify(body), signal }),
-  modelToBoq: (jobId: number) => request<{ lines: number; unpriced: number }>(`/jobs/${jobId}/model/boq`, { method: 'POST' }),
+  approveModel: (jobId: number, opts: { dryRun?: boolean; replace?: boolean } = {}) =>
+    request<{ lines: number; conflicts?: number; unpriced?: number; replaced?: number }>(`/jobs/${jobId}/model/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ dry_run: opts.dryRun ?? false, replace: opts.replace ?? false }),
+    }),
 
   aiLines: (jobId: number, text: string) =>
     request<{ lines: ItemDraft[]; notes: string[] }>('/ai/lines', { method: 'POST', body: JSON.stringify({ job_id: jobId, text }) }),

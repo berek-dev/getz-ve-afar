@@ -6,7 +6,7 @@ import { downloadFile, fileSlug, shareFile, svgToPng } from '../lib/share.ts';
 import { Icon } from './Icon.tsx';
 import { toast } from './Toast.tsx';
 
-/** Shop drawing (A3, from the model) and the cut list, to share with the shop or print. */
+/** Shop drawing (A3, from the model), to share with the shop or print. Tap to zoom. */
 export function ModelDrawing({ scene, cut, businessName }: { scene: ResolvedScene; cut: CutList; businessName: string }) {
   const svg = useMemo(
     () => shopDrawingSvg(scene, { cut, business: businessName, date: new Intl.DateTimeFormat('he-IL').format(new Date()) }),
@@ -46,16 +46,12 @@ export function ModelDrawing({ scene, cut, businessName }: { scene: ResolvedScen
   const sheet = <div className="[&>svg]:block [&>svg]:h-auto [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />;
 
   return (
-    <section className="mt-8" aria-labelledby="drawing-title">
-      <h2 id="drawing-title" className="text-[1.2rem] font-bold leading-tight">
-        שרטוט ייצור
-      </h2>
-      <p className="mt-1 text-sm text-muted">נוצר מהמודל: מבט חזית, מידות וסימון חלקים. לחיצה מגדילה.</p>
+    <section aria-label="שרטוט ייצור">
       <button
         type="button"
         onClick={() => setZoom(true)}
         aria-label="הגדלת השרטוט"
-        className="mt-3 block w-full overflow-hidden rounded-md border border-line bg-white"
+        className="block w-full overflow-hidden rounded-md border border-line bg-white"
       >
         {sheet}
       </button>
@@ -88,40 +84,6 @@ export function ModelDrawing({ scene, cut, businessName }: { scene: ResolvedScen
         </button>
       </div>
 
-      <h3 className="mt-6 font-semibold">רשימת חיתוך</h3>
-      <table className="tnum mt-2 w-full text-[0.95rem]">
-        <thead className="text-start text-sm text-muted">
-          <tr>
-            <th className="py-1 text-start font-normal">סימון</th>
-            <th className="py-1 text-start font-normal">פרופיל</th>
-            <th className="py-1 text-end font-normal">כמות</th>
-            <th className="py-1 text-end font-normal">אורך (מ״מ)</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line border-t border-line">
-          {cut.pieces.map((p) => (
-            <tr key={p.mark}>
-              <td className="py-2 font-bold text-accent">{p.mark}</td>
-              <td className="py-2">
-                {p.name}
-                {p.bent && <span className="text-muted"> (מכופף)</span>}
-              </td>
-              <td className="py-2 text-end">{p.count}</td>
-              <td className="py-2 text-end">{fmtNum(p.length)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {(cut.plates.length > 0 || cut.parts.length > 0) && (
-        <p className="mt-3 text-sm leading-relaxed text-muted">
-          {cut.plates.map((p) => `${p.name} ${fmtNum(p.w)}/${fmtNum(p.h)}: ${p.count}`).join(', ')}
-          {cut.plates.length > 0 && cut.parts.length > 0 && '. '}
-          {cut.parts.length > 0 && `פרזול: ${cut.parts.map((p) => `${p.label} ${p.count}`).join(', ')}`}
-        </p>
-      )}
-      <p className="mt-2 text-sm text-faint">
-        אורכים לפי מרכז הפרופיל, חיבורי קצה ישרים. משקל משוער {fmtNum(Math.round(cut.totalKg))} ק״ג. בודקים מידות באתר לפני חיתוך.
-      </p>
 
       {zoom && (
         <div className="fixed inset-0 z-50 flex flex-col bg-white" role="dialog" aria-modal="true" aria-label="שרטוט ייצור">
@@ -145,5 +107,44 @@ export function ModelDrawing({ scene, cut, businessName }: { scene: ResolvedScen
         </div>
       )}
     </section>
+  );
+}
+
+/** Cut list from the model: piece marks as on the drawing, count and cut length. */
+export function CutListTable({ cut }: { cut: CutList }) {
+  return (
+    <div>
+      <table className="tnum w-full text-[0.95rem]">
+        <thead className="text-start text-sm text-muted">
+          <tr>
+            <th className="py-1 text-start font-normal">סימון</th>
+            <th className="py-1 text-start font-normal">פרופיל</th>
+            <th className="py-1 text-end font-normal">כמות</th>
+            <th className="py-1 text-end font-normal">אורך (מ״מ)</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line border-t border-line">
+          {cut.pieces.map((p) => (
+            <tr key={p.mark}>
+              <td className="py-2.5 font-bold text-accent">{p.mark}</td>
+              <td className="py-2.5">
+                {p.name}
+                {p.bent && <span className="text-muted"> (מכופף)</span>}
+              </td>
+              <td className="py-2.5 text-end">{p.count}</td>
+              <td className="py-2.5 text-end font-semibold">{fmtNum(p.length)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {(cut.plates.length > 0 || cut.parts.length > 0) && (
+        <p className="mt-3 text-sm leading-relaxed text-muted">
+          {cut.plates.map((p) => `${p.name} ${fmtNum(p.w)}/${fmtNum(p.h)}: ${p.count}`).join(', ')}
+          {cut.plates.length > 0 && cut.parts.length > 0 && '. '}
+          {cut.parts.length > 0 && `פרזול: ${cut.parts.map((p) => `${p.label} ${p.count}`).join(', ')}`}
+        </p>
+      )}
+      <p className="mt-2 text-sm text-faint">אורך לפי מרכז הפרופיל, חיבורי קצה ישרים. בודקים מידות באתר לפני חיתוך.</p>
+    </div>
   );
 }

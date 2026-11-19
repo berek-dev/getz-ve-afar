@@ -3,11 +3,11 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react
 import type { ReactNode } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { JobDetail, JobMoney } from '../lib/api.ts';
-import { JOB_KIND_LABELS, UNIT_LABELS, UNIT_PER } from '../core/types.ts';
+import { JOB_KIND_LABELS, MODEL_GROUP, UNIT_LABELS, UNIT_PER } from '../core/types.ts';
 import type { Element, Job, JobItem, JobStatus, Settings } from '../core/types.ts';
 import { isCutLine, lineTotal } from '../core/quantities.ts';
 import type { JobTotals } from '../core/quantities.ts';
-import { amountDue, isStepDone } from '../core/phases.ts';
+import { amountDue, isStepDone, modelApproved } from '../core/phases.ts';
 import type { StepId } from '../core/phases.ts';
 import { stageIndex } from '../core/stages.ts';
 import { formatIls, round2 } from '../core/money.ts';
@@ -28,7 +28,8 @@ import { AiDraft, SaveTemplateForm, TemplatePicker } from './BoqTools.tsx';
 
 // three.js, the layout code and the drawing load only on the steps that show them
 const ModelSection = lazy(() => import('./ModelSection.tsx'));
-const DrawingStep = lazy(() => import('./DrawingStep.tsx'));
+const DrawingStep = lazy(() => import('./DrawingStep.tsx').then((m) => ({ default: m.DrawingStep })));
+const CuttingStep = lazy(() => import('./DrawingStep.tsx').then((m) => ({ default: m.CuttingStep })));
 
 export interface JobCtx {
   job: JobDetail;
@@ -58,11 +59,11 @@ export function stepSummary(id: StepId, ctx: JobCtx): string {
     case 'site':
       return [job.site_notes?.trim() ? 'יש מידות' : '', job.photo_count ? `${job.photo_count} תמונות` : ''].filter(Boolean).join(', ') || 'עוד אין מידות ותמונות';
     case 'model':
-      return job.model_versions ? `גרסה ${job.model_versions}` : 'מתארים במילים, מקבלים מודל';
+      return !job.model_versions ? 'לא חובה, לעבודות ייצור' : modelApproved(job) ? 'אושרה' : job.model_approved_id ? 'השתנתה, לאשר מחדש' : 'טיוטה, עוד לא אושרה';
     case 'boq':
       return job.items.length ? `${job.items.length} שורות, ${formatIls(totals.price.total)}` : 'עוד אין שורות';
     case 'drawing':
-      return job.model_versions ? 'שרטוט A3 ורשימת חיתוך' : totals.cutPlans.length ? 'תוכנית חיתוך מוטות' : 'נוצר מההדמיה';
+      return job.model_versions ? 'שרטוט A3 עם מידות וסימונים' : 'נוצר מההדמיה';
     case 'schedule':
     case 'install':
       return job.scheduled_at ? slot(job.scheduled_at) : 'עוד לא נקבע';
@@ -76,8 +77,10 @@ export function stepSummary(id: StepId, ctx: JobCtx): string {
             : 'עוד לא נשלחה';
     case 'orders':
       return job.ordered_at ? `הוזמן ב־${fmtDate(job.ordered_at)}` : 'עוד לא הוזמן';
-    case 'production':
-      return after(job, 'in_progress') ? 'התחיל' : 'שרטוט וחיתוך לעבודה';
+    case 'cutting': {
+      const bars = totals.cutPlans.reduce((s, p) => s + p.bars.length, 0);
+      return after(job, 'in_progress') ? 'בייצור' : bars ? `${bars} מוטות לחיתוך` : 'רשימת חיתוך';
+    }
     case 'handover':
       return after(job, 'done') ? 'נמסר ללקוח' : 'תמונות סיום ומסירה';
     case 'payments': {
@@ -107,7 +110,7 @@ export function StepBody({ step, ctx }: { step: StepId; ctx: JobCtx }) {
       return (
         <div className="space-y-4">
           <DateBlock job={job} kind="visit" businessName={settings.business_name} onChange={ctx.applyJob} />
-          <Hint>הביקור נכנס ליומן של האפליקציה, ואפשר להוסיף אותו גם ליומן בטלפון. במקום רושמים מידות ומצלמים, בצעד הבא.</Hint>
+          <Hint>במקום: מידות ותמונות, בצעד הבא.</Hint>
         </div>
       );
     case 'site':
@@ -122,9 +125,11 @@ export function StepBody({ step, ctx }: { step: StepId; ctx: JobCtx }) {
         <Suspense fallback={<p className="text-muted">טוען את ההדמיה...</p>}>
           <ModelSection
             job={job}
-            businessName={settings.business_name}
-            onItems={(items) => ctx.setJob((j) => ({ ...j, items, item_count: items.length }))}
-            onVersions={(n) => ctx.setJob((j) => ({ ...j, model_versions: n }))}
+            onApproved={async () => {
+              await ctx.reload();
+              location.hash = `#/jobs/${job.id}/boq`;
+            }}
+            onModelChange={(m) => ctx.setJob((j) => ({ ...j, model_versions: m.versions, model_latest_id: m.latestId }))}
           />
         </Suspense>
       );
@@ -133,14 +138,14 @@ export function StepBody({ step, ctx }: { step: StepId; ctx: JobCtx }) {
     case 'drawing':
       return (
         <Suspense fallback={<p className="text-muted">טוען...</p>}>
-          <DrawingStep jobId={job.id} cutPlans={ctx.totals.cutPlans} businessName={settings.business_name} barLengthMm={settings.bar_length_mm} kerfMm={settings.kerf_mm} />
+          <DrawingStep job={job} businessName={settings.business_name} />
         </Suspense>
       );
     case 'schedule':
       return (
         <div className="space-y-4">
           <DateBlock job={job} kind="work" businessName={settings.business_name} onChange={ctx.applyJob} />
-          <Hint>מתי מתחילים ולכמה זמן. התאריך נכנס ליומן, ולפיו מזמינים חומרים ומתאמים עם הלקוח.</Hint>
+          <Hint>התאריך נכנס ליומן, ולפיו מזמינים חומרים.</Hint>
         </div>
       );
     case 'quote':
@@ -157,25 +162,30 @@ export function StepBody({ step, ctx }: { step: StepId; ctx: JobCtx }) {
       );
     case 'orders':
       return <OrdersStep ctx={ctx} />;
-    case 'production':
+    case 'cutting':
       return (
-        <div className="space-y-4">
-          {job.status === 'approved' && (
-            <button type="button" onClick={() => void ctx.changeStatus('in_progress')} className="btn-primary">
-              <Icon name="check" />
-              התחלתי לעבוד
-            </button>
-          )}
-          <Suspense fallback={<p className="text-muted">טוען...</p>}>
-            <DrawingStep jobId={job.id} cutPlans={ctx.totals.cutPlans} businessName={settings.business_name} barLengthMm={settings.bar_length_mm} kerfMm={settings.kerf_mm} />
-          </Suspense>
-        </div>
+        <Suspense fallback={<p className="text-muted">טוען...</p>}>
+          <CuttingStep
+            job={job}
+            cutPlans={ctx.totals.cutPlans}
+            barLengthMm={settings.bar_length_mm}
+            kerfMm={settings.kerf_mm}
+            action={
+              job.status === 'approved' && (
+                <button type="button" onClick={() => void ctx.changeStatus('in_progress')} className="btn-primary">
+                  <Icon name="check" />
+                  התחלתי לעבוד
+                </button>
+              )
+            }
+          />
+        </Suspense>
       );
     case 'install':
       return (
         <div className="space-y-4">
           <DateBlock job={job} kind="work" businessName={settings.business_name} onChange={ctx.applyJob} />
-          <Hint>יום לפני: אישור ללקוח בוואטסאפ, ניווט לאתר מהכפתור.</Hint>
+          <Hint>יום לפני: אישור ללקוח בוואטסאפ.</Hint>
         </div>
       );
     case 'handover':
@@ -456,8 +466,26 @@ function BoqStep({ ctx }: { ctx: JobCtx }) {
   const offcutCost = totals.materials - totals.materialsNet;
   const barsBought = totals.cutPlans.reduce((s, p) => s + p.bars.length, 0);
 
+  const fromModel = job.items.filter((i) => i.group_name === MODEL_GROUP).length;
+  const hasLabor = job.items.some((i) => i.unit === 'hour');
+
   return (
     <div>
+      {job.model_versions ? (
+        modelApproved(job) ? (
+          <p className="mb-3 px-1 text-[0.9rem] text-muted">
+            <Icon name="check" size={16} className="me-1 inline text-ok" />
+            {fromModel} שורות חומרים מההדמיה.{!hasLabor && ' נשאר להוסיף עבודה, צבע והתקנה.'}
+          </p>
+        ) : (
+          <p className="mb-3 rounded-md bg-accent-soft px-3 py-2.5 text-[0.9rem]">
+            {job.model_approved_id ? 'ההדמיה השתנתה, החומרים כאן לפי הגרסה הקודמת.' : 'ההדמיה עוד לא אושרה, החומרים ממנה ייכנסו כשתאשר.'}{' '}
+            <a href={`#/jobs/${job.id}/model`} className="font-semibold text-accent underline underline-offset-4">
+              להדמיה
+            </a>
+          </p>
+        )
+      ) : null}
       <section className="plate rounded-md p-4" aria-labelledby="price-title">
         <h2 id="price-title" className="text-[0.85rem] text-muted">
           מחיר ללקוח, כולל מע״מ
@@ -501,7 +529,7 @@ function BoqStep({ ctx }: { ctx: JobCtx }) {
 
       {job.items.length === 0 ? (
         <p className="plate mt-3 rounded-md px-5 py-6 text-center text-muted">
-          כל פרופיל, פרזול, צביעה ושעת עבודה הם שורה. אפשר להתחיל מתבנית של עבודה קודמת, מתיאור במילים, או מההדמיה.
+          כל פרופיל, פרזול, צבע ושעת עבודה הם שורה.
         </p>
       ) : (
         <div className="plate mt-3 rounded-md">

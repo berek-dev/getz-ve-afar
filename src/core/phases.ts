@@ -26,7 +26,7 @@ export type StepId =
   | 'schedule'
   | 'quote'
   | 'orders'
-  | 'production'
+  | 'cutting'
   | 'install'
   | 'handover'
   | 'payments'
@@ -48,14 +48,14 @@ export const STEPS: StepDef[] = [
   { id: 'visit', phase: 'intake', title: 'תיאום ביקור' },
   { id: 'site', phase: 'intake', title: 'מדידות ותמונות מהאתר' },
   { id: 'model', phase: 'planning', title: 'הדמיה בתלת־ממד', optional: true },
-  { id: 'boq', phase: 'planning', title: 'כתב כמויות ומחיר' },
-  { id: 'drawing', phase: 'planning', title: 'שרטוט ורשימת חיתוך', optional: true },
+  { id: 'boq', phase: 'planning', title: 'מחיר וכתב כמויות' },
   { id: 'schedule', phase: 'planning', title: 'לוח זמנים' },
   { id: 'quote', phase: 'planning', title: 'הצעת מחיר ואישור' },
+  { id: 'drawing', phase: 'execution', title: 'שרטוט ייצור', optional: true },
   { id: 'orders', phase: 'execution', title: 'הזמנת חומרים' },
-  { id: 'production', phase: 'execution', title: 'ייצור במסגרייה' },
-  { id: 'install', phase: 'execution', title: 'התקנה' },
-  { id: 'handover', phase: 'execution', title: 'מסירה ותמונות סיום' },
+  { id: 'cutting', phase: 'execution', title: 'חיתוך' },
+  { id: 'install', phase: 'execution', title: 'ייצור והתקנה' },
+  { id: 'handover', phase: 'execution', title: 'מסירה' },
   { id: 'payments', phase: 'payment', title: 'מקדמה ויתרה' },
   { id: 'invoice', phase: 'payment', title: 'חשבונית ורואה חשבון', optional: true },
   { id: 'expenses', phase: 'payment', title: 'הוצאות העבודה', optional: true },
@@ -81,6 +81,9 @@ export interface JobFacts {
   ordered_at?: string | null;
   item_count?: number | null;
   model_versions?: number | null;
+  /** Newest saved model version, and the one Yaal approved ("ההדמיה מוכנה") */
+  model_latest_id?: number | null;
+  model_approved_id?: number | null;
   photo_count?: number | null;
   expense_count?: number | null;
   /** Latest quote, status as the client sees it (expired included) */
@@ -93,6 +96,11 @@ export interface JobFacts {
 const at = (status: JobStatus) => stageIndex(status);
 const IDX = { visit: at('visit'), quoted: at('quoted'), approved: at('approved'), in_progress: at('in_progress'), done: at('done') };
 const text = (s: string | null | undefined) => Boolean(s && s.trim());
+
+/** The model was approved and has not changed since */
+export function modelApproved(f: JobFacts): boolean {
+  return f.model_approved_id != null && f.model_approved_id === f.model_latest_id;
+}
 
 /** What the client owes: the approved quote's total, if any */
 export function amountDue(f: JobFacts): number | null {
@@ -112,7 +120,7 @@ export function isStepDone(id: StepId, f: JobFacts): boolean {
       return text(f.site_notes) || (f.photo_count ?? 0) > 0 || i >= IDX.quoted;
     case 'model':
     case 'drawing':
-      return (f.model_versions ?? 0) > 0;
+      return (f.model_versions ?? 0) > 0 && modelApproved(f);
     case 'boq':
       return (f.item_count ?? 0) > 0;
     case 'schedule':
@@ -121,7 +129,7 @@ export function isStepDone(id: StepId, f: JobFacts): boolean {
       return f.quote_status === 'approved' || i >= IDX.approved;
     case 'orders':
       return Boolean(f.ordered_at) || i >= IDX.done;
-    case 'production':
+    case 'cutting':
       return i >= IDX.in_progress;
     case 'install':
     case 'handover':
@@ -194,7 +202,14 @@ export function nextAction(f: JobFacts, now: string): NextAction | null {
   }
   if (phase === 'planning') {
     if (!done('site') && f.status === 'visit') return { step: 'site', label: 'לרשום מידות ותמונות מהאתר', kind: 'do' };
-    if (!done('boq')) return { step: 'boq', label: 'לבנות כתב כמויות ומחיר', kind: 'do' };
+    if ((f.model_versions ?? 0) > 0 && !modelApproved(f) && f.status !== 'quoted') {
+      return { step: 'model', label: f.model_approved_id ? 'ההדמיה השתנתה, לאשר מחדש' : 'לסיים את ההדמיה ולאשר', kind: 'do' };
+    }
+    if (!done('boq')) {
+      return f.kind === 'fabrication' && !(f.model_versions ?? 0)
+        ? { step: 'model', label: 'להתחיל בהדמיה', kind: 'do' }
+        : { step: 'boq', label: 'לבנות את המחיר', kind: 'do' };
+    }
     if (f.quote_status === 'sent' || (f.status === 'quoted' && f.quote_status !== 'expired' && f.quote_status !== 'rejected')) {
       return {
         step: 'quote',
@@ -208,9 +223,9 @@ export function nextAction(f: JobFacts, now: string): NextAction | null {
   }
   if (phase === 'execution') {
     if (!done('orders')) return { step: 'orders', label: 'להזמין חומרים', kind: 'do', meta: f.scheduled_at ? { at: f.scheduled_at } : undefined };
-    if (!f.scheduled_at) return { step: 'schedule', label: 'לקבוע מועד לעבודה', kind: 'do' };
+    if (!f.scheduled_at) return { step: 'install', label: 'לקבוע מועד לעבודה', kind: 'do' };
     if (f.status === 'approved') {
-      return { step: 'production', label: 'להתחיל בייצור', kind: 'do', advance: { status: 'in_progress', label: 'התחלתי לעבוד' }, meta: { at: f.scheduled_at } };
+      return { step: 'cutting', label: 'לחתוך ולהתחיל בייצור', kind: 'do', advance: { status: 'in_progress', label: 'התחלתי לעבוד' }, meta: { at: f.scheduled_at } };
     }
     return { step: 'handover', label: 'להתקין ולמסור', kind: 'do', advance: { status: 'done', label: 'נמסר ללקוח' }, meta: { at: f.scheduled_at } };
   }
@@ -249,7 +264,7 @@ export function neighbours(id: StepId): { prev: StepDef | null; next: StepDef | 
 }
 
 /** Old links (#/jobs/9/money) keep working */
-export const LEGACY_TABS: Record<string, StepId> = { boq: 'boq', model: 'model', orders: 'orders', photos: 'site', money: 'payments' };
+export const LEGACY_TABS: Record<string, StepId> = { boq: 'boq', model: 'model', orders: 'orders', photos: 'site', money: 'payments', production: 'cutting' };
 
 export interface TodayItem<J> {
   job: J;
