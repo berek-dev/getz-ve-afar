@@ -11,7 +11,7 @@ import { MODEL_GROUP, linesFromModel } from '../../src/core/modelBoq.ts';
 import type { PriceListItem } from '../../src/core/modelBoq.ts';
 import { anchorDimensions, cutList, prepareScene } from '../../src/core/scene.ts';
 import { isCutLine } from '../../src/core/quantities.ts';
-import { aiErrorCode, geminiText } from '../gemini.ts';
+import { aiErrorCode, geminiHedged } from '../gemini.ts';
 import type { GeminiAttempt, GeminiTurn } from '../gemini.ts';
 import { validateItem } from '../items.ts';
 import type { ItemInput } from '../items.ts';
@@ -219,11 +219,11 @@ export function registerModel(app: App): void {
         // One repair round: the core's errors go back to the model (if there is still time)
         for (let attempt = 0; attempt < 2; attempt++) {
           if (attempt > 0 && Date.now() - started > RUN_DEADLINE_MS / 2) break;
-          // A change needs little thinking (and thinking is the slow part); a new design gets the default
-          const reply = await geminiText(c.env, {
+          // Thinking is the slow part, and a layout needs little of it; a slow model is overtaken by the next one
+          const reply = await geminiHedged(c.env, {
             contents,
             json: true,
-            thinking: mode === 'edit' ? 'low' : undefined,
+            thinking: 'low',
             deadlineAt: started + RUN_DEADLINE_MS,
             onAttempt: (a) => attempts.push(a),
           });

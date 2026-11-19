@@ -104,11 +104,17 @@ export async function geminiText(
     /** No new attempt after this time (ms since epoch) */
     deadlineAt?: number;
     onAttempt?: (a: GeminiAttempt) => void;
+    /** The models to try, in order (default: GEMINI_MODEL, then the free-tier list) */
+    models?: string[];
+    /** Stops everything (the other request of a hedged pair won) */
+    signal?: AbortSignal;
+    /** The reply started coming in */
+    onFirstPiece?: () => void;
   },
   deps: GeminiDeps = realDeps,
 ): Promise<string> {
   if (!env.GEMINI_API_KEY) throw new Error('ai_not_configured');
-  const models = env.GEMINI_MODEL ? [env.GEMINI_MODEL, ...DEFAULT_MODELS.filter((m) => m !== env.GEMINI_MODEL)] : DEFAULT_MODELS;
+  const models = request.models ?? modelList(env);
   const bodyFor = (thinking: Thinking | undefined) => {
     const generationConfig: Record<string, unknown> = { temperature: request.temperature ?? 0.2 };
     if (request.json || request.schema) generationConfig.responseMimeType = 'application/json';
@@ -127,8 +133,10 @@ export async function geminiText(
   for (const model of models) {
     let thinking = request.thinking;
     for (let attempt = 0; attempt < 2; attempt++) {
+      if (request.signal?.aborted) throw new Error('aborted');
       if (deps.now() > stopAt) break;
       const ctl = new AbortController();
+      request.signal?.addEventListener('abort', () => ctl.abort(), { once: true });
       const t0 = deps.now();
       let firstMs: number | null = null;
       let chars = 0;
@@ -141,7 +149,10 @@ export async function geminiText(
       let idle = setTimeout(cut, IDLE_MS);
       const hard = setTimeout(() => ctl.abort(), Math.max(IDLE_MS, stopAt + OVERTIME_MS - deps.now()));
       const alive = (n: number) => {
-        if (firstMs === null) firstMs = deps.now() - t0;
+        if (firstMs === null) {
+          firstMs = deps.now() - t0;
+          request.onFirstPiece?.();
+        }
         chars = n;
         clearTimeout(idle);
         idle = setTimeout(cut, IDLE_MS);
@@ -167,6 +178,7 @@ export async function geminiText(
         clearTimeout(idle);
         clearTimeout(hard);
       }
+      if (request.signal?.aborted) throw new Error('aborted');
       request.onAttempt?.({ model, status: text !== null ? 200 : status, firstMs, ms: deps.now() - t0, chars });
       if (text !== null) {
         if (!text.trim()) throw new Error('ai_empty');
@@ -192,6 +204,56 @@ export async function geminiText(
   if (sawTransient) throw new Error('ai_overloaded');
   if (sawQuota) throw new Error('ai_busy');
   throw new Error(`ai_failed_${lastStatus}`);
+}
+
+function modelList(env: Pick<Env, 'GEMINI_MODEL'>): string[] {
+  return env.GEMINI_MODEL ? [env.GEMINI_MODEL, ...DEFAULT_MODELS.filter((m) => m !== env.GEMINI_MODEL)] : DEFAULT_MODELS;
+}
+
+/** How long the best model gets to start writing before the next one is asked too */
+const HEDGE_MS = 12_000;
+
+/**
+ * Like geminiText, for replies someone is waiting on: the best model is asked first, and if it hasn't started
+ * writing after a few seconds (stuck in Google's queue) the next model is asked too. Whichever finishes first
+ * wins and the other is stopped. Costs a second request only when the first one is slow.
+ */
+export function geminiHedged(
+  env: Pick<Env, 'GEMINI_API_KEY' | 'GEMINI_MODEL'>,
+  request: Parameters<typeof geminiText>[1],
+  deps: GeminiDeps = realDeps,
+): Promise<string> {
+  const models = request.models ?? modelList(env);
+  if (models.length < 2 || !env.GEMINI_API_KEY) return geminiText(env, request, deps);
+  const first = new AbortController();
+  const second = new AbortController();
+  let writing = false;
+  let won = false;
+  let running = 1;
+  return new Promise<string>((resolve, reject) => {
+    const race = (p: Promise<string>, other: AbortController) =>
+      p.then(
+        (text) => {
+          if (won) return;
+          won = true;
+          other.abort();
+          resolve(text);
+        },
+        (e: unknown) => {
+          running--;
+          if (running === 0 && !won) reject(e instanceof Error && e.message === 'aborted' ? new Error('ai_overloaded') : e);
+        },
+      );
+    race(
+      geminiText(env, { ...request, models, signal: first.signal, onFirstPiece: () => (writing = true) }, deps),
+      second,
+    );
+    void deps.sleep(HEDGE_MS).then(() => {
+      if (won || writing || running === 0) return;
+      running++;
+      race(geminiText(env, { ...request, models: [...models.slice(1), models[0]], signal: second.signal }, deps), first);
+    });
+  });
 }
 
 /** Error → the code sent to the app */

@@ -101,3 +101,51 @@ test('each attempt is reported, with when the reply started', async () => {
     ],
   );
 });
+
+test('a model stuck in the queue is overtaken by the next one', async () => {
+  const { geminiHedged } = await import('./gemini.ts');
+  const calls: string[] = [];
+  let stuckAborted = false;
+  const deps: GeminiDeps = {
+    fetch: async (url, init) => {
+      const model = String(url).split('/models/')[1].split(':')[0];
+      calls.push(model);
+      if (calls.length === 1) {
+        // the first model never writes anything until it is stopped
+        return new Response(
+          new ReadableStream({
+            start(c) {
+              init?.signal?.addEventListener('abort', () => {
+                stuckAborted = true;
+                c.error(new Error('aborted'));
+              });
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return sse(event('fast'));
+    },
+    sleep: async () => undefined,
+    now: () => 0,
+  };
+  assert.equal(await geminiHedged(env, ask, deps), 'fast');
+  assert.notEqual(calls[1], calls[0]);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(stuckAborted, 'the slow request is stopped');
+});
+
+test('a quick first model is not doubled', async () => {
+  const { geminiHedged } = await import('./gemini.ts');
+  let calls = 0;
+  const deps: GeminiDeps = {
+    fetch: async () => {
+      calls++;
+      return sse(event('quick'));
+    },
+    sleep: () => new Promise(() => undefined), // the hedge timer never fires
+    now: () => 0,
+  };
+  assert.equal(await geminiHedged(env, ask, deps), 'quick');
+  assert.equal(calls, 1);
+});

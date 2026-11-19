@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
-import type { JobDetail, JobModel } from '../lib/api.ts';
+import type { JobDetail, JobModel, ModelRun } from '../lib/api.ts';
 import type { JobItem } from '../core/types.ts';
 import { anchorDimensions, cutList, prepareScene } from '../core/scene.ts';
 import type { CutList } from '../core/scene.ts';
@@ -131,7 +131,7 @@ export default function ModelSection({
         </div>
         <ChatComposer chat={chat} />
 
-        {(requests.length > 0 || model.history.length > 0 || notes.length > 0) && (
+        {(requests.length > 0 || model.history.length > 0 || notes.length > 0 || model.run) && (
           <div className="mt-4 space-y-2 border-t border-line pt-3">
             {requests.length > 0 && (
               <ol className="space-y-1 text-sm text-muted">
@@ -143,6 +143,7 @@ export default function ModelSection({
                 ))}
               </ol>
             )}
+            {model.run && lastBuild(model.run) && <p className="text-[0.8rem] text-faint">{lastBuild(model.run)}</p>}
             {notes.length > 0 && (
               <details className="text-sm text-muted">
                 <summary className="min-h-11 cursor-pointer py-2.5">הנחות של המודל ({notes.length})</summary>
@@ -233,6 +234,16 @@ function ApproveBar({ job, latestId, onApproved }: { job: JobDetail; latestId: n
       </Sheet>
     </div>
   );
+}
+
+/** "נבנתה ב־54 שנ׳, עם Gemini 3.6 Flash": how long the last Gemini build took and which model answered */
+function lastBuild(run: ModelRun): string | null {
+  if (run.status !== 'done' || !run.finished_at) return null;
+  const secs = Math.round((Date.parse(`${run.finished_at.replace(' ', 'T')}Z`) - Date.parse(`${run.created_at.replace(' ', 'T')}Z`)) / 1000);
+  const winner = [...(run.attempts ?? [])].reverse().find((a) => a.status === 200)?.model;
+  const name = winner?.replace(/^gemini-/, 'Gemini ').replace(/-flash-lite$/, ' Flash-Lite').replace(/-flash$/, ' Flash');
+  // No parentheses around the Latin name: in right-to-left text the closing one jumps to the wrong side
+  return Number.isFinite(secs) ? `ההדמיה האחרונה נבנתה ב־${secs} שנ׳${name ? `, עם ${name}` : ''}` : null;
 }
 
 function summary(cut: CutList): string {
@@ -482,51 +493,76 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
           )}
         </>
       ) : (
-        <p className="text-sm text-muted">היצירה האוטומטית לא מופעלת. אפשר דרך צ׳אט אחר, כאן למטה.</p>
+        <p className="text-sm text-muted">היצירה האוטומטית לא מופעלת. אפשר דרך האפליקציה של Gemini או Claude, כאן למטה.</p>
       )}
 
-      <details className="rounded-md border border-line p-3 text-sm" open={!chat.ai}>
-        <summary className="min-h-11 cursor-pointer py-2 font-semibold text-muted">דרך צ׳אט אחר (Claude או Gemini)</summary>
-        <ol className="mt-1 list-decimal space-y-3 ps-5 text-sm text-muted">
-          <li>
-            כותבים למעלה מה לבנות או לשנות, ואז
-            <button
-              type="button"
-              onClick={() => {
-                void navigator.clipboard.writeText(chat.prompt()).then(
-                  () => toast('ההנחיות הועתקו'),
-                  () => toast('לא הצלחתי להעתיק'),
-                );
-              }}
-              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-line-strong font-semibold text-ink"
-            >
-              <Icon name="copy" size={18} />
-              העתק הנחיות
-            </button>
-          </li>
-          <li>מדביקים ב־Claude או ב־Gemini (עם התמונה, אם יש), ומעתיקים את כל התשובה.</li>
-          <li>
-            מדביקים כאן:
-            <textarea
-              className="field mt-2 min-h-28 font-mono text-sm"
-              dir="ltr"
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              placeholder="{ ... }"
-              aria-label="התשובה מהצ׳אט"
-            />
-            <button
-              type="button"
-              onClick={() => void chat.paste(reply).then((ok) => ok && setReply(''))}
-              disabled={reply.trim().length < 10}
-              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-sunken font-semibold text-ink disabled:opacity-50"
-            >
-              <Icon name="cube" size={18} />
-              הצג את המודל
-            </button>
-          </li>
-        </ol>
-      </details>
+      <OtherChat chat={chat} reply={reply} setReply={setReply} />
     </div>
+  );
+}
+
+const OTHER_CHATS = [
+  { name: 'Gemini', url: 'https://gemini.google.com/app' },
+  { name: 'Claude', url: 'https://claude.ai/new' },
+];
+
+/**
+ * The same instructions through Yaal's own Gemini or Claude app (often faster than the API): one tap copies
+ * them and opens the app, one tap back here pastes the answer from the clipboard.
+ */
+function OtherChat({ chat, reply, setReply }: { chat: Chat; reply: string; setReply: (v: string) => void }) {
+  const [manual, setManual] = useState(false);
+  const copy = () => {
+    // No await before the link opens: iPhone only allows opening an app straight from the tap
+    void navigator.clipboard.writeText(chat.prompt()).then(
+      () => toast(chat.image ? 'ההנחיות הועתקו. צרף שם גם את התמונה' : 'ההנחיות הועתקו. הדבק ושלח'),
+      () => toast('לא הצלחתי להעתיק'),
+    );
+  };
+  const pasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim().length < 10) return toast('בלוח אין תשובה. העתק את כל התשובה מהצ׳אט');
+      await chat.paste(text);
+    } catch {
+      setManual(true);
+      toast('לא הצלחתי לקרוא מהלוח. הדבק כאן למטה');
+    }
+  };
+  return (
+    <section className="rounded-md border border-line p-3" aria-label="דרך האפליקציה של Gemini או Claude">
+      <p className="text-sm text-muted">או דרך האפליקציה שלך, לרוב מהיר יותר:</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {OTHER_CHATS.map((c) => (
+          <a key={c.name} href={c.url} target="_blank" rel="noreferrer" onClick={copy} className="btn-secondary text-[0.9rem]">
+            <Icon name="copy" size={18} />
+            העתק ופתח {c.name}
+          </a>
+        ))}
+      </div>
+      <button type="button" onClick={() => void pasteFromClipboard()} className="btn-secondary mt-2 w-full text-[0.9rem]">
+        <Icon name="cube" size={18} />
+        הדבק את התשובה והצג
+      </button>
+      <details className="mt-1 text-sm" open={manual}>
+        <summary className="min-h-11 cursor-pointer py-2.5 text-muted">הדבקה ידנית</summary>
+        <textarea
+          className="field min-h-28 font-mono text-sm"
+          dir="ltr"
+          value={reply}
+          onChange={(e) => setReply(e.target.value)}
+          placeholder="{ ... }"
+          aria-label="התשובה מהצ׳אט"
+        />
+        <button
+          type="button"
+          onClick={() => void chat.paste(reply).then((ok) => ok && setReply(''))}
+          disabled={reply.trim().length < 10}
+          className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-sunken font-semibold text-ink disabled:opacity-50"
+        >
+          הצג את המודל
+        </button>
+      </details>
+    </section>
   );
 }
