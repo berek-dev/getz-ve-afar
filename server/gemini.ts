@@ -13,8 +13,11 @@ export interface GeminiTurn {
   parts: GeminiPart[];
 }
 
-/** Google says "overloaded" or had a hiccup: worth another try, here or on a lighter model. */
-const TRANSIENT = new Set([500, 502, 503, 504]);
+/**
+ * Worth another try, here or on a lighter model: Google overloaded (503) or hiccuped (500/502/504), or a
+ * connection cut (524 is Cloudflare giving up after 100 seconds without an answer).
+ */
+const TRANSIENT = new Set([500, 502, 503, 504, 524]);
 
 export interface GeminiDeps {
   fetch: typeof fetch;
@@ -27,63 +30,128 @@ const realDeps: GeminiDeps = {
   now: () => Date.now(),
 };
 
-/** Stop starting new attempts after this long (the user is waiting, and a run gets a few minutes at most). */
-const BUDGET_MS = 100_000;
+/** Stop starting new attempts after this long (the run gives up at about 4 minutes). */
+const BUDGET_MS = 150_000;
+/** One attempt that streams nothing useful for this long is cut and the next model tries. */
+const ATTEMPT_MS = 110_000;
+
+type Thinking = 'minimal' | 'low' | 'medium' | 'high';
 
 /**
- * One generateContent call; returns the reply text. On the free tier Google often answers 503 ("the model is
- * overloaded") or 429 (that model's quota): each model gets a second try after a short pause, then the next,
- * lighter model takes over. Errors are thrown as codes the routes pass on: ai_not_configured, ai_busy (quota),
- * ai_overloaded (every model overloaded), ai_failed_<status>, ai_empty.
+ * Reads Gemini's server-sent events: each event carries the next piece of the reply. Returns the text,
+ * or throws { status } for an error Google sends mid-stream.
+ */
+export async function readGeminiStream(res: Response): Promise<string> {
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let text = '';
+  const take = (line: string) => {
+    if (!line.startsWith('data:')) return;
+    const data = line.slice(5).trim();
+    if (!data || data === '[DONE]') return;
+    const ev = JSON.parse(data) as {
+      error?: { code?: number };
+      candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
+    };
+    if (ev.error) throw Object.assign(new Error('stream_error'), { status: ev.error.code ?? 500 });
+    for (const p of ev.candidates?.[0]?.content?.parts ?? []) if (!p.thought && p.text) text += p.text;
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+      take(buffer.slice(0, nl).replace(/\r$/, ''));
+      buffer = buffer.slice(nl + 1);
+    }
+  }
+  take(buffer.trim());
+  return text;
+}
+
+/**
+ * One reply from Gemini, streamed (a long silent wait would be cut after 100 seconds). On the free tier Google
+ * often answers 503 ("the model is overloaded") or 429 (that model's quota): each model gets a second try after a
+ * short pause, then the next, lighter model takes over. `thinking` lowers how long the model thinks first (edits
+ * need little). Errors are thrown as codes the routes pass on: ai_not_configured, ai_busy (quota), ai_overloaded
+ * (every model overloaded or too slow), ai_failed_<status>, ai_empty.
  */
 export async function geminiText(
   env: Pick<Env, 'GEMINI_API_KEY' | 'GEMINI_MODEL'>,
-  request: { system?: string; contents: GeminiTurn[]; json?: boolean; schema?: unknown; temperature?: number },
+  request: {
+    system?: string;
+    contents: GeminiTurn[];
+    json?: boolean;
+    schema?: unknown;
+    temperature?: number;
+    thinking?: Thinking;
+    /** No new attempt after this time (ms since epoch) */
+    deadlineAt?: number;
+  },
   deps: GeminiDeps = realDeps,
 ): Promise<string> {
   if (!env.GEMINI_API_KEY) throw new Error('ai_not_configured');
   const models = env.GEMINI_MODEL ? [env.GEMINI_MODEL, ...DEFAULT_MODELS.filter((m) => m !== env.GEMINI_MODEL)] : DEFAULT_MODELS;
-  const generationConfig: Record<string, unknown> = { temperature: request.temperature ?? 0.2 };
-  if (request.json || request.schema) generationConfig.responseMimeType = 'application/json';
-  if (request.schema) generationConfig.responseSchema = request.schema;
-  const body = JSON.stringify({
-    ...(request.system ? { systemInstruction: { parts: [{ text: request.system }] } } : {}),
-    contents: request.contents,
-    generationConfig,
-  });
-  const started = deps.now();
+  const bodyFor = (thinking: Thinking | undefined) => {
+    const generationConfig: Record<string, unknown> = { temperature: request.temperature ?? 0.2 };
+    if (request.json || request.schema) generationConfig.responseMimeType = 'application/json';
+    if (request.schema) generationConfig.responseSchema = request.schema;
+    if (thinking) generationConfig.thinkingConfig = { thinkingLevel: thinking };
+    return JSON.stringify({
+      ...(request.system ? { systemInstruction: { parts: [{ text: request.system }] } } : {}),
+      contents: request.contents,
+      generationConfig,
+    });
+  };
+  const stopAt = Math.min(deps.now() + BUDGET_MS, request.deadlineAt ?? Infinity);
   let sawQuota = false;
   let sawTransient = false;
   let lastStatus = 0;
   for (const model of models) {
+    let thinking = request.thinking;
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (deps.now() - started > BUDGET_MS) break;
-      let res: Response;
+      if (deps.now() > stopAt) break;
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), ATTEMPT_MS);
+      let status = 0;
       try {
-        res = await deps.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-          body,
-        });
-      } catch {
-        res = new Response(null, { status: 503 }); // network trouble on the way to Google: same as overloaded
+        const res = await deps.fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+            body: bodyFor(thinking),
+            signal: ctl.signal,
+          },
+        );
+        status = res.status;
+        if (res.ok) {
+          const text = await readGeminiStream(res);
+          if (!text.trim()) throw new Error('ai_empty');
+          return text;
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === 'ai_empty') throw e;
+        // cut mid-way, too slow, or an error event in the stream
+        status = (e as { status?: number }).status ?? 503;
+      } finally {
+        clearTimeout(timer);
       }
-      if (res.ok) {
-        const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
-        const text = (data.candidates?.[0]?.content?.parts ?? [])
-          .filter((p) => !p.thought)
-          .map((p) => p.text ?? '')
-          .join('');
-        if (!text.trim()) throw new Error('ai_empty');
-        return text;
+      lastStatus = status;
+      if (status === 400 && thinking) {
+        thinking = undefined; // this model doesn't take the thinking setting: same attempt without it
+        attempt--;
+        continue;
       }
-      lastStatus = res.status;
-      if (res.status === 404) break; // model retired: next one
-      if (res.status === 429) {
+      if (status === 404) break; // model retired: next one
+      if (status === 429) {
         sawQuota = true; // free-tier quotas are per model: the next one may still have room
         break;
       }
-      if (!TRANSIENT.has(res.status)) throw new Error(`ai_failed_${res.status}`);
+      if (!TRANSIENT.has(status)) throw new Error(`ai_failed_${status}`);
       sawTransient = true;
       if (attempt === 0) await deps.sleep(1500 + Math.floor(Math.random() * 1000));
     }

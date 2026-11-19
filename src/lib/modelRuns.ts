@@ -28,8 +28,8 @@ const polls = new Map<number, ReturnType<typeof setInterval>>();
 const listeners = new Set<() => void>();
 let snapshot: RunView[] = [];
 
-/** Give up polling after this long (the server stops trying at about 3.5 minutes) */
-const GIVE_UP_MS = 6 * 60_000;
+/** Give up polling after this long (the server marks a run cut off after 6 minutes) */
+const GIVE_UP_MS = 7 * 60_000;
 
 function emit() {
   snapshot = [...runs.values()];

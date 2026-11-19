@@ -25,16 +25,57 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   const isJson = res.headers.get('content-type')?.includes('application/json') ?? false;
   if (!isJson) throw new ApiError(res.status || 502, 'bad_response');
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string; details?: unknown };
-    const details = Array.isArray(body.details) ? body.details.filter((d): d is string => typeof d === 'string') : [];
-    const error = new ApiError(res.status, body.error ?? res.statusText, details);
-    if (res.status === 401 && error.message === 'unauthorized') {
-      window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
-    }
-    throw error;
-  }
+  if (!res.ok) throw await errorFrom(res);
   return (await res.json()) as T;
+}
+
+async function errorFrom(res: Response): Promise<ApiError> {
+  const body = (await res.json().catch(() => ({}))) as { error?: string; details?: unknown };
+  const details = Array.isArray(body.details) ? body.details.filter((d): d is string => typeof d === 'string') : [];
+  const error = new ApiError(res.status, body.error ?? res.statusText, details);
+  if (res.status === 401 && error.message === 'unauthorized') {
+    window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+  }
+  return error;
+}
+
+/**
+ * A 3D build: the server answers with server-sent events (pings while Gemini works, the result last), so the
+ * request is never silent long enough for Cloudflare to cut it. A stream that ends without a result throws
+ * 'bad_response' (the caller then asks the server how the run went).
+ */
+async function modelBuild(jobId: number, body: unknown, signal?: AbortSignal): Promise<JobModel> {
+  const res = await fetch(`/api/jobs/${jobId}/model/ai`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  });
+  const type = res.headers.get('content-type') ?? '';
+  if (!type.includes('text/event-stream')) {
+    if (!type.includes('application/json')) throw new ApiError(res.status || 502, 'bad_response');
+    if (!res.ok) throw await errorFrom(res);
+    return (await res.json()) as JobModel;
+  }
+  const events = (await res.text())
+    .split('\n\n')
+    .map((block) => block.trim())
+    .filter((block) => block.startsWith('data:'))
+    .map((block) => {
+      try {
+        return JSON.parse(block.slice(5)) as Record<string, unknown>;
+      } catch {
+        return {};
+      }
+    });
+  const last = events[events.length - 1];
+  if (last && typeof last.error === 'string') {
+    const details = Array.isArray(last.details) ? last.details.filter((d): d is string => typeof d === 'string') : [];
+    throw new ApiError(502, last.error, details);
+  }
+  if (!last || !('history' in last)) throw new ApiError(502, 'bad_response');
+  return last as unknown as JobModel;
 }
 
 export interface NewJob {
@@ -142,7 +183,7 @@ export const api = {
   undoModel: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model/undo`, { method: 'POST' }),
   cancelModel: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model/cancel`, { method: 'POST' }),
   aiModel: (jobId: number, body: { request: string; mode: 'new' | 'edit'; image?: { mime: string; data: string } | null }, signal?: AbortSignal) =>
-    request<JobModel>(`/jobs/${jobId}/model/ai`, { method: 'POST', body: JSON.stringify(body), signal }),
+    modelBuild(jobId, body, signal),
   approveModel: (jobId: number, opts: { dryRun?: boolean; replace?: boolean } = {}) =>
     request<{ lines: number; conflicts?: number; unpriced?: number; replaced?: number }>(`/jobs/${jobId}/model/approve`, {
       method: 'POST',
@@ -296,6 +337,9 @@ export function errorMessage(err: unknown): string {
         return 'השרתים של Google עמוסים כרגע (התקלה אצלם). ניסיתי שוב וגם במודל קל יותר. נסה שוב בעוד כמה דקות.';
       case 'run_in_progress':
         return 'כבר נבנית הדמיה לעבודה הזו.';
+      case 'ai_failed_524':
+      case 'ai_failed_504':
+        return 'Gemini לא ענה בזמן. נסה שוב, או נסח בקצרה מה לשנות.';
       case 'run_interrupted':
         return 'הבנייה נקטעה באמצע. הבקשה נשמרה, אפשר לשלוח שוב.';
       case 'ai_empty':

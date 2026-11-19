@@ -44,8 +44,9 @@ interface RunRow {
 }
 
 /** A run still 'running' after this long was cut off (the server stops trying well before) */
-const RUN_STALE = '-5 minutes';
-const RUN_DEADLINE_MS = 3.5 * 60_000;
+const RUN_STALE = '-6 minutes';
+/** No new Gemini attempt after this; one already running may take up to two more minutes */
+const RUN_DEADLINE_MS = 3 * 60_000;
 
 async function modelState(db: D1Database, jobId: number) {
   const [{ results: history }, latest, runs] = await db.batch([
@@ -211,7 +212,13 @@ export function registerModel(app: App): void {
         // One repair round: the core's errors go back to the model (if there is still time)
         for (let attempt = 0; attempt < 2; attempt++) {
           if (attempt > 0 && Date.now() - started > RUN_DEADLINE_MS / 2) break;
-          const reply = await geminiText(c.env, { contents, json: true });
+          // A change needs little thinking (and thinking is the slow part); a new design gets the default
+          const reply = await geminiText(c.env, {
+            contents,
+            json: true,
+            thinking: mode === 'edit' ? 'low' : undefined,
+            deadlineAt: started + RUN_DEADLINE_MS,
+          });
           try {
             layout = parseLayoutReply(reply);
             const check = checkLayout(layout);
@@ -248,9 +255,25 @@ export function registerModel(app: App): void {
     } catch {
       // no execution context (local tests)
     }
-    const result = await work;
-    if (!result.ok) return c.json({ error: result.error, details: result.details }, result.error === 'canceled' ? 409 : 502);
-    return c.json({ ...(await modelState(db, jobId)), warnings: result.warnings });
+
+    // Answer at once and keep the line busy: Cloudflare cuts a request that sends nothing for 100 seconds, and a
+    // build can take longer. Server-sent events: a ping every 15 seconds, then the result (or the error) last.
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
+    const send = (data: unknown) => writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)).catch(() => undefined);
+    void send({ run: runId });
+    const ping = setInterval(() => void send({ ping: Math.round((Date.now() - started) / 1000) }), 15_000);
+    void work.then(async (result) => {
+      clearInterval(ping);
+      await send(
+        result.ok ? { ...(await modelState(db, jobId)), warnings: result.warnings } : { error: result.error, details: result.details ?? [] },
+      );
+      await writer.close().catch(() => undefined);
+    });
+    return new Response(readable, {
+      headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' },
+    });
   });
 
   /** "עצור": the running Gemini call can't be stopped, but its result won't replace the model. */
