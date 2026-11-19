@@ -484,6 +484,56 @@ export function addBay(design: Design, axis: GridAxis): Design {
 
 const AXIS_INDEX: Record<GridAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 
+/**
+ * A grid line at `pos` (mm from the first line) along an axis: the one already there (within half a millimetre),
+ * or a new one that splits a bay, extends the grid past its last line, or (along X and Z) starts it earlier.
+ * Everything already drawn keeps its place: node indices past the new line move up by one.
+ * Returns the line's index. Levels never go below the ground.
+ */
+export function insertGridLine(design: Design, axis: GridAxis, pos: number): { design: Design; index: number } {
+  const i = AXIS_INDEX[axis];
+  const spacings = design.grid[axis];
+  const lines = gridLines(spacings);
+  const at = Math.round(axis === 'y' ? Math.max(0, pos) : pos);
+  const found = lines.findIndex((l) => Math.abs(l - at) <= 0.5);
+  if (found >= 0) return { design, index: found };
+  if (spacings.length >= 40) return { design, index: lines.reduce((best, l, k) => (Math.abs(l - at) < Math.abs((lines[best] ?? 0) - at) ? k : best), 0) };
+
+  let list: number[];
+  let index: number;
+  let shiftFrom: number; // node indices >= this move up by one
+  const last = lines[lines.length - 1];
+  if (at > last) {
+    list = [...spacings, at - last];
+    index = lines.length;
+    shiftFrom = Number.POSITIVE_INFINITY;
+  } else if (at < 0) {
+    list = [-at, ...spacings];
+    index = 0;
+    shiftFrom = 0;
+  } else {
+    const bay = lines.findIndex((l, k) => k < lines.length - 1 && l < at && at < lines[k + 1]);
+    list = [...spacings.slice(0, bay), at - lines[bay], lines[bay + 1] - at, ...spacings.slice(bay + 1)];
+    index = bay + 1;
+    shiftFrom = bay + 1;
+  }
+  const move = (n: DesignNode): DesignNode => {
+    if (n[i] < shiftFrom) return n;
+    const out: DesignNode = [n[0], n[1], n[2]];
+    out[i] += 1;
+    return out;
+  };
+  return {
+    design: {
+      ...design,
+      grid: { ...design.grid, [axis]: list },
+      members: design.members.map((m) => ({ ...m, a: move(m.a), b: move(m.b) })),
+      blocks: design.blocks.map((k) => ({ ...k, a: move(k.a), b: move(k.b) })),
+    },
+    index,
+  };
+}
+
 /** Removes the last bay of an axis; members and blocks on its far line go too. Returns how many were removed. */
 export function removeLastBay(design: Design, axis: GridAxis): { design: Design; removed: number } {
   const list = design.grid[axis];

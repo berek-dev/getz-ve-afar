@@ -21,7 +21,7 @@ type Gesture =
 
 const TAP_SLOP = 8;
 
-export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: number, H: number, pen: PenEvents | null) {
+export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: number, H: number, pen: PenEvents | null, onPenSeen?: () => void) {
   const [vp, setVp] = useState<Viewport>(FULL);
   const view = clampViewport(vp, W, H);
   const viewRef = useRef(view);
@@ -29,7 +29,7 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
   const pointers = useRef(new Map<number, { cx: number; cy: number }>());
   const gesture = useRef<Gesture>({ kind: 'none' });
   const swallowClick = useRef(false);
-  const stroke = useRef<{ id: number; points: { x: number; y: number }[] } | null>(null);
+  const stroke = useRef<{ id: number; points: { x: number; y: number }[]; cx: number; cy: number; travel: number } | null>(null);
 
   const frac = (cx: number, cy: number) => {
     const r = svgRef.current?.getBoundingClientRect();
@@ -64,10 +64,11 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
     if (pen && e.pointerType === 'pen') {
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
-      stroke.current = { id: e.pointerId, points: [toPoint(e.clientX, e.clientY)] };
+      stroke.current = { id: e.pointerId, points: [toPoint(e.clientX, e.clientY)], cx: e.clientX, cy: e.clientY, travel: 0 };
       swallowClick.current = true;
       return;
     }
+    if (!pen && e.pointerType === 'pen') onPenSeen?.();
     if (stroke.current) return; // a palm while the pen draws
     if (pointers.current.size === 0) swallowClick.current = false;
     pointers.current.set(e.pointerId, { cx: e.clientX, cy: e.clientY });
@@ -84,6 +85,9 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     const s = stroke.current;
     if (s && e.pointerId === s.id) {
+      s.travel += Math.hypot(e.clientX - s.cx, e.clientY - s.cy);
+      s.cx = e.clientX;
+      s.cy = e.clientY;
       s.points.push(toPoint(e.clientX, e.clientY));
       pen?.onMove([...s.points]);
       return;
@@ -109,8 +113,16 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
     const s = stroke.current;
     if (s && e.pointerId === s.id) {
       stroke.current = null;
-      if (e.type === 'pointerup') pen?.onEnd(s.points);
-      else pen?.onMove([]);
+      pen?.onMove([]);
+      if (e.type !== 'pointerup') return;
+      if (s.travel < TAP_SLOP) {
+        // A pen tap works like a finger tap: on the grid point, part or measurement under it
+        swallowClick.current = false;
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        target?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY }));
+        return;
+      }
+      pen?.onEnd(s.points);
       return;
     }
     pointers.current.delete(e.pointerId);

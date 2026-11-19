@@ -45,6 +45,8 @@ import { ModelDrawing } from './ModelDrawing.tsx';
 import { Icon } from './Icon.tsx';
 import { Sheet } from './Sheet.tsx';
 import { useCanvasGestures } from './canvasGestures.ts';
+import { classifyStroke, penSegment, scribbleTarget } from '../core/pen.ts';
+import type { P2 } from '../core/pen.ts';
 import { viewBoxOf } from '../core/viewport.ts';
 import { toast } from './Toast.tsx';
 
@@ -70,6 +72,7 @@ const AXIS_LABELS: Record<GridAxis, string> = { x: 'רוחב', y: 'גבהים', 
 const DEFAULT_PROFILE: ProfileChoice = { profile: 'rect_tube', size: [60, 60, 3] };
 const draftKey = (jobId: number) => `gva:design-draft:${jobId}`;
 const profileKey = 'gva:builder-profile';
+const penKey = 'gva:builder-pen';
 
 function loadJson<T>(key: string): T | null {
   try {
@@ -113,6 +116,12 @@ export function DesignBuilder({
   const [sheet, setSheet] = useState<SheetState>(null);
   const [current, setCurrent] = useState<ProfileChoice>(() => loadJson<ProfileChoice>(profileKey) ?? DEFAULT_PROFILE);
   const [placing, setPlacing] = useState<BlockKind | null>(null);
+  // Pen mode (tablet and stylus): turns on by itself the first time a pen touches the grid
+  const [penMode, setPenMode] = useState(() => loadJson<boolean>(penKey) === true);
+  const setPen = (on: boolean) => {
+    setPenMode(on);
+    saveJson(penKey, on ? true : null);
+  };
   const [saving, setSaving] = useState(false);
 
   const savedText = useMemo(() => (savedDesign ? JSON.stringify(savedDesign) : ''), [savedDesign]);
@@ -165,6 +174,38 @@ export function DesignBuilder({
     const { design: next, id } = addMember(design, pending, n, current);
     if (id) change(next);
     setPending(n); // keep drawing from here
+  };
+
+  /** A pen line in the current view: its ends become grid points (new grid lines where they fall between lines) */
+  const penLine = (from: { u: number; v: number }, to: { u: number; v: number }, tol: number) => {
+    if (!axes) return;
+    const r = penSegment(design, axes, line, from, to, tol);
+    setPending(null);
+    setSelected(null);
+    if (r.a.join() === r.b.join()) return;
+    if (placing) {
+      const wrong = placementError(placing, r.a, r.b);
+      if (wrong) return toast(wrong);
+      const placed = addBlock(r.design, placing, r.a, r.b, placing === 'ladder' ? { across: view.kind === 'side' ? 1 : 0 } : {});
+      if (!placed.id) return;
+      change(placed.design);
+      setPlacing(null);
+      setSelected({ kind: 'block', id: placed.id });
+      return;
+    }
+    const m = addMember(r.design, r.a, r.b, current);
+    change(m.design);
+    if (r.added > 0) toast(r.added === 1 ? 'נוסף קו רשת. גע במידה כדי לתקן אותה.' : `נוספו ${r.added} קווי רשת. גע במידה כדי לתקן.`);
+  };
+
+  /** A scribble over a piece removes it */
+  const erase = (s: Selected) => {
+    if (!s) return;
+    if (s.kind === 'member') change(removeMember(design, s.id));
+    else if (s.kind === 'infill') change(removeInfill(design, s.id));
+    else change(removeBlock(design, s.id));
+    setSelected(null);
+    toast('נמחק. אפשר לבטל.');
   };
 
   const pickProfile = (c: ProfileChoice) => {
@@ -301,6 +342,14 @@ export function DesignBuilder({
               setSelected(s);
             }}
             onDim={(axis, index) => setSheet({ kind: 'dim', axis, index })}
+            penMode={penMode}
+            onPenSeen={() => {
+              if (penMode) return;
+              setPen(true);
+              toast('מצב עט: מותחים קו בעט, קשקוש מוחק, אצבעות מזיזות.');
+            }}
+            onPenLine={penLine}
+            onErase={erase}
           />
         ) : null}
       </div>
@@ -325,7 +374,11 @@ export function DesignBuilder({
       ) : (
         FLAT(view.kind) && (
           <p className="mt-1.5 px-1 text-[0.85rem] text-muted">
-            {pending ? 'גע בנקודה הבאה כדי להוסיף חלק, או שוב באותה נקודה כדי לסיים.' : 'גע בשתי נקודות כדי להוסיף חלק. גע בחלק או במידה כדי לשנות.'}
+            {penMode
+              ? 'מותחים קו בעט, גם בין קווי הרשת. קשקוש על חלק מוחק אותו. אצבעות מזיזות ומגדילות.'
+              : pending
+                ? 'גע בנקודה הבאה כדי להוסיף חלק, או שוב באותה נקודה כדי לסיים.'
+                : 'גע בשתי נקודות כדי להוסיף חלק. גע בחלק או במידה כדי לשנות.'}
           </p>
         )
       )}
@@ -342,6 +395,15 @@ export function DesignBuilder({
         <button type="button" onClick={() => setSheet({ kind: 'grid' })} className="btn-secondary min-h-11 px-3 text-[0.9rem]">
           <Icon name="ruler" size={18} />
           רשת
+        </button>
+        <button
+          type="button"
+          onClick={() => setPen(!penMode)}
+          aria-pressed={penMode}
+          className={`min-h-11 items-center gap-1.5 rounded-md border px-3 text-[0.9rem] font-semibold ${penMode ? 'flex border-ink bg-ink text-white' : 'hidden border-line-strong bg-card md:flex'}`}
+        >
+          <Icon name="pencil" size={18} />
+          עט
         </button>
         <button type="button" onClick={undo} disabled={history.length === 0} aria-label="בטל" className="btn-secondary min-h-11 px-3 disabled:opacity-40">
           <Icon name="undo" size={18} />
@@ -456,6 +518,10 @@ function GridCanvas({
   onNode,
   onPick,
   onDim,
+  penMode,
+  onPenSeen,
+  onPenLine,
+  onErase,
 }: {
   design: Design;
   scene: ResolvedScene;
@@ -466,6 +532,11 @@ function GridCanvas({
   onNode: (n: DesignNode) => void;
   onPick: (s: Selected) => void;
   onDim: (axis: GridAxis, index: number) => void;
+  penMode: boolean;
+  onPenSeen: () => void;
+  /** A pen line, its ends in mm along the view's across and up axes; `tol` is how near a grid line counts as on it */
+  onPenLine: (from: { u: number; v: number }, to: { u: number; v: number }, tol: number) => void;
+  onErase: (s: Selected) => void;
 }) {
   const { grid } = design;
   const U = gridLines(grid[axes.u]);
@@ -482,7 +553,21 @@ function GridCanvas({
   const sx = (u: number) => M.left + u * k;
   const sy = (v: number) => (up ? M.top + (vMax - v) * k : M.top + v * k);
   const svgRef = useRef<SVGSVGElement>(null);
-  const gestures = useCanvasGestures(svgRef, W, H, null);
+  const [ink, setInk] = useState<P2[]>([]);
+  // Filled in below, read when a pen stroke ends
+  const pieces: { id: string; x1: number; y1: number; x2: number; y2: number; w: number }[] = [];
+  const toMm = (p: P2) => ({ u: (p.x - M.left) / k, v: up ? vMax - (p.y - M.top) / k : (p.y - M.top) / k });
+  const onStroke = (points: P2[]) => {
+    const tol = 6 / zoomNow();
+    const stroke = classifyStroke(points, tol);
+    if (stroke.kind === 'line') onPenLine(toMm(stroke.from), toMm(stroke.to), (16 / zoomNow()) / k);
+    else if (stroke.kind === 'scribble') {
+      const id = scribbleTarget(points, pieces, 8 / zoomNow());
+      if (id) onErase(pickOf(id));
+    } else if (stroke.kind === 'other') toast('לא זוהה קו ישר. מותחים קו ישר, או מקשקשים על חלק כדי למחוק.');
+  };
+  const gestures = useCanvasGestures(svgRef, W, H, penMode ? { onMove: setInk, onEnd: onStroke } : null, onPenSeen);
+  const zoomNow = () => gestures.view.zoom;
   // Points, labels and measurement pills keep their size on screen at any zoom
   const z = 1 / gestures.view.zoom;
   const nodeAt = (a: number, b: number): DesignNode => {
@@ -528,6 +613,7 @@ function GridCanvas({
       perp[ui] = -dv / l;
       perp[vi] = du / l;
       seen.push({ m, points: pts.map((q) => `${sx(q[ui])},${sy(q[vi])}`).join(' '), w: arc ? 2.5 : Math.max(2, 2 * halfExtent(m, f, n, perp) * k) });
+      pieces.push({ id: m.id, x1: sx(m.from[ui]), y1: sy(m.from[vi]), x2: sx(m.to[ui]), y2: sy(m.to[vi]), w: 4 });
       continue;
     }
     const a = m.from;
@@ -539,6 +625,7 @@ function GridCanvas({
       perp[vi] = d[ui];
       const { f, n } = sectionAxes(d);
       inPlane.push({ m, x1: sx(a[ui]), y1: sy(a[vi]), x2: sx(b[ui]), y2: sy(b[vi]), w: Math.max(3, 2 * halfExtent(m, f, n, perp) * k) });
+      pieces.push({ id: m.id, x1: sx(a[ui]), y1: sy(a[vi]), x2: sx(b[ui]), y2: sy(b[vi]), w: Math.max(3, 2 * halfExtent(m, f, n, perp) * k) });
     } else if (Math.min(a[pi], b[pi]) <= plane + 1 && Math.max(a[pi], b[pi]) >= plane - 1) {
       const d = norm(sub(b, a));
       if (Math.abs(d[pi]) < 0.99) continue;
@@ -636,6 +723,19 @@ function GridCanvas({
           className={`cursor-pointer ${isSelected(m.id) ? 'fill-accent' : 'fill-ink'}`}
         />
       ))}
+
+      {/* the pen's ink as it draws */}
+      {ink.length > 1 && (
+        <polyline
+          points={ink.map((p) => `${p.x},${p.y}`).join(' ')}
+          fill="none"
+          className="stroke-accent"
+          strokeWidth={2.5 * z}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pointerEvents="none"
+        />
+      )}
 
       {/* grid points */}
       {U.map((u, i) =>
