@@ -240,10 +240,13 @@ function ApproveBar({ job, latestId, onApproved }: { job: JobDetail; latestId: n
 function lastBuild(run: ModelRun): string | null {
   if (run.status !== 'done' || !run.finished_at) return null;
   const secs = Math.round((Date.parse(`${run.finished_at.replace(' ', 'T')}Z`) - Date.parse(`${run.created_at.replace(' ', 'T')}Z`)) / 1000);
-  const winner = [...(run.attempts ?? [])].reverse().find((a) => a.status === 200)?.model;
+  const won = [...(run.attempts ?? [])].reverse().find((a) => a.status === 200);
+  const winner = won?.model;
+  // Google's own word for the tier that served it ("standard", "priority"...): shows whether the key is on a paid plan
+  const tier = won?.tier ? `, שירות ${won.tier}` : '';
   const name = winner?.replace(/^gemini-/, 'Gemini ').replace(/-flash-lite$/, ' Flash-Lite').replace(/-flash$/, ' Flash');
   // No parentheses around the Latin name: in right-to-left text the closing one jumps to the wrong side
-  return Number.isFinite(secs) ? `ההדמיה האחרונה נבנתה ב־${secs} שנ׳${name ? `, עם ${name}` : ''}` : null;
+  return Number.isFinite(secs) ? `ההדמיה האחרונה נבנתה ב־${secs} שנ׳${name ? `, עם ${name}` : ''}${tier}` : null;
 }
 
 function summary(cut: CutList): string {

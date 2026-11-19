@@ -229,7 +229,7 @@ export interface ModelRun {
   created_at: string;
   finished_at: string | null;
   /** Each Gemini attempt: model, HTTP status, ms to the first piece, total ms, characters */
-  attempts?: { model: string; status: number; firstMs: number | null; ms: number; chars: number }[];
+  attempts?: { model: string; status: number; firstMs: number | null; ms: number; chars: number; tier?: string | null }[];
 }
 
 export interface Features {

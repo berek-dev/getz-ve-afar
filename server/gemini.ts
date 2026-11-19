@@ -45,6 +45,8 @@ export interface GeminiAttempt {
   firstMs: number | null;
   ms: number;
   chars: number;
+  /** Which service tier Google says served it (x-gemini-service-tier), when it says */
+  tier?: string | null;
 }
 
 type Thinking = 'minimal' | 'low' | 'medium' | 'high';
@@ -158,6 +160,7 @@ export async function geminiText(
         idle = setTimeout(cut, IDLE_MS);
       };
       let status = 0;
+      let tier: string | null = null;
       let text: string | null = null;
       try {
         const res = await deps.fetch(
@@ -170,6 +173,7 @@ export async function geminiText(
           },
         );
         status = res.status;
+        tier = res.headers.get('x-gemini-service-tier');
         if (res.ok) text = await readGeminiStream(res, alive);
       } catch (e) {
         // cut mid-way, silent too long, or an error event in the stream
@@ -179,7 +183,7 @@ export async function geminiText(
         clearTimeout(hard);
       }
       if (request.signal?.aborted) throw new Error('aborted');
-      request.onAttempt?.({ model, status: text !== null ? 200 : status, firstMs, ms: deps.now() - t0, chars });
+      request.onAttempt?.({ model, status: text !== null ? 200 : status, firstMs, ms: deps.now() - t0, chars, tier });
       if (text !== null) {
         if (!text.trim()) throw new Error('ai_empty');
         return text;
