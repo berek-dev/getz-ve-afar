@@ -4,6 +4,7 @@ import { JobsPage } from './pages/JobsPage.tsx';
 import { JobPage } from './pages/JobPage.tsx';
 import { NewJobPage } from './pages/NewJobPage.tsx';
 import { CalendarPage } from './pages/CalendarPage.tsx';
+import { RunsBar } from './components/RunsBar.tsx';
 import { BusinessPage } from './pages/BusinessPage.tsx';
 import { FinancePage } from './pages/FinancePage.tsx';
 import { FeaturesContext } from './lib/features.ts';
@@ -106,6 +107,7 @@ export function App() {
         )}
 
         <main className="flex-1 px-4 pb-48 pt-[calc(env(safe-area-inset-top)+1.25rem)]">
+          <RunsBar jobId={route.jobId} step={route.step} />
           {route.jobId !== null ? (
             <JobPage key={route.jobId} jobId={route.jobId} step={route.step} />
           ) : route.page === 'today' ? (

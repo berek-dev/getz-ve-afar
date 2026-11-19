@@ -30,13 +30,49 @@ interface VersionRow {
   created_at: string;
 }
 
+/** A Gemini run that started, finished or failed in the last few minutes (the app shows it and polls it) */
+interface RunRow {
+  id: number;
+  status: 'running' | 'done' | 'failed' | 'canceled';
+  error: string | null;
+  request: string;
+  mode: 'new' | 'edit';
+  model_id: number | null;
+  created_at: string;
+  finished_at: string | null;
+  stale: number;
+}
+
+/** A run still 'running' after this long was cut off (the server stops trying well before) */
+const RUN_STALE = '-5 minutes';
+const RUN_DEADLINE_MS = 3.5 * 60_000;
+
 async function modelState(db: D1Database, jobId: number) {
-  const [{ results: history }, latest] = await db.batch([
+  const [{ results: history }, latest, runs] = await db.batch([
     db.prepare('SELECT id, request, mode, source, created_at FROM job_models WHERE job_id = ? ORDER BY id DESC LIMIT ?').bind(jobId, MAX_VERSIONS),
     db.prepare('SELECT layout_json FROM job_models WHERE job_id = ? ORDER BY id DESC LIMIT 1').bind(jobId),
+    db
+      .prepare(
+        `SELECT id, status, error, request, mode, model_id, created_at, finished_at, created_at < datetime('now', ?) AS stale
+           FROM model_runs WHERE job_id = ? AND created_at > datetime('now', '-15 minutes') ORDER BY id DESC LIMIT 1`,
+      )
+      .bind(RUN_STALE, jobId),
   ]);
   const row = latest.results[0] as { layout_json: string } | undefined;
-  return { layout: row ? (JSON.parse(row.layout_json) as unknown) : null, history: history as unknown as VersionRow[] };
+  const r = runs.results[0] as RunRow | undefined;
+  const run = r
+    ? {
+        id: r.id,
+        status: r.status === 'running' && r.stale ? ('failed' as const) : r.status,
+        error: r.status === 'running' && r.stale ? 'run_interrupted' : r.error,
+        request: r.request,
+        mode: r.mode,
+        model_id: r.model_id,
+        created_at: r.created_at,
+        finished_at: r.finished_at,
+      }
+    : null;
+  return { layout: row ? (JSON.parse(row.layout_json) as unknown) : null, history: history as unknown as VersionRow[], run };
 }
 
 async function saveVersion(
@@ -44,16 +80,17 @@ async function saveVersion(
   jobId: number,
   layout: unknown,
   v: { request: string | null; mode: 'new' | 'edit'; source: VersionRow['source'] },
-): Promise<void> {
-  await db.batch([
+): Promise<number> {
+  const [inserted] = await db.batch<{ id: number }>([
     db
-      .prepare('INSERT INTO job_models (job_id, layout_json, request, mode, source) VALUES (?, ?, ?, ?, ?)')
+      .prepare('INSERT INTO job_models (job_id, layout_json, request, mode, source) VALUES (?, ?, ?, ?, ?) RETURNING id')
       .bind(jobId, JSON.stringify(layout), v.request, v.mode, v.source),
     db
       .prepare('DELETE FROM job_models WHERE job_id = ? AND id NOT IN (SELECT id FROM job_models WHERE job_id = ? ORDER BY id DESC LIMIT ?)')
       .bind(jobId, jobId, MAX_VERSIONS),
   ]);
   await touchJob(db, jobId);
+  return inserted.results[0]?.id ?? 0;
 }
 
 function checkLayout(layout: unknown): { ok: true; warnings: string[] } | { ok: false; errors: string[] } {
@@ -145,33 +182,85 @@ export function registerModel(app: App): void {
       hasImage: Boolean(image),
     });
 
+    const busy = await db
+      .prepare(`SELECT id FROM model_runs WHERE job_id = ? AND status = 'running' AND created_at > datetime('now', ?) LIMIT 1`)
+      .bind(jobId, RUN_STALE)
+      .first();
+    if (busy) return c.json({ error: 'run_in_progress' }, 409);
+    const runRow = await db
+      .prepare('INSERT INTO model_runs (job_id, request, mode) VALUES (?, ?, ?) RETURNING id')
+      .bind(jobId, request, mode)
+      .first<{ id: number }>();
+    const runId = runRow?.id ?? 0;
+    await db
+      .prepare('DELETE FROM model_runs WHERE job_id = ? AND id NOT IN (SELECT id FROM model_runs WHERE job_id = ? ORDER BY id DESC LIMIT 20)')
+      .bind(jobId, jobId)
+      .run();
+    const finish = (status: 'done' | 'failed', error: string | null, modelId: number | null) =>
+      db
+        .prepare(`UPDATE model_runs SET status = ?, error = ?, model_id = ?, finished_at = datetime('now') WHERE id = ? AND status = 'running'`)
+        .bind(status, error, modelId, runId)
+        .run();
+
     const contents: GeminiTurn[] = [{ role: 'user', parts: [{ text: prompt }, ...(image ? [{ inlineData: image }] : [])] }];
-    try {
-      let layout: unknown = null;
-      let errors: string[] = [];
-      // One repair round: the core's errors go back to the model
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const reply = await geminiText(c.env, { contents, json: true });
-        try {
-          layout = parseLayoutReply(reply);
-          const check = checkLayout(layout);
-          errors = check.ok ? [] : check.errors;
-        } catch {
-          errors = ['the reply was not valid JSON'];
+    const started = Date.now();
+    const work = (async (): Promise<{ ok: true; warnings: string[] } | { ok: false; error: string; details?: string[] }> => {
+      try {
+        let layout: unknown = null;
+        let errors: string[] = [];
+        // One repair round: the core's errors go back to the model (if there is still time)
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (attempt > 0 && Date.now() - started > RUN_DEADLINE_MS / 2) break;
+          const reply = await geminiText(c.env, { contents, json: true });
+          try {
+            layout = parseLayoutReply(reply);
+            const check = checkLayout(layout);
+            errors = check.ok ? [] : check.errors;
+          } catch {
+            errors = ['the reply was not valid JSON'];
+          }
+          if (errors.length === 0) break;
+          contents.push(
+            { role: 'model', parts: [{ text: reply.slice(0, 60_000) }] },
+            { role: 'user', parts: [{ text: `That layout has errors: ${errors.join('; ')}. Reply with the corrected complete layout as ONE JSON object, nothing else.` }] },
+          );
         }
-        if (errors.length === 0) break;
-        contents.push(
-          { role: 'model', parts: [{ text: reply.slice(0, 60_000) }] },
-          { role: 'user', parts: [{ text: `That layout has errors: ${errors.join('; ')}. Reply with the corrected complete layout as ONE JSON object, nothing else.` }] },
-        );
+        if (errors.length) {
+          await finish('failed', 'ai_bad_layout', null);
+          return { ok: false, error: 'ai_bad_layout', details: errors };
+        }
+        // Stopped from the app meanwhile: keep the model as it was
+        const now = await db.prepare('SELECT status FROM model_runs WHERE id = ?').bind(runId).first<{ status: string }>();
+        if (now?.status === 'canceled') return { ok: false, error: 'canceled' };
+        const modelId = await saveVersion(db, jobId, layout, { request, mode, source: 'ai' });
+        await finish('done', null, modelId);
+        const check = checkLayout(layout);
+        return { ok: true, warnings: check.ok ? check.warnings : [] };
+      } catch (e) {
+        const code = aiErrorCode(e);
+        await finish('failed', code, null).catch(() => undefined);
+        return { ok: false, error: code };
       }
-      if (errors.length) return c.json({ error: 'ai_bad_layout', details: errors }, 502);
-      await saveVersion(db, jobId, layout, { request, mode, source: 'ai' });
-      const check = checkLayout(layout);
-      return c.json({ ...(await modelState(db, jobId)), warnings: check.ok ? check.warnings : [] });
-    } catch (e) {
-      return c.json({ error: aiErrorCode(e) }, 502);
+    })();
+    // If the phone drops the connection (app in the background), the server still gets 30 more seconds to save
+    try {
+      c.executionCtx.waitUntil(work);
+    } catch {
+      // no execution context (local tests)
     }
+    const result = await work;
+    if (!result.ok) return c.json({ error: result.error, details: result.details }, result.error === 'canceled' ? 409 : 502);
+    return c.json({ ...(await modelState(db, jobId)), warnings: result.warnings });
+  });
+
+  /** "עצור": the running Gemini call can't be stopped, but its result won't replace the model. */
+  app.post('/jobs/:id/model/cancel', async (c) => {
+    const jobId = parseId(c.req.param('id'));
+    if (!jobId) return c.json({ error: 'bad id' }, 400);
+    await c.env.DB.prepare(`UPDATE model_runs SET status = 'canceled', finished_at = datetime('now') WHERE job_id = ? AND status = 'running'`)
+      .bind(jobId)
+      .run();
+    return c.json(await modelState(c.env.DB, jobId));
   });
 
   /**

@@ -140,6 +140,7 @@ export const api = {
   saveModel: (jobId: number, layout: unknown, opts: { source?: 'paste' | 'demo'; request?: string; mode?: 'new' | 'edit' } = {}) =>
     request<JobModel>(`/jobs/${jobId}/model`, { method: 'POST', body: JSON.stringify({ layout, ...opts }) }),
   undoModel: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model/undo`, { method: 'POST' }),
+  cancelModel: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model/cancel`, { method: 'POST' }),
   aiModel: (jobId: number, body: { request: string; mode: 'new' | 'edit'; image?: { mime: string; data: string } | null }, signal?: AbortSignal) =>
     request<JobModel>(`/jobs/${jobId}/model/ai`, { method: 'POST', body: JSON.stringify(body), signal }),
   approveModel: (jobId: number, opts: { dryRun?: boolean; replace?: boolean } = {}) =>
@@ -171,6 +172,21 @@ export interface JobModel {
   layout: unknown;
   history: ModelVersion[];
   warnings?: string[];
+  /** The latest Gemini run, if it started in the last few minutes */
+  run?: ModelRun | null;
+}
+
+export interface ModelRun {
+  id: number;
+  status: 'running' | 'done' | 'failed' | 'canceled';
+  /** error code (errorMessage turns it into Hebrew) */
+  error: string | null;
+  request: string;
+  mode: 'new' | 'edit';
+  model_id: number | null;
+  /** UTC, "YYYY-MM-DD HH:MM:SS" */
+  created_at: string;
+  finished_at: string | null;
 }
 
 export interface Features {
@@ -275,7 +291,13 @@ export function errorMessage(err: unknown): string {
       case 'ai_not_configured':
         return 'הבינה המלאכותית עוד לא הופעלה בשרת (חסר מפתח Gemini).';
       case 'ai_busy':
-        return 'השירות עמוס כרגע. נסה שוב בעוד דקה.';
+        return 'נגמרה המכסה החינמית של Gemini לבינתיים. נסה שוב בעוד כמה דקות.';
+      case 'ai_overloaded':
+        return 'השרתים של Google עמוסים כרגע (התקלה אצלם). ניסיתי שוב וגם במודל קל יותר. נסה שוב בעוד כמה דקות.';
+      case 'run_in_progress':
+        return 'כבר נבנית הדמיה לעבודה הזו.';
+      case 'run_interrupted':
+        return 'הבנייה נקטעה באמצע. הבקשה נשמרה, אפשר לשלוח שוב.';
       case 'ai_empty':
       case 'ai_bad_output':
         return 'לא התקבלה תשובה שימושית. נסה שוב או נסח אחרת.';

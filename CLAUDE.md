@@ -40,6 +40,9 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
 - "ההדמיה מוכנה" approves the newest version (`jobs.model_approved_id`, `POST /jobs/:id/model/approve`) and replaces
   the BOQ group "לפי ההדמיה" with its materials; labor, paint and installation are added by hand. A newer version
   means "changed since approval": the model, BOQ, drawing and cutting steps show it and offer re-approval.
+- Gemini builds run in the background: each is a `model_runs` row; the request keeps going with `waitUntil` if the phone
+  drops it, and `src/lib/modelRuns.ts` keeps the run (and the typed request) while Yaal moves around the app, polling
+  when needed. `server/gemini.ts` retries 503 "overloaded" answers and falls back to lighter models.
 
 ## Commands
 `npm test` · `npm run typecheck` · `npm run build` · `npm run dev` + `npm run dev:api` · `npm run db:migrate:local|remote`

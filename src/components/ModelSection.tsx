@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { JobDetail, JobModel } from '../lib/api.ts';
 import type { JobItem } from '../core/types.ts';
@@ -10,6 +10,8 @@ import { MODEL_GROUP } from '../core/modelBoq.ts';
 import { compressImage } from '../lib/image.ts';
 import { appendText, useDictation } from '../lib/speech.ts';
 import { useFeatures } from '../lib/features.ts';
+import { dismissModelRun, followServerRun, getDraft, saveDraft, startModelRun, stopModelRun, useModelRun, useTicker } from '../lib/modelRuns.ts';
+import type { ModelDraft } from '../lib/modelRuns.ts';
 import { fmtNum } from '../lib/format.ts';
 import { ModelView } from './ModelView.tsx';
 import { Icon } from './Icon.tsx';
@@ -36,9 +38,12 @@ export default function ModelSection({
   useEffect(() => {
     api
       .model(job.id)
-      .then(setModel)
+      .then((m) => {
+        setModel(m);
+        if (m.run?.status === 'running') followServerRun({ id: job.id, title: job.title }, m.run);
+      })
       .catch((e: unknown) => setError(errorMessage(e)));
-  }, [job.id]);
+  }, [job.id, job.title]);
 
   const apply = (m: JobModel) => {
     setModel(m);
@@ -75,7 +80,7 @@ export default function ModelSection({
     <div className="absolute inset-0 grid place-items-center bg-ink/60 p-6 text-center text-white" role="status">
       <div>
         <p className="font-semibold">{chat.mode === 'edit' ? 'מעדכן את המודל' : 'בונה את המודל'}...</p>
-        <p className="tnum mt-1 text-sm text-white/80">{chat.seconds} שנ׳, לרוב פחות מדקה</p>
+        <p className="tnum mt-1 text-sm text-white/80">{chat.seconds} שנ׳. אפשר לעבור למסך אחר בינתיים.</p>
         <button type="button" onClick={chat.stop} className="mt-3 min-h-11 rounded-md border border-white/60 px-4 text-sm font-semibold">
           עצור
         </button>
@@ -255,43 +260,61 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 function useModelChat(job: JobDetail, model: JobModel | null, onModel: (m: JobModel) => void) {
   const ai = useFeatures().ai;
-  const [text, setText] = useState('');
-  const [startNew, setStartNew] = useState(false);
-  const [image, setImage] = useState<{ name: string; blob: Blob } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [seconds, setSeconds] = useState(0);
+  // What was typed stays put when leaving the screen (and the text survives a reload)
+  const [draft, setDraft] = useState<ModelDraft>(() => getDraft(job.id));
+  const update = (patch: Partial<ModelDraft>) =>
+    setDraft((d) => {
+      const next = { ...d, ...patch };
+      saveDraft(job.id, next);
+      return next;
+    });
+  const { text, startNew, image } = draft;
+  const setText = (t: string | ((t: string) => string)) => setDraft((d) => {
+    const next = { ...d, text: typeof t === 'function' ? t(d.text) : t };
+    saveDraft(job.id, next);
+    return next;
+  });
+  const setStartNew = (v: boolean) => update({ startNew: v });
+  const setImage = (v: ModelDraft['image']) => update({ image: v });
   const [error, setError] = useState<string | null>(null);
-  const ctl = useRef<AbortController | null>(null);
+  const run = useModelRun(job.id);
+  const busy = run?.status === 'running';
+  const now = useTicker(busy);
+  const seconds = run ? Math.max(0, Math.round((now - run.startedAt) / 1000)) : 0;
   const mic = useDictation((said) => setText((t) => appendText(t, said)));
-  const mode: Mode = model?.layout != null && !startNew ? 'edit' : 'new';
+  const mode: Mode = busy && run ? run.mode : model?.layout != null && !startNew ? 'edit' : 'new';
+
+  // A run that finished (here or while Yaal was elsewhere in the app)
+  useEffect(() => {
+    if (!run || run.status === 'running') return;
+    if (run.status === 'done' && run.result) {
+      onModel(run.result);
+      update({ text: '', image: null, startNew: false });
+      setError(null);
+      toast(run.mode === 'edit' ? 'המודל עודכן' : 'ההדמיה מוכנה');
+    } else if (run.error) {
+      setError(run.error);
+      if (!text.trim()) setText(run.request);
+    }
+    dismissModelRun(job.id);
+    // Only when the run changes state: the handlers above read the latest text
+  }, [run?.status]);
 
   const done = (m: JobModel) => {
     onModel(m);
-    setText('');
-    setImage(null);
-    setStartNew(false);
+    update({ text: '', image: null, startNew: false });
     toast(mode === 'edit' ? 'המודל עודכן' : 'ההדמיה מוכנה');
   };
 
   const send = async () => {
     const request = text.trim();
     if (request.length < 3) return setError('כתוב מה לבנות או מה לשנות.');
-    setBusy(true);
     setError(null);
-    setSeconds(0);
-    const started = Date.now();
-    const tick = setInterval(() => setSeconds(Math.round((Date.now() - started) / 1000)), 1000);
-    ctl.current = new AbortController();
     try {
       const img = image ? { mime: image.blob.type || 'image/jpeg', data: await blobToBase64(image.blob) } : null;
-      done(await api.aiModel(job.id, { request, mode, image: img }, ctl.current.signal));
+      startModelRun({ id: job.id, title: job.title }, { request, mode, image: img });
     } catch (e) {
-      if ((e as { name?: string }).name === 'AbortError') setError('נעצר. אם השינוי כבר הגיע לשרת, הוא יופיע בפעם הבאה שהמסך נטען.');
-      else setError(errorMessage(e));
-    } finally {
-      clearInterval(tick);
-      setBusy(false);
-      ctl.current = null;
+      setError(errorMessage(e));
     }
   };
 
@@ -347,7 +370,7 @@ function useModelChat(job: JobDetail, model: JobModel | null, onModel: (m: JobMo
     error,
     mic,
     send,
-    stop: () => ctl.current?.abort(),
+    stop: () => stopModelRun(job.id),
     prompt,
     paste,
   };
@@ -450,9 +473,12 @@ function ChatComposer({ chat, compact = false }: { chat: Chat; compact?: boolean
             {chat.busy ? `עובד... ${chat.seconds} שנ׳` : chat.mode === 'edit' ? 'עדכן את המודל' : 'צור הדמיה'}
           </button>
           {chat.busy && (
-            <button type="button" onClick={chat.stop} className="min-h-11 w-full text-muted underline underline-offset-4">
-              עצור
-            </button>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-muted">אפשר לעבור למסך אחר, נודיע כשמוכן.</p>
+              <button type="button" onClick={chat.stop} className="min-h-11 shrink-0 px-2 text-muted underline underline-offset-4">
+                עצור
+              </button>
+            </div>
           )}
         </>
       ) : (
