@@ -92,10 +92,16 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
   const [saving, setSaving] = useState(false);
 
   const savedText = useMemo(() => (savedDesign ? JSON.stringify(savedDesign) : ''), [savedDesign]);
-  const dirty = JSON.stringify(design) !== savedText;
-  useEffect(() => saveJson(draftKey(job.id), dirty ? design : null), [design, dirty, job.id]);
+  const edited = JSON.stringify(design) !== savedText;
+  useEffect(() => saveJson(draftKey(job.id), edited ? design : null), [design, edited, job.id]);
 
   const layout = useMemo(() => compileDesign(design, job.title), [design, job.title]);
+  // Saved before the joint rules changed: the same design now cuts differently, so offer to save it again
+  const outdated = useMemo(
+    () => !edited && !!savedDesign && JSON.stringify((model.layout as { members?: unknown } | null)?.members) !== JSON.stringify(layout.members),
+    [edited, savedDesign, model.layout, layout],
+  );
+  const dirty = edited || outdated;
   const prepared = useMemo(() => prepareScene(layout), [layout]);
   const usable = prepared.errors.length === 0 && prepared.scene.members.length > 0;
   const cut = useMemo(() => (usable ? cutList(prepared.scene) : null), [usable, prepared]);
@@ -271,12 +277,13 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
           <Icon name="check" />
           {saving ? 'שומר...' : dirty ? 'שמור' : 'נשמר'}
         </button>
-        {dirty && savedDesign && (
+        {edited && savedDesign && (
           <button type="button" onClick={discard} className="min-h-11 shrink-0 px-2 text-[0.9rem] text-muted underline underline-offset-4">
             בטל שינויים
           </button>
         )}
       </div>
+      {outdated && <p className="mt-1.5 px-1 text-[0.85rem] text-muted">אורכי החיתוך חושבו מחדש. שמור כדי לעדכן את השרטוט.</p>}
       {cut && (
         <p className="tnum mt-1.5 px-1 text-[0.85rem] text-muted">
           {cut.pieces.reduce((s, p) => s + p.count, 0)} חלקים, בערך {fmtNum(Math.round(cut.totalKg))} ק״ג
