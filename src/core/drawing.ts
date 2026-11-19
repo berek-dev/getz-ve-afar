@@ -100,6 +100,8 @@ export interface DrawingOptions {
   date?: string;
   business?: string;
   cut?: CutList;
+  /** The paper it will be printed on (the sheet is drawn for A3; on A4 it comes out 0.7 times as big) */
+  page?: 'A4' | 'A3';
 }
 
 export function shopDrawingSvg(scene: ResolvedScene, opts: DrawingOptions = {}): string {
@@ -320,7 +322,7 @@ export function shopDrawingSvg(scene: ResolvedScene, opts: DrawingOptions = {}):
     `<rect x="${tb.x}" y="${tb.y}" width="${tb.w}" height="${tb.h}" fill="none" stroke="#111" stroke-width="0.4"/>`,
     rt(right - 3, tb.y + 7, scene.title, 4, ' font-weight="bold"'),
     rt(right - 3, tb.y + 13.5, 'שרטוט ייצור: חזית, מבט מהרחוב', 2.8),
-    rt(right - 3, tb.y + 19, `מידות במ״מ. קנה מידה 1:${denom} בהדפסה על A3`, 2.6),
+    rt(right - 3, tb.y + 19, opts.page === 'A4' ? `מידות במ״מ. על A4 מוקטן (1:${denom} על A3): מודדים לפי המספרים` : `מידות במ״מ. קנה מידה 1:${denom} בהדפסה על A3`, 2.6),
     rt(right - 3, tb.y + 24.5, scene.finish?.name ? `גמר: ${scene.finish.name}` : 'גמר: לפי הצעת המחיר', 2.6),
     rt(right - 3, tb.y + 30, 'אורכים לחיתוך לפי מרכז הפרופיל, חיבורי קצה ישרים. לבדוק לפני חיתוך.', 2.3),
     rt(right - 3, tb.y + 38.5, `${opts.business ?? 'גץ ועפר'}${opts.date ? `, ${opts.date}` : ''}`, 2.8, ' font-weight="bold"'),

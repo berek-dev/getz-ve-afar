@@ -2,19 +2,29 @@ import { useEffect, useMemo, useState } from 'react';
 import { shopDrawingSvg } from '../core/drawing.ts';
 import type { CutList, ResolvedScene } from '../core/scene.ts';
 import { fmtNum } from '../lib/format.ts';
-import { downloadFile, fileSlug, shareFile, svgToPng } from '../lib/share.ts';
+import type { PageSize } from '../core/pdf.ts';
+import { fileSlug, shareFile, svgToPdf, svgToPng } from '../lib/share.ts';
 import { Icon } from './Icon.tsx';
 import { toast } from './Toast.tsx';
 
-/** Shop drawing (A3, from the model), to share with the shop or print. Tap to zoom. */
+const PAGE_KEY = 'gva:pdf-page';
+const savedPage = (): PageSize => {
+  try {
+    return localStorage.getItem(PAGE_KEY) === 'A3' ? 'A3' : 'A4';
+  } catch {
+    return 'A4';
+  }
+};
+
+/** Shop drawing (from the model), to share with the shop as a PDF on A4 or A3, or as an image. Tap to zoom. */
 export function ModelDrawing({ scene, cut, businessName }: { scene: ResolvedScene; cut: CutList; businessName: string }) {
-  const svg = useMemo(
-    () => shopDrawingSvg(scene, { cut, business: businessName, date: new Intl.DateTimeFormat('he-IL').format(new Date()) }),
-    [scene, cut, businessName],
-  );
+  const date = useMemo(() => new Intl.DateTimeFormat('he-IL').format(new Date()), []);
+  const sheetFor = (page?: PageSize) => shopDrawingSvg(scene, { cut, business: businessName, date, page });
+  const svg = useMemo(() => shopDrawingSvg(scene, { cut, business: businessName, date }), [scene, cut, businessName, date]);
   const [zoom, setZoom] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'pdf' | 'png' | null>(null);
   const [pending, setPending] = useState<File | null>(null);
+  const [page, setPage] = useState<PageSize>(savedPage);
   const name = `shop-drawing-${fileSlug(scene.title)}`;
 
   useEffect(() => {
@@ -29,17 +39,30 @@ export function ModelDrawing({ scene, cut, businessName }: { scene: ResolvedScen
     };
   }, [zoom]);
 
-  const sharePng = async () => {
-    setBusy(true);
+  const pickPage = (p: PageSize) => {
+    setPage(p);
+    setPending(null);
     try {
-      const file = new File([await svgToPng(svg, 3400)], `${name}.png`, { type: 'image/png' });
+      localStorage.setItem(PAGE_KEY, p);
+    } catch {
+      // storage blocked: the choice lasts until the screen closes
+    }
+  };
+
+  const share = async (kind: 'pdf' | 'png') => {
+    setBusy(kind);
+    try {
+      const file =
+        kind === 'pdf'
+          ? new File([await svgToPdf(page === 'A3' ? svg : sheetFor('A4'), page, scene.title)], `${name}-${page}.pdf`, { type: 'application/pdf' })
+          : new File([await svgToPng(svg, 3400)], `${name}.png`, { type: 'image/png' });
       const r = await shareFile(file, scene.title);
       if (r === 'needs_tap') setPending(file);
       else if (r === 'downloaded') toast('השרטוט נשמר בהורדות');
     } catch {
-      toast('לא הצלחתי להכין תמונה. אפשר להוריד SVG');
+      toast(kind === 'pdf' ? 'לא הצלחתי להכין PDF. אפשר לשתף כתמונה' : 'לא הצלחתי להכין תמונה');
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -55,7 +78,24 @@ export function ModelDrawing({ scene, cut, businessName }: { scene: ResolvedScen
       >
         {sheet}
       </button>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-3 flex items-center gap-3">
+        <span className="text-[0.9rem] text-muted">גודל דף</span>
+        <div className="grid grid-cols-2 rounded-md border border-line-strong bg-card p-0.5" role="radiogroup" aria-label="גודל דף">
+          {(['A4', 'A3'] as PageSize[]).map((p) => (
+            <button
+              key={p}
+              type="button"
+              role="radio"
+              aria-checked={page === p}
+              onClick={() => pickPage(p)}
+              className={`min-h-10 min-w-14 rounded-[5px] px-3 text-[0.9rem] font-semibold ${page === p ? 'bg-ink text-white' : 'text-muted'}`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
         {pending ? (
           <button
             type="button"
@@ -69,18 +109,19 @@ export function ModelDrawing({ scene, cut, businessName }: { scene: ResolvedScen
             מוכן, שתף
           </button>
         ) : (
-          <button type="button" onClick={() => void sharePng()} disabled={busy} className="btn-primary">
-            <Icon name="share" />
-            {busy ? 'מכין...' : 'שתף כתמונה'}
+          <button type="button" onClick={() => void share('pdf')} disabled={busy !== null} className="btn-primary">
+            <Icon name="printer" />
+            {busy === 'pdf' ? 'מכין...' : 'שתף PDF'}
           </button>
         )}
         <button
           type="button"
-          onClick={() => downloadFile(new Blob([svg], { type: 'image/svg+xml' }), `${name}.svg`)}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-md border border-line-strong font-semibold"
+          onClick={() => void share('png')}
+          disabled={busy !== null}
+          className="flex min-h-12 items-center justify-center gap-2 rounded-md border border-line-strong font-semibold disabled:opacity-50"
         >
-          <Icon name="download" size={20} />
-          SVG להדפסה
+          <Icon name="share" size={20} />
+          {busy === 'png' ? 'מכין...' : 'שתף כתמונה'}
         </button>
       </div>
 

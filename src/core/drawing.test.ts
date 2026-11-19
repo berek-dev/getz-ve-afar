@@ -34,4 +34,6 @@ test('shop drawing has the marks, dimensions, scale and title', () => {
   assert.ok(svg.includes('>600<'), 'post depth below ground');
   assert.ok(/קנה מידה 1:\d+/.test(svg));
   assert.ok(!svg.includes('NaN'));
+  // Printed on A4 the sheet is smaller than its scale: it says so
+  assert.ok(/על A4 מוקטן \(1:\d+ על A3\)/.test(shopDrawingSvg(gate, { page: 'A4' })));
 });

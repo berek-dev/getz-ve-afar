@@ -43,6 +43,8 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   (`src/core/blocks.ts`: stairs, platform, railing, ladder, gate) are placed by two grid points plus a few numbers;
   their frame pieces go through the same joint rules (a railing post stops on the beam under it). Levels are
   finished floor: stair tops and platform decks sit at the grid level. Finger mode now; pen mode for tablets is planned.
+- The shop drawing (`src/core/drawing.ts`, an A3 sheet) is shared as a PDF on A4 or A3 or as a PNG: the browser draws
+  the SVG into a canvas (so Hebrew text is right) and `src/core/pdf.ts` wraps the deflated gray pixels in a one-page PDF.
 - Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).
 - "ההדמיה מוכנה" approves the newest version (`jobs.model_approved_id`, `POST /jobs/:id/model/approve`) and replaces
   the BOQ group "לפי ההדמיה" with its materials; labor, paint and installation are added by hand. A newer version
