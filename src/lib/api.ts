@@ -40,23 +40,16 @@ async function errorFrom(res: Response): Promise<ApiError> {
 }
 
 /**
- * A 3D build: the server answers with server-sent events (pings while Gemini works, the result last), so the
- * request is never silent long enough for Cloudflare to cut it. A stream that ends without a result throws
- * 'bad_response' (the caller then asks the server how the run went).
+ * The last event of a server-sent-events answer (pings while Gemini works, the result last), so a long AI call is
+ * never silent long enough for Cloudflare to cut it. A plain JSON answer (an error before the work started) is
+ * returned as is. An event with `error` throws.
  */
-async function modelBuild(jobId: number, body: unknown, signal?: AbortSignal): Promise<JobModel> {
-  const res = await fetch(`/api/jobs/${jobId}/model/ai`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  });
+async function lastEvent(res: Response): Promise<Record<string, unknown> | undefined> {
   const type = res.headers.get('content-type') ?? '';
   if (!type.includes('text/event-stream')) {
     if (!type.includes('application/json')) throw new ApiError(res.status || 502, 'bad_response');
     if (!res.ok) throw await errorFrom(res);
-    return (await res.json()) as JobModel;
+    return (await res.json()) as Record<string, unknown>;
   }
   const events = (await res.text())
     .split('\n\n')
@@ -74,8 +67,31 @@ async function modelBuild(jobId: number, body: unknown, signal?: AbortSignal): P
     const details = Array.isArray(last.details) ? last.details.filter((d): d is string => typeof d === 'string') : [];
     throw new ApiError(502, last.error, details);
   }
+  return last;
+}
+
+const postStream = (path: string, body: unknown, signal?: AbortSignal) =>
+  fetch(`/api${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal });
+
+/** A 3D build. A stream that ends without a result throws 'bad_response' (the caller then asks how the run went). */
+async function modelBuild(jobId: number, body: unknown, signal?: AbortSignal): Promise<JobModel> {
+  const last = await lastEvent(await postStream(`/jobs/${jobId}/model/ai`, body, signal));
   if (!last || !('history' in last)) throw new ApiError(502, 'bad_response');
   return last as unknown as JobModel;
+}
+
+/** A hand sketch read into the builder's design (not saved) */
+export interface SketchReading {
+  design: unknown;
+  notes: string[];
+  problems: string[];
+}
+
+async function sketchRead(jobId: number, body: { file: { mime: string; data: string }; note?: string }, signal?: AbortSignal): Promise<SketchReading> {
+  const last = await lastEvent(await postStream(`/jobs/${jobId}/model/sketch`, body, signal));
+  if (!last || !('design' in last)) throw new ApiError(502, 'bad_response');
+  const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  return { design: last.design, notes: strings(last.notes), problems: strings(last.problems) };
 }
 
 export interface NewJob {
@@ -184,6 +200,7 @@ export const api = {
   cancelModel: (jobId: number) => request<JobModel>(`/jobs/${jobId}/model/cancel`, { method: 'POST' }),
   aiModel: (jobId: number, body: { request: string; mode: 'new' | 'edit'; image?: { mime: string; data: string } | null }, signal?: AbortSignal) =>
     modelBuild(jobId, body, signal),
+  sketchModel: (jobId: number, body: { file: { mime: string; data: string }; note?: string }, signal?: AbortSignal) => sketchRead(jobId, body, signal),
   approveModel: (jobId: number, opts: { dryRun?: boolean; replace?: boolean } = {}) =>
     request<{ lines: number; conflicts?: number; unpriced?: number; replaced?: number }>(`/jobs/${jobId}/model/approve`, {
       method: 'POST',

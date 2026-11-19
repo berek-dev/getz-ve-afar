@@ -45,6 +45,7 @@ import { ModelDrawing } from './ModelDrawing.tsx';
 import { Icon } from './Icon.tsx';
 import { Sheet } from './Sheet.tsx';
 import { useCanvasGestures } from './canvasGestures.ts';
+import { SketchReader } from './SketchReader.tsx';
 import { classifyStroke, penSegment, scribbleTarget } from '../core/pen.ts';
 import type { P2 } from '../core/pen.ts';
 import { viewBoxOf } from '../core/viewport.ts';
@@ -57,7 +58,7 @@ interface View {
   line: number;
 }
 type Selected = { kind: 'member' | 'infill' | 'block'; id: string } | null;
-type SheetState = { kind: 'grid' } | { kind: 'profile' } | { kind: 'blocks' } | { kind: 'dim'; axis: GridAxis; index: number } | null;
+type SheetState = { kind: 'grid' } | { kind: 'profile' } | { kind: 'blocks' } | { kind: 'sketch' } | { kind: 'dim'; axis: GridAxis; index: number } | null;
 
 const AXIS_I: Record<GridAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 /** For each 2D view: the axis across the screen, the axis up/down the screen, and the axis the view looks along */
@@ -116,6 +117,8 @@ export function DesignBuilder({
   const [sheet, setSheet] = useState<SheetState>(null);
   const [current, setCurrent] = useState<ProfileChoice>(() => loadJson<ProfileChoice>(profileKey) ?? DEFAULT_PROFILE);
   const [placing, setPlacing] = useState<BlockKind | null>(null);
+  // What the AI said about a sketch it read: things it guessed, and how many pieces it left out
+  const [fromSketch, setFromSketch] = useState<{ notes: string[]; missed: number } | null>(null);
   // Pen mode (tablet and stylus): turns on by itself the first time a pen touches the grid
   const [penMode, setPenMode] = useState(() => loadJson<boolean>(penKey) === true);
   const setPen = (on: boolean) => {
@@ -196,6 +199,18 @@ export function DesignBuilder({
     const m = addMember(r.design, r.a, r.b, current);
     change(m.design);
     if (r.added > 0) toast(r.added === 1 ? 'נוסף קו רשת. גע במידה כדי לתקן אותה.' : `נוספו ${r.added} קווי רשת. גע במידה כדי לתקן.`);
+  };
+
+  /** A sketch read into a design: it replaces the drawing (undo brings it back) and opens in the front view */
+  const sketchRead = (next: Design, notes: string[], problems: string[]) => {
+    change(next);
+    setSheet(null);
+    setSelected(null);
+    setPending(null);
+    setPlacing(null);
+    setView({ kind: 'front', line: 0 });
+    setFromSketch({ notes, missed: problems.length });
+    toast('הסקיצה נקראה. בודקים את המידות ומתקנים בנגיעה.');
   };
 
   /** A scribble over a piece removes it */
@@ -311,6 +326,23 @@ export function DesignBuilder({
         </div>
       )}
 
+      {fromSketch && (fromSketch.notes.length > 0 || fromSketch.missed > 0) && (
+        <div className="mt-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-semibold">מהסקיצה, לבדוק:</p>
+            <button type="button" onClick={() => setFromSketch(null)} aria-label="סגור" className="shrink-0 text-muted">
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+          <ul className="mt-1 list-inside list-disc space-y-0.5">
+            {fromSketch.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+            {fromSketch.missed > 0 && <li>{fromSketch.missed === 1 ? 'פרט אחד לא נקרא ונשאר בחוץ' : `${fromSketch.missed} פרטים לא נקראו ונשארו בחוץ`}</li>}
+          </ul>
+        </div>
+      )}
+
       <div className="mt-1">
         {!FLAT(view.kind) && !(usable && cut) ? (
           <p className="plate rounded-md p-5 text-center text-muted">עוד אין חלקים. בחזית, גע בשתי נקודות ברשת.</p>
@@ -381,6 +413,12 @@ export function DesignBuilder({
                 : 'גע בשתי נקודות כדי להוסיף חלק. גע בחלק או במידה כדי לשנות.'}
           </p>
         )
+      )}
+      {design.members.length === 0 && design.blocks.length === 0 && !placing && (
+        <button type="button" onClick={() => setSheet({ kind: 'sketch' })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-dashed border-line-strong text-[0.9rem] font-semibold">
+          <Icon name="camera" size={18} />
+          יש סקיצה? לבנות ממנה
+        </button>
       )}
 
       <div className="mt-2 flex flex-wrap gap-2">
@@ -464,8 +502,15 @@ export function DesignBuilder({
           />
         )}
       </Sheet>
-      <Sheet open={sheet?.kind === 'blocks'} onClose={() => setSheet(null)} title="הוספת בלוק">
+      <Sheet open={sheet?.kind === 'sketch'} onClose={() => setSheet(null)} title="לבנות מסקיצה">
+        {sheet?.kind === 'sketch' && <SketchReader job={job} onRead={sketchRead} />}
+      </Sheet>
+      <Sheet open={sheet?.kind === 'blocks'} onClose={() => setSheet(null)} title="הוספה">
         <div className="space-y-2">
+          <button type="button" onClick={() => setSheet({ kind: 'sketch' })} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
+            <span className="font-semibold">מסקיצה או PDF</span>
+            <span className="text-[0.85rem] text-muted">צילום של שרטוט ביד: הרשת, המידות והחלקים ממנו. מחליף את מה שמשורטט.</span>
+          </button>
           {BLOCK_KINDS.map((k) => (
             <button key={k} type="button" onClick={() => startBlock(k)} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
               <span className="font-semibold">{BLOCKS[k].label}</span>

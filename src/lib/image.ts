@@ -24,3 +24,13 @@ export async function compressImage(file: File, maxSide = 1600, quality = 0.8): 
     URL.revokeObjectURL(url);
   }
 }
+
+/** A blob as base64 (no data: prefix), for sending in JSON */
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+    r.onerror = () => reject(new Error('read_failed'));
+    r.readAsDataURL(blob);
+  });
+}

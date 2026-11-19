@@ -6,6 +6,8 @@ import type { App } from '../types.ts';
 import type { JobItem } from '../../src/core/types.ts';
 import { parseId } from '../types.ts';
 import { buildLayoutPrompt, designRequests, parseLayoutReply } from '../../src/core/layoutPrompt.ts';
+import { buildDesignPrompt, designFromReply } from '../../src/core/designPrompt.ts';
+import type { ReadDesign } from '../../src/core/designPrompt.ts';
 import type { PromptBoqLine } from '../../src/core/layoutPrompt.ts';
 import { MODEL_GROUP, linesFromModel } from '../../src/core/modelBoq.ts';
 import type { PriceListItem } from '../../src/core/modelBoq.ts';
@@ -21,6 +23,31 @@ const MAX_VERSIONS = 30;
 const MAX_LAYOUT_CHARS = 250_000;
 const MAX_IMAGE_CHARS = 7_000_000; // base64, about 5 MB
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const SKETCH_TYPES = [...IMAGE_TYPES, 'application/pdf'];
+const MAX_SKETCH_CHARS = 14_000_000; // base64, about 10 MB
+
+/**
+ * Answers at once and keeps the line busy while `work` runs: Cloudflare cuts a request that sends nothing for
+ * 100 seconds, and an AI call can take longer. Server-sent events: `first` (if any), a ping every 15 seconds,
+ * then what `work` resolves to, last.
+ */
+function eventStream(work: Promise<unknown>, first?: unknown): Response {
+  const started = Date.now();
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+  const send = (data: unknown) => writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)).catch(() => undefined);
+  if (first !== undefined) void send(first);
+  const ping = setInterval(() => void send({ ping: Math.round((Date.now() - started) / 1000) }), 15_000);
+  void work.then(async (result) => {
+    clearInterval(ping);
+    await send(result);
+    await writer.close().catch(() => undefined);
+  });
+  return new Response(readable, {
+    headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' },
+  });
+}
 
 interface VersionRow {
   id: number;
@@ -265,24 +292,58 @@ export function registerModel(app: App): void {
       // no execution context (local tests)
     }
 
-    // Answer at once and keep the line busy: Cloudflare cuts a request that sends nothing for 100 seconds, and a
-    // build can take longer. Server-sent events: a ping every 15 seconds, then the result (or the error) last.
-    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
-    const writer = writable.getWriter();
-    const encoder = new TextEncoder();
-    const send = (data: unknown) => writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)).catch(() => undefined);
-    void send({ run: runId });
-    const ping = setInterval(() => void send({ ping: Math.round((Date.now() - started) / 1000) }), 15_000);
-    void work.then(async (result) => {
-      clearInterval(ping);
-      await send(
-        result.ok ? { ...(await modelState(db, jobId)), warnings: result.warnings } : { error: result.error, details: result.details ?? [] },
-      );
-      await writer.close().catch(() => undefined);
-    });
-    return new Response(readable, {
-      headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' },
-    });
+    const answer = work.then(async (result) =>
+      result.ok ? { ...(await modelState(db, jobId)), warnings: result.warnings } : { error: result.error, details: result.details ?? [] },
+    );
+    return eventStream(answer, { run: runId });
+  });
+
+  /**
+   * A hand sketch (photo, tablet drawing or PDF) read into the builder's design: a measured grid, parts and blocks.
+   * Nothing is saved: the builder opens it as a draft to check. Sends the job title/description, the note and the
+   * file – never client details. Body: { file: { mime, data (base64) }, note? }. Answers with server-sent events,
+   * the last one { design, notes, problems } or { error }.
+   */
+  app.post('/jobs/:id/model/sketch', async (c) => {
+    const jobId = parseId(c.req.param('id'));
+    if (!jobId) return c.json({ error: 'bad id' }, 400);
+    if (!c.env.GEMINI_API_KEY) return c.json({ error: 'ai_not_configured' }, 503);
+    const body = await c.req.json<{ file?: { mime?: unknown; data?: unknown } | null; note?: unknown }>().catch(() => ({}) as { file?: null; note?: unknown });
+    const file = body.file && typeof body.file.data === 'string' && typeof body.file.mime === 'string' && SKETCH_TYPES.includes(body.file.mime) ? { mimeType: body.file.mime, data: body.file.data } : null;
+    if (!file || file.data.length < 100) return c.json({ error: 'bad_file' }, 400);
+    if (file.data.length > MAX_SKETCH_CHARS) return c.json({ error: 'file_too_large' }, 400);
+    const job = await jobExists(c.env.DB, jobId);
+    if (!job) return c.json({ error: 'not found' }, 404);
+    const note = typeof body.note === 'string' ? body.note.trim().slice(0, 1000) : '';
+
+    const contents: GeminiTurn[] = [{ role: 'user', parts: [{ text: buildDesignPrompt({ job, note }) }, { inlineData: file }] }];
+    const started = Date.now();
+    const work = (async (): Promise<unknown> => {
+      try {
+        let read: ReadDesign | null = null;
+        // One repair round: what was wrong goes back to the model (if there is still time)
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (attempt > 0 && Date.now() - started > RUN_DEADLINE_MS / 2) break;
+          const reply = await geminiHedged(c.env, { contents, json: true, thinking: 'low', deadlineAt: started + RUN_DEADLINE_MS });
+          let problems: string[];
+          try {
+            read = designFromReply(reply);
+            problems = read.problems;
+          } catch {
+            problems = ['the reply had no JSON object with a grid'];
+          }
+          if (problems.length === 0) break;
+          contents.push(
+            { role: 'model', parts: [{ text: reply.slice(0, 60_000) }] },
+            { role: 'user', parts: [{ text: `Problems: ${problems.join('; ')}. Reply with the corrected complete JSON object only.` }] },
+          );
+        }
+        return read ? { design: read.design, notes: read.notes, problems: read.problems } : { error: 'ai_bad_design' };
+      } catch (e) {
+        return { error: aiErrorCode(e) };
+      }
+    })();
+    return eventStream(work);
   });
 
   /** "עצור": the running Gemini call can't be stopped, but its result won't replace the model. */

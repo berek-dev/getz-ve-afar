@@ -8,7 +8,7 @@ import type { CutList } from '../core/scene.ts';
 import { buildLayoutPrompt, designRequests, parseLayoutReply } from '../core/layoutPrompt.ts';
 import type { PromptBoqLine } from '../core/layoutPrompt.ts';
 import { MODEL_GROUP } from '../core/modelBoq.ts';
-import { compressImage } from '../lib/image.ts';
+import { blobToBase64, compressImage } from '../lib/image.ts';
 import { appendText, useDictation } from '../lib/speech.ts';
 import { useFeatures } from '../lib/features.ts';
 import { dismissModelRun, followServerRun, getDraft, saveDraft, startModelRun, stopModelRun, useModelRun, useTicker } from '../lib/modelRuns.ts';
@@ -309,15 +309,6 @@ function boqForPrompt(items: JobItem[]): PromptBoqLine[] {
   return items
     .filter((i) => i.unit !== 'hour' && i.group_name !== MODEL_GROUP)
     .map((i) => ({ description: i.description, element_name: i.element_name, quantity: i.quantity, unit: i.unit, pieces: i.pieces, length_mm: i.length_mm }));
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
-    r.onerror = () => reject(new Error('read_failed'));
-    r.readAsDataURL(blob);
-  });
 }
 
 function useModelChat(job: JobDetail, model: JobModel | null, onModel: (m: JobModel) => void) {
