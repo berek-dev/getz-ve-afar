@@ -1,7 +1,8 @@
 /**
  * Building a model by hand, finger mode (phone first): a grid of typed spacings, tap two grid points to place a
- * member, tap a member to change it, tap a measurement to type a new one. The design compiles (src/core/design.ts)
- * to the same layout the 3D view, shop drawing, cut list and price use. Loaded with the model step.
+ * member or a block (stairs, platform, railing, ladder, gate), tap a piece to change it, tap a measurement to type
+ * a new one. The design compiles (src/core/design.ts) to the same layout the 3D view, shop drawing, cut list and
+ * price use. Loaded with the model step.
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -11,27 +12,33 @@ import {
   COMMON_SIZES,
   PROFILE_LABELS,
   addBay,
+  addBlock,
   addInfill,
   addMember,
+  blockReport,
   compileDesign,
   gridLines,
   memberCutLengths,
   newDesign,
   parseSize,
   readDesign,
+  removeBlock,
   removeInfill,
   removeLastBay,
   removeMember,
   setSpacing,
   sizeText,
+  updateBlock,
   updateInfill,
   updateMember,
   xLineName,
   zLineName,
 } from '../core/design.ts';
 import type { Design, DesignNode, GridAxis, ProfileChoice } from '../core/design.ts';
-import { PROFILES, cutList, halfExtent, prepareScene, sectionAxes, sectionName, sub, norm } from '../core/scene.ts';
-import type { Profile, ResolvedMember, Vec3 } from '../core/scene.ts';
+import { BLOCKS, BLOCK_KINDS, blockParam, blockProfile, placementError } from '../core/blocks.ts';
+import type { BlockKind, ParamSpec } from '../core/blocks.ts';
+import { PROFILES, arcPoint, arcThrough, cutList, halfExtent, prepareScene, sectionAxes, sectionName, sub, norm } from '../core/scene.ts';
+import type { Profile, ResolvedMember, ResolvedScene, Vec3 } from '../core/scene.ts';
 import { fmtNum } from '../lib/format.ts';
 import { ModelView } from './ModelView.tsx';
 import { Icon } from './Icon.tsx';
@@ -43,8 +50,8 @@ interface View {
   kind: ViewKind;
   line: number;
 }
-type Selected = { kind: 'member' | 'infill'; id: string } | null;
-type SheetState = { kind: 'grid' } | { kind: 'profile' } | { kind: 'dim'; axis: GridAxis; index: number } | null;
+type Selected = { kind: 'member' | 'infill' | 'block'; id: string } | null;
+type SheetState = { kind: 'grid' } | { kind: 'profile' } | { kind: 'blocks' } | { kind: 'dim'; axis: GridAxis; index: number } | null;
 
 const AXIS_I: Record<GridAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 /** For each 2D view: the axis across the screen, the axis up/down the screen, and the axis the view looks along */
@@ -89,6 +96,7 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
   const [selected, setSelected] = useState<Selected>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [current, setCurrent] = useState<ProfileChoice>(() => loadJson<ProfileChoice>(profileKey) ?? DEFAULT_PROFILE);
+  const [placing, setPlacing] = useState<BlockKind | null>(null);
   const [saving, setSaving] = useState(false);
 
   const savedText = useMemo(() => (savedDesign ? JSON.stringify(savedDesign) : ''), [savedDesign]);
@@ -126,6 +134,18 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
     setSelected(null);
     if (!pending) return setPending(n);
     if (pending.join() === n.join()) return setPending(null);
+    if (placing) {
+      const wrong = placementError(placing, pending, n);
+      if (wrong) return toast(wrong);
+      // A ladder's rungs run across the view it was placed in
+      const { design: next, id } = addBlock(design, placing, pending, n, placing === 'ladder' ? { across: view.kind === 'side' ? 1 : 0 } : {});
+      if (!id) return;
+      change(next);
+      setPlacing(null);
+      setPending(null);
+      setSelected({ kind: 'block', id });
+      return;
+    }
     const { design: next, id } = addMember(design, pending, n, current);
     if (id) change(next);
     setPending(n); // keep drawing from here
@@ -166,10 +186,25 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
     setView({ kind, line: 0 });
     setPending(null);
   };
+  const startBlock = (kind: BlockKind) => {
+    setSheet(null);
+    setSelected(null);
+    setPending(null);
+    setPlacing(kind);
+    if (kind === 'platform') {
+      // A platform is marked in plan, on a level above the ground, and needs depth
+      if (design.grid.z.length === 0) {
+        change(addBay(design, 'z'));
+        toast('נוסף עומק של 1,000 מ״מ. אפשר לשנות אותו במידה.');
+      }
+      if (view.kind !== 'plan' || view.line === 0) setView({ kind: 'plan', line: design.grid.y.length });
+    } else if (view.kind === '3d' || view.kind === 'plan') setView({ kind: 'front', line: 0 });
+  };
 
   const sel = selected;
   const selMember = sel?.kind === 'member' ? design.members.find((m) => m.id === sel.id) : undefined;
   const selInfill = sel?.kind === 'infill' ? design.infills.find((f) => f.id === sel.id) : undefined;
+  const selBlock = sel?.kind === 'block' ? design.blocks.find((k) => k.id === sel.id) : undefined;
 
   return (
     <div>
@@ -237,7 +272,7 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
         ) : axes ? (
           <GridCanvas
             design={design}
-            members={prepared.scene.members}
+            scene={prepared.scene}
             axes={axes}
             line={line}
             pending={pending}
@@ -245,6 +280,7 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
             onNode={tapNode}
             onPick={(s) => {
               setPending(null);
+              setPlacing(null);
               setSelected(s);
             }}
             onDim={(axis, index) => setSheet({ kind: 'dim', axis, index })}
@@ -252,16 +288,39 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
         ) : null}
       </div>
 
-      {view.kind !== '3d' && (
-        <p className="mt-1.5 px-1 text-[0.85rem] text-muted">
-          {pending ? 'גע בנקודה הבאה כדי להוסיף חלק, או שוב באותה נקודה כדי לסיים.' : 'גע בשתי נקודות כדי להוסיף חלק. גע בחלק או במידה כדי לשנות.'}
-        </p>
+      {placing ? (
+        <div className="mt-1.5 flex items-start gap-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
+          <p className="min-w-0 flex-1">
+            <span className="font-semibold">{BLOCKS[placing].label}: </span>
+            {pending ? 'עכשיו הנקודה השנייה.' : BLOCKS[placing].place}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setPlacing(null);
+              setPending(null);
+            }}
+            className="shrink-0 font-semibold text-accent underline underline-offset-4"
+          >
+            ביטול
+          </button>
+        </div>
+      ) : (
+        view.kind !== '3d' && (
+          <p className="mt-1.5 px-1 text-[0.85rem] text-muted">
+            {pending ? 'גע בנקודה הבאה כדי להוסיף חלק, או שוב באותה נקודה כדי לסיים.' : 'גע בשתי נקודות כדי להוסיף חלק. גע בחלק או במידה כדי לשנות.'}
+          </p>
+        )
       )}
 
       <div className="mt-2 flex flex-wrap gap-2">
         <button type="button" onClick={() => setSheet({ kind: 'profile' })} className="btn-secondary min-h-11 flex-1 px-3 text-[0.9rem]">
           <Icon name="frame" size={18} />
           <span className="truncate">{sectionName(current.profile, current.size, design.material)}</span>
+        </button>
+        <button type="button" onClick={() => setSheet({ kind: 'blocks' })} className="btn-secondary min-h-11 px-3 text-[0.9rem]">
+          <Icon name="stairs" size={18} />
+          בלוק
         </button>
         <button type="button" onClick={() => setSheet({ kind: 'grid' })} className="btn-secondary min-h-11 px-3 text-[0.9rem]">
           <Icon name="ruler" size={18} />
@@ -315,6 +374,27 @@ export function DesignBuilder({ job, model, onSaved, after }: { job: JobDetail; 
           />
         )}
       </Sheet>
+      <Sheet open={selBlock !== undefined} onClose={() => setSelected(null)} title={selBlock ? BLOCKS[selBlock.kind].label : ''}>
+        {selBlock && (
+          <BlockEditor
+            key={selBlock.id}
+            design={design}
+            id={selBlock.id}
+            onChange={change}
+            onClose={() => setSelected(null)}
+          />
+        )}
+      </Sheet>
+      <Sheet open={sheet?.kind === 'blocks'} onClose={() => setSheet(null)} title="הוספת בלוק">
+        <div className="space-y-2">
+          {BLOCK_KINDS.map((k) => (
+            <button key={k} type="button" onClick={() => startBlock(k)} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
+              <span className="font-semibold">{BLOCKS[k].label}</span>
+              <span className="text-[0.85rem] text-muted">{BLOCKS[k].about}</span>
+            </button>
+          ))}
+        </div>
+      </Sheet>
       <Sheet open={sheet?.kind === 'profile'} onClose={() => setSheet(null)} title="פרופיל לחלקים חדשים">
         <ProfilePicker
           value={current}
@@ -351,7 +431,7 @@ const MAX_H = 380;
 
 function GridCanvas({
   design,
-  members,
+  scene,
   axes,
   line,
   pending,
@@ -361,7 +441,7 @@ function GridCanvas({
   onDim,
 }: {
   design: Design;
-  members: ResolvedMember[];
+  scene: ResolvedScene;
   axes: { u: GridAxis; v: GridAxis; p: GridAxis };
   line: number;
   pending: DesignNode | null;
@@ -392,10 +472,43 @@ function GridCanvas({
     return n;
   };
 
+  // Blocks placed in this plane are drawn whole, as seen from the view
+  const blockOf = (id: string) => {
+    const base = id.split('#')[0];
+    return base.includes('/') ? base.split('/')[0] : null;
+  };
+  const own = new Set(design.blocks.filter((k) => k.a[pi] === line && k.b[pi] === line).map((k) => k.id));
+  const eu: Vec3 = [0, 0, 0];
+  eu[ui] = 1;
+  const ev: Vec3 = [0, 0, 0];
+  ev[vi] = 1;
+  const seen: { m: ResolvedMember; points: string; w: number }[] = [];
+  const seenEnds: { m: ResolvedMember; x: number; y: number; w: number; h: number }[] = [];
+  const seenPlates: { id: string; x: number; y: number; w: number; h: number }[] = [];
+
   // Members lying in this plane are drawn along their length; ones crossing it, as their section
   const inPlane: { m: ResolvedMember; x1: number; y1: number; x2: number; y2: number; w: number }[] = [];
   const crossing: { m: ResolvedMember; x: number; y: number; w: number; h: number }[] = [];
-  for (const m of members) {
+  for (const m of scene.members) {
+    const block = blockOf(m.id);
+    if (block && own.has(block)) {
+      const d = norm(sub(m.to, m.from));
+      const { f, n } = sectionAxes(d);
+      const du = m.to[ui] - m.from[ui];
+      const dv = m.to[vi] - m.from[vi];
+      if (Math.hypot(du, dv) < 1 && !m.via) {
+        seenEnds.push({ m, x: sx(m.from[ui]), y: sy(m.from[vi]), w: Math.max(4, 2 * halfExtent(m, f, n, eu) * k), h: Math.max(4, 2 * halfExtent(m, f, n, ev) * k) });
+        continue;
+      }
+      const arc = m.via ? arcThrough(m.from, m.via, m.to) : null;
+      const pts: Vec3[] = arc ? Array.from({ length: 13 }, (_, i) => arcPoint(arc, i / 12)) : [m.from, m.to];
+      const perp: Vec3 = [0, 0, 0];
+      const l = Math.hypot(du, dv) || 1;
+      perp[ui] = -dv / l;
+      perp[vi] = du / l;
+      seen.push({ m, points: pts.map((q) => `${sx(q[ui])},${sy(q[vi])}`).join(' '), w: arc ? 2.5 : Math.max(2, 2 * halfExtent(m, f, n, perp) * k) });
+      continue;
+    }
     const a = m.from;
     const b = m.to;
     if (Math.abs(a[pi] - plane) < 1 && Math.abs(b[pi] - plane) < 1) {
@@ -409,18 +522,23 @@ function GridCanvas({
       const d = norm(sub(b, a));
       if (Math.abs(d[pi]) < 0.99) continue;
       const { f, n } = sectionAxes(d);
-      const eu: Vec3 = [0, 0, 0];
-      eu[ui] = 1;
-      const ev: Vec3 = [0, 0, 0];
-      ev[vi] = 1;
       crossing.push({ m, x: sx(a[ui]), y: sy(a[vi]), w: Math.max(6, 2 * halfExtent(m, f, n, eu) * k), h: Math.max(6, 2 * halfExtent(m, f, n, ev) * k) });
     }
   }
+  for (const p of scene.plates) {
+    const block = blockOf(p.id);
+    if (!block || !own.has(block)) continue;
+    const h: Vec3 = p.normal === 'y' ? [p.size[0] / 2, p.thickness / 2, p.size[1] / 2] : p.normal === 'x' ? [p.thickness / 2, p.size[1] / 2, p.size[0] / 2] : [p.size[0] / 2, p.size[1] / 2, p.thickness / 2];
+    seenPlates.push({ id: p.id, x: sx(p.center[ui] - h[ui]), y: Math.min(sy(p.center[vi] - h[vi]), sy(p.center[vi] + h[vi])), w: 2 * h[ui] * k, h: Math.max(1.5, 2 * h[vi] * k) });
+  }
+
   const pickOf = (id: string): Selected => {
+    const block = blockOf(id);
+    if (block && design.blocks.some((x) => x.id === block)) return { kind: 'block', id: block };
     const base = id.split('#')[0];
     return design.infills.some((f) => f.id === base) ? { kind: 'infill', id: base } : { kind: 'member', id: base };
   };
-  const isSelected = (id: string) => selected !== null && id.split('#')[0] === selected.id;
+  const isSelected = (id: string) => selected !== null && (id.split('#')[0] === selected.id || blockOf(id) === selected.id);
 
   const uChainY = M.top + vMax * k + 24;
   const vChainX = 22;
@@ -454,6 +572,28 @@ function GridCanvas({
             strokeOpacity={isSelected(m.id) ? 1 : 0.85}
           />
         </g>
+      ))}
+      {/* blocks drawn in this view */}
+      {seenPlates.map((p) => (
+        <rect
+          key={p.id}
+          x={p.x}
+          y={p.y}
+          width={Math.max(1.5, p.w)}
+          height={p.h}
+          onClick={() => onPick(pickOf(p.id))}
+          className={`cursor-pointer ${isSelected(p.id) ? 'fill-accent' : 'fill-muted'}`}
+          fillOpacity="0.5"
+        />
+      ))}
+      {seen.map(({ m, points, w }) => (
+        <g key={m.id} onClick={() => onPick(pickOf(m.id))} className="cursor-pointer">
+          <polyline points={points} fill="none" stroke="transparent" strokeWidth={Math.max(w, 16)} />
+          <polyline points={points} fill="none" strokeWidth={w} className={isSelected(m.id) ? 'stroke-accent' : 'stroke-ink'} strokeOpacity={isSelected(m.id) ? 1 : 0.7} />
+        </g>
+      ))}
+      {seenEnds.map(({ m, x, y, w, h }) => (
+        <rect key={m.id} x={x - w / 2} y={y - h / 2} width={w} height={h} onClick={() => onPick(pickOf(m.id))} className={`cursor-pointer ${isSelected(m.id) ? 'fill-accent' : 'fill-ink'}`} fillOpacity="0.7" />
       ))}
       {crossing.map(({ m, x, y, w, h }) => (
         <rect
@@ -783,5 +923,128 @@ function InfillEditor({ design, id, onChange, onClose }: { design: Design; id: s
         מחק מילוי
       </button>
     </div>
+  );
+}
+
+/** A block's numbers and profiles; what it works out to, and a warning when something looks off */
+function BlockEditor({ design, id, onChange, onClose }: { design: Design; id: string; onChange: (d: Design) => void; onClose: () => void }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const block = design.blocks.find((x) => x.id === id);
+  const report = useMemo(() => blockReport(design, id), [design, id]);
+  if (!block) return null;
+  const spec = BLOCKS[block.kind];
+  const read = (key: string) => blockParam(block, key);
+  const setParam = (key: string, value: number) => onChange(updateBlock(design, id, { params: { [key]: value } }));
+  const shown = (p: { hidden?: boolean; when?: (r: (k: string) => number) => boolean }) => !p.hidden && (!p.when || p.when(read));
+
+  return (
+    <div className="space-y-4">
+      {report.info.length > 0 && (
+        <div className="tnum text-[0.95rem]">
+          {report.info.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      )}
+      {report.warn && <p className="rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">{report.warn}</p>}
+
+      {spec.params.filter(shown).map((p) => (
+        <ParamRow key={`${p.key}-${read(p.key)}`} spec={p} value={read(p.key)} onChange={(v) => setParam(p.key, v)} />
+      ))}
+
+      <section className="space-y-2">
+        {spec.roles.filter(shown).map((r) => {
+          const c = blockProfile(block, r.key);
+          return (
+            <div key={r.key} className="rounded-md border border-line">
+              <button
+                type="button"
+                onClick={() => setOpen(open === r.key ? null : r.key)}
+                aria-expanded={open === r.key}
+                className="flex min-h-11 w-full items-center justify-between gap-3 px-3 text-start"
+              >
+                <span className="text-[0.9rem] text-muted">{r.label}</span>
+                <span className="font-semibold">{sectionName(c.profile, c.size, design.material)}</span>
+              </button>
+              {open === r.key && (
+                <div className="border-t border-line p-3">
+                  <ProfilePicker
+                    value={c}
+                    onChange={(next) => {
+                      onChange(updateBlock(design, id, { profiles: { [r.key]: next } }));
+                      setOpen(null);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </section>
+
+      <button
+        type="button"
+        onClick={() => {
+          onChange(removeBlock(design, id));
+          onClose();
+        }}
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-danger font-semibold text-danger"
+      >
+        <Icon name="trash" size={18} />
+        מחק {spec.label}
+      </button>
+    </div>
+  );
+}
+
+function ParamRow({ spec, value, onChange }: { spec: ParamSpec; value: number; onChange: (v: number) => void }) {
+  const [text, setText] = useState(String(value));
+  if (spec.options) {
+    return (
+      <div>
+        <span className="mb-1 block text-[0.85rem] text-muted">{spec.label}</span>
+        <div className="flex flex-wrap gap-1.5">
+          {spec.options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => onChange(o.value)}
+              aria-pressed={value === o.value}
+              className={`min-h-10 rounded-md border px-3 text-[0.9rem] font-semibold ${value === o.value ? 'border-ink bg-ink text-white' : 'border-line-strong bg-card'}`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  const commit = () => {
+    const n = Number(text.replace(/,/g, ''));
+    const ok = Number.isFinite(n) && n >= (spec.min ?? 1) && n <= (spec.max ?? 60_000);
+    if (ok && n !== value) onChange(n);
+    else {
+      if (!ok) toast(`בין ${fmtNum(spec.min ?? 1)} ל־${fmtNum(spec.max ?? 60_000)} מ״מ`);
+      setText(String(value));
+    }
+  };
+  return (
+    <label className="flex items-center justify-between gap-3">
+      <span className="text-[0.9rem]">{spec.label}</span>
+      <span className="flex items-center gap-1.5">
+        <input
+          className="field tnum h-11 w-24 text-center"
+          inputMode="decimal"
+          dir="ltr"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          }}
+        />
+        <span className="text-[0.85rem] text-muted">מ״מ</span>
+      </span>
+    </label>
   );
 }

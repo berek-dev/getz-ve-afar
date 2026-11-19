@@ -8,8 +8,10 @@
  */
 import type { MaterialKey } from './catalog.ts';
 import { beamSizes } from './sections.ts';
-import { add, dot, halfExtent, len, norm, scale, sectionAxes, sub } from './scene.ts';
-import type { Dimension, Member, Plate, Profile, Vec3 } from './scene.ts';
+import { PROFILES, add, dot, halfExtent, len, norm, scale, sectionAxes, sub } from './scene.ts';
+import type { Dimension, Member, Part, Plate, Profile, Vec3 } from './scene.ts';
+import { BLOCKS, BLOCK_KINDS, buildBlock, newBlock, placementError } from './blocks.ts';
+import type { BlockKind, DesignBlock, Frame, FrameInfill } from './blocks.ts';
 
 export type GridAxis = 'x' | 'y' | 'z';
 export type DesignNode = [number, number, number];
@@ -53,6 +55,8 @@ export interface Design {
   grid: DesignGrid;
   members: DesignMember[];
   infills: DesignInfill[];
+  /** Stairs, platforms, railings, ladders and gates (blocks.ts) */
+  blocks: DesignBlock[];
   material: MaterialKey;
 }
 
@@ -117,7 +121,7 @@ export function parseSize(profile: Profile, text: string): number[] | null {
 export const sizeText = (size: number[]) => size.join('/');
 
 export function newDesign(material: MaterialKey = 'black'): Design {
-  return { version: 1, grid: { x: [2000], y: [2000], z: [] }, members: [], infills: [], material };
+  return { version: 1, grid: { x: [2000], y: [2000], z: [] }, members: [], infills: [], blocks: [], material };
 }
 
 // ------------------------------------------------------------------------------------------- reading
@@ -149,7 +153,24 @@ export function readDesign(raw: unknown): Design | null {
   const infills = (Array.isArray(d.infills) ? d.infills : []).filter(
     (f) => f && typeof f.id === 'string' && Array.isArray(f.between) && ids.has(f.between[0]) && ids.has(f.between[1]) && isNum(f.gap) && f.gap > 0,
   );
-  return { version: 1, grid: { x, y, z }, members, infills, material: (d.material as MaterialKey) ?? 'black' };
+  const blocks: DesignBlock[] = [];
+  for (const raw of Array.isArray(d.blocks) ? (d.blocks as unknown[]) : []) {
+    const k = raw as Partial<DesignBlock> | null;
+    const a = nodeOf(k?.a);
+    const b = nodeOf(k?.b);
+    if (!k || !a || !b || typeof k.id !== 'string' || !BLOCK_KINDS.includes(k.kind as BlockKind)) continue;
+    const params: Record<string, number> = {};
+    for (const [key, v] of Object.entries(k.params ?? {})) if (isNum(v)) params[key] = v;
+    const profiles: Record<string, ProfileChoice> = {};
+    for (const [key, v] of Object.entries(k.profiles ?? {})) {
+      const c = v as Partial<ProfileChoice> | null;
+      if (c && PROFILES.includes(c.profile as Profile) && Array.isArray(c.size) && c.size.length > 0 && c.size.every((n) => isNum(n) && n > 0)) {
+        profiles[key] = { profile: c.profile as Profile, size: c.size };
+      }
+    }
+    blocks.push({ id: k.id, kind: k.kind as BlockKind, a, b, params, profiles });
+  }
+  return { version: 1, grid: { x, y, z }, members, infills, blocks, material: (d.material as MaterialKey) ?? 'black' };
 }
 
 // ------------------------------------------------------------------------------------------ geometry
@@ -173,35 +194,69 @@ const UP: Vec3 = [0, 1, 0];
 const sameNode = (a: DesignNode, b: DesignNode) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 const isVertical = (d: Vec3) => Math.abs(d[1]) > 0.9;
 const parallel = (a: Vec3, b: Vec3) => Math.abs(dot(a, b)) > 0.995;
-const sectionSize = (m: DesignMember) => Math.max(...m.size.slice(0, 2));
+const sectionSize = (m: Frame) => Math.max(...m.size.slice(0, 2));
 
 interface Resolved {
-  m: DesignMember;
+  m: Frame;
   from: Vec3;
   to: Vec3;
   dir: Vec3;
+  plate?: Plate;
+}
+
+/** Everything a design places: its frame (members and the blocks' frame pieces) and the blocks' other pieces */
+interface Collected {
+  frames: Frame[];
+  members: Member[];
+  plates: Plate[];
+  parts: Part[];
+  infills: FrameInfill[];
+  notes: string[];
+  reports: Map<string, { info: string[]; warn: string | null }>;
+}
+
+function collect(design: Design): Collected {
+  const { grid } = design;
+  const frames: Frame[] = design.members
+    .filter((m) => nodeInGrid(grid, m.a) && nodeInGrid(grid, m.b) && !sameNode(m.a, m.b))
+    .map((m) => ({ id: m.id, profile: m.profile, size: m.size, from: nodePosition(grid, m.a), to: nodePosition(grid, m.b), label: m.label, base: m.base ?? null }));
+  const out: Collected = { frames, members: [], plates: [], parts: [], infills: [...design.infills], notes: [], reports: new Map() };
+  // Platforms first, so a railing placed on one knows it
+  const order = [...design.blocks].sort((a, b) => Number(b.kind === 'platform') - Number(a.kind === 'platform'));
+  for (const block of order) {
+    const wrong = !nodeInGrid(grid, block.a) || !nodeInGrid(grid, block.b) ? 'הנקודות של הבלוק כבר לא ברשת.' : placementError(block.kind, block.a, block.b);
+    if (wrong) {
+      out.reports.set(block.id, { info: [], warn: wrong });
+      continue;
+    }
+    const o = buildBlock(block, nodePosition(grid, block.a), nodePosition(grid, block.b), frames);
+    frames.push(...o.frames);
+    out.members.push(...o.members);
+    out.plates.push(...o.plates);
+    out.parts.push(...o.parts);
+    out.infills.push(...o.infills);
+    out.notes.push(...o.notes);
+    out.reports.set(block.id, { info: o.info, warn: o.warn });
+  }
+  return out;
 }
 
 /**
- * Member ends at shared grid points, as a shop builds them: one member runs through (a column, or a member the
- * point lies on, or the bigger section), the others stop at its face; a through member that ends there runs on
- * to cover the joint. Members in line just meet.
+ * Member ends at shared points, as a shop builds them: one member runs through (a column, or a member the point
+ * lies on, or the bigger section), the others stop at its face; a through member that ends there runs on to cover
+ * the joint. Members in line just meet.
  */
-function resolveJoints(design: Design): Resolved[] {
-  const { grid } = design;
-  const list: Resolved[] = design.members
-    .filter((m) => nodeInGrid(grid, m.a) && nodeInGrid(grid, m.b) && !sameNode(m.a, m.b))
-    .map((m) => {
-      const from = nodePosition(grid, m.a);
-      const to = nodePosition(grid, m.b);
-      return { m, from, to, dir: norm(sub(to, from)) };
-    });
-  const nodeKey = (n: DesignNode) => n.join(',');
-  const ends = new Map<string, { r: Resolved; end: 'a' | 'b' }[]>();
+function resolveJoints(frames: Frame[]): Resolved[] {
+  const list: Resolved[] = frames.filter((m) => len(sub(m.to, m.from)) > 0.5).map((m) => ({ m, from: m.from, to: m.to, dir: norm(sub(m.to, m.from)) }));
+  const key = (p: Vec3) => p.map((v) => Math.round(v * 10)).join(',');
+  const ends = new Map<string, { p: Vec3; here: { r: Resolved; end: 'a' | 'b' }[] }>();
   for (const r of list) {
     for (const end of ['a', 'b'] as const) {
-      const k = nodeKey(r.m[end]);
-      ends.set(k, [...(ends.get(k) ?? []), { r, end }]);
+      const p = end === 'a' ? r.from : r.to;
+      const k = key(p);
+      const e = ends.get(k) ?? { p, here: [] };
+      e.here.push({ r, end });
+      ends.set(k, e);
     }
   }
   const adjust = new Map<Resolved, { a: number; b: number }>(list.map((r) => [r, { a: 0, b: 0 }]));
@@ -216,9 +271,7 @@ function resolveJoints(design: Design): Resolved[] {
     }),
   );
 
-  for (const [k, here] of ends) {
-    const node = k.split(',').map(Number) as DesignNode;
-    const p = nodePosition(grid, node);
+  for (const { p, here } of ends.values()) {
     const ground = Math.abs(p[1]) < 0.5;
     // Members this point lies on, between their ends
     const passing = list.filter((r) => {
@@ -227,6 +280,7 @@ function resolveJoints(design: Design): Resolved[] {
       const L = len(sub(r.to, r.from));
       return t > 1 && t < L - 1 && len(sub(p, add(r.from, scale(r.dir, t)))) < 0.5;
     });
+    if (!passing.length && here.length < 2) continue;
     const through = passing.length ? passing.sort((a, b) => rank(b) - rank(a))[0] : [...here].sort((a, b) => rank(b.r) - rank(a.r))[0].r;
     let extend = 0;
     for (const { r, end } of here) {
@@ -246,18 +300,25 @@ function resolveJoints(design: Design): Resolved[] {
 
   return list.map((r) => {
     const adj = { ...(adjust.get(r) as { a: number; b: number }) };
-    // On a base plate the member starts on top of the plate
-    if (r.m.base && isVertical(r.dir)) {
-      const low = r.from[1] <= r.to[1] ? 'a' : 'b';
-      if (Math.abs((low === 'a' ? r.from : r.to)[1]) < 0.5) adj[low] = Math.max(adj[low], r.m.base.t);
-    }
     const up = scale(UP, lift.get(r) ?? 0);
-    return { ...r, from: add(add(r.from, scale(r.dir, adj.a)), up), to: add(sub(r.to, scale(r.dir, adj.b)), up) };
+    let plate: Plate | undefined;
+    // On a base plate the member starts on top of the plate: on the ground, or on a free end above it (a slab)
+    const base = r.m.base;
+    if (base && isVertical(r.dir)) {
+      const low = r.from[1] <= r.to[1] ? 'a' : 'b';
+      const foot = low === 'a' ? r.from : r.to;
+      const onGround = Math.abs(foot[1]) < 0.5;
+      if ((onGround && adj[low] <= base.t + 0.5) || (!onGround && adj[low] === 0)) {
+        adj[low] = Math.max(adj[low], base.t);
+        plate = { id: `${r.m.id}-base`, center: [foot[0], foot[1] + base.t / 2, foot[2]], size: [base.w, base.d], normal: 'y', thickness: base.t, label: 'פלטת בסיס' };
+      }
+    }
+    return { ...r, plate, from: add(add(r.from, scale(r.dir, adj.a)), up), to: add(sub(r.to, scale(r.dir, adj.b)), up) };
   });
 }
 
 /** The bars of an infill between two resolved members: first bar, how many, and the step between them */
-function infillBars(fill: DesignInfill, p: Resolved, q: Resolved): Member | null {
+function infillBars(fill: FrameInfill, p: Resolved, q: Resolved): Member | null {
   if (!parallel(p.dir, q.dir)) return null;
   const dP = p.dir;
   const L = len(sub(p.to, p.from));
@@ -288,14 +349,15 @@ function infillBars(fill: DesignInfill, p: Resolved, q: Resolved): Member | null
     size: fill.size,
     from,
     to,
-    label: 'מילוי',
+    label: fill.label ?? 'מילוי',
     ...(n > 1 ? { repeat: { count: n, step: scale(dP, g + wbar) } } : {}),
   };
 }
 
 /** The layout the rest of the app draws, prices and cuts, with the design inside it */
 export function compileDesign(design: Design, title: string): Record<string, unknown> {
-  const resolved = resolveJoints(design);
+  const c = collect(design);
+  const resolved = resolveJoints(c.frames);
   const members: Member[] = resolved.map((r) => ({
     id: r.m.id,
     profile: r.m.profile,
@@ -303,23 +365,17 @@ export function compileDesign(design: Design, title: string): Record<string, unk
     from: r.from,
     to: r.to,
     ...(r.m.label ? { label: r.m.label } : {}),
+    ...(r.m.roll ? { roll: r.m.roll } : {}),
   }));
   const byId = new Map(resolved.map((r) => [r.m.id, r]));
-  for (const f of design.infills) {
+  for (const f of c.infills) {
     const p = byId.get(f.between[0]);
     const q = byId.get(f.between[1]);
     const bars = p && q ? infillBars(f, p, q) : null;
     if (bars) members.push(bars);
   }
-
-  const plates: Plate[] = [];
-  for (const r of resolved) {
-    const base = r.m.base;
-    if (!base || !isVertical(r.dir)) continue;
-    const low = r.from[1] <= r.to[1] ? r.from : r.to;
-    if (Math.abs(low[1] - base.t) > 0.5) continue;
-    plates.push({ id: `${r.m.id}-base`, center: [low[0], base.t / 2, low[2]], size: [base.w, base.d], normal: 'y', thickness: base.t, label: 'פלטת בסיס' });
-  }
+  members.push(...c.members);
+  const plates: Plate[] = [...resolved.flatMap((r) => (r.plate ? [r.plate] : [])), ...c.plates];
 
   // Grid chains: bays along the top, levels down the left (the drawing measures the overall size itself)
   const { grid } = design;
@@ -331,7 +387,22 @@ export function compileDesign(design: Design, title: string): Record<string, unk
   if (grid.x.length > 1) for (let i = 0; i < grid.x.length; i++) dimensions.push({ from: [xs.at(i) ?? 0, top, front], to: [xs.at(i + 1) ?? 0, top, front] });
   if (grid.y.length > 1) for (let j = 0; j < grid.y.length; j++) dimensions.push({ from: [0, ys.at(j) ?? 0, front], to: [0, ys.at(j + 1) ?? 0, front] });
 
-  return { version: 1, title, material: design.material, members, plates, dimensions, design };
+  return {
+    version: 1,
+    title,
+    material: design.material,
+    members,
+    plates,
+    ...(c.parts.length ? { parts: c.parts } : {}),
+    dimensions,
+    ...(c.notes.length ? { notes: c.notes } : {}),
+    design,
+  };
+}
+
+/** What a block's sheet shows: a few lines about it, and a warning when something looks off */
+export function blockReport(design: Design, id: string): { info: string[]; warn: string | null } {
+  return collect(design).reports.get(id) ?? { info: [], warn: null };
 }
 
 // -------------------------------------------------------------------------------------------- edits
@@ -378,6 +449,26 @@ export function removeInfill(design: Design, id: string): Design {
   return { ...design, infills: design.infills.filter((f) => f.id !== id) };
 }
 
+/** A block between two grid points, with its default numbers; null id when the points can't hold it */
+export function addBlock(design: Design, kind: BlockKind, a: DesignNode, b: DesignNode, set: Record<string, number> = {}): { design: Design; id: string | null } {
+  if (placementError(kind, a, b)) return { design, id: null };
+  const id = newId('b', new Set(design.blocks.map((k) => k.id)));
+  return { design: { ...design, blocks: [...design.blocks, newBlock(kind, id, a, b, set)] }, id };
+}
+
+export function updateBlock(design: Design, id: string, patch: { params?: Record<string, number>; profiles?: Record<string, ProfileChoice> }): Design {
+  return {
+    ...design,
+    blocks: design.blocks.map((k) => (k.id === id ? { ...k, params: { ...k.params, ...patch.params }, profiles: { ...k.profiles, ...patch.profiles } } : k)),
+  };
+}
+
+export function removeBlock(design: Design, id: string): Design {
+  return { ...design, blocks: design.blocks.filter((k) => k.id !== id) };
+}
+
+export const blockLabel = (kind: BlockKind) => BLOCKS[kind].label;
+
 export function setSpacing(design: Design, axis: GridAxis, index: number, value: number): Design {
   if (!(value > 0) || index < 0 || index >= design.grid[axis].length) return design;
   const list = design.grid[axis].map((s, i) => (i === index ? Math.round(value) : s));
@@ -393,21 +484,23 @@ export function addBay(design: Design, axis: GridAxis): Design {
 
 const AXIS_INDEX: Record<GridAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 
-/** Removes the last bay of an axis; members on its far line go too. Returns how many members were removed. */
+/** Removes the last bay of an axis; members and blocks on its far line go too. Returns how many were removed. */
 export function removeLastBay(design: Design, axis: GridAxis): { design: Design; removed: number } {
   const list = design.grid[axis];
   if (list.length === 0 || (axis !== 'z' && list.length === 1)) return { design, removed: 0 };
   const last = list.length;
   const i = AXIS_INDEX[axis];
-  const gone = design.members.filter((m) => m.a[i] === last || m.b[i] === last).map((m) => m.id);
-  let next: Design = { ...design, grid: { ...design.grid, [axis]: list.slice(0, -1) } };
+  const onLast = (k: { a: DesignNode; b: DesignNode }) => k.a[i] === last || k.b[i] === last;
+  const gone = design.members.filter(onLast).map((m) => m.id);
+  const blocks = design.blocks.filter((k) => !onLast(k));
+  let next: Design = { ...design, blocks, grid: { ...design.grid, [axis]: list.slice(0, -1) } };
   for (const id of gone) next = removeMember(next, id);
-  return { design: next, removed: gone.length };
+  return { design: next, removed: gone.length + design.blocks.length - blocks.length };
 }
 
 /** The member's cut length once its ends are trimmed at the joints */
 export function memberCutLengths(design: Design): Map<string, number> {
-  return new Map(resolveJoints(design).map((r) => [r.m.id, Math.round(len(sub(r.to, r.from)))]));
+  return new Map(resolveJoints(collect(design).frames).map((r) => [r.m.id, Math.round(len(sub(r.to, r.from)))]));
 }
 
 /** Labels for grid lines: A, B, C… along X; 1, 2, 3… along Z; levels by height */

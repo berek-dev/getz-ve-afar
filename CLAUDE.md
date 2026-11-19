@@ -39,8 +39,10 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
 - Building by hand ("לפי מידות" on the model step, `src/components/DesignBuilder.tsx`): a grid of typed spacings
   (X bays, Y levels, Z depth), members between grid points, base plates and infill bars (`src/core/design.ts`).
   `compileDesign` turns it into the normal layout (joints trimmed as a shop builds them: columns run through, beams
-  stop at their faces) and keeps the design inside it as `design`; saved with source `builder`. Finger mode now;
-  pen mode for tablets is planned.
+  stop at their faces) and keeps the design inside it as `design`; saved with source `builder`. Blocks
+  (`src/core/blocks.ts`: stairs, platform, railing, ladder, gate) are placed by two grid points plus a few numbers;
+  their frame pieces go through the same joint rules (a railing post stops on the beam under it). Levels are
+  finished floor: stair tops and platform decks sit at the grid level. Finger mode now; pen mode for tablets is planned.
 - Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).
 - "ההדמיה מוכנה" approves the newest version (`jobs.model_approved_id`, `POST /jobs/:id/model/approve`) and replaces
   the BOQ group "לפי ההדמיה" with its materials; labor, paint and installation are added by hand. A newer version

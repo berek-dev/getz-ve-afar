@@ -42,6 +42,7 @@ export type IconName =
   | 'expand'
   | 'shrink'
   | 'ruler'
+  | 'stairs'
   | 'facade'
   | 'rotate'
   | 'ground'
@@ -83,6 +84,7 @@ const PATHS: Record<IconName, ReactNode> = {
   shrink: <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />,
   // Dimension line with ticks
   ruler: <path d="M3 7h18M3 4v6M21 4v6M7 17h10M7 14v6M17 14v6" />,
+  stairs: <path d="M3 21h5v-5h5v-5h5V6h3M3 21V3" />,
   // Straight-on view of a gate
   facade: (
     <>

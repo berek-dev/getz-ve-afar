@@ -253,7 +253,17 @@ export function memberLength(m: Pick<Member, 'from' | 'to' | 'via'>): number {
 }
 
 /** Half the section's extent along a direction (for stopping a member at another one's face). */
-export function halfExtent(m: Pick<Member, 'profile' | 'size'>, f: Vec3, n: Vec3, along: Vec3): number {
+/** f and n turned by a roll (degrees about the member's own axis) */
+export function rolledAxes(f: Vec3, n: Vec3, roll: number | undefined): { f: Vec3; n: Vec3 } {
+  if (!roll) return { f, n };
+  const a = (roll * Math.PI) / 180;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return { f: add(scale(f, c), scale(n, s)), n: sub(scale(n, c), scale(f, s)) };
+}
+
+export function halfExtent(m: Pick<Member, 'profile' | 'size' | 'roll'>, f0: Vec3, n0: Vec3, along: Vec3): number {
+  const { f, n } = rolledAxes(f0, n0, m.roll);
   const [s0 = 0, s1 = s0] = m.size;
   const roundish = m.profile === 'round_tube' || m.profile === 'round_bar';
   if (roundish) return s0 / 2;

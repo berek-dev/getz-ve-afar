@@ -3,7 +3,7 @@
  * and the cut list, on an A3 sheet. Pure string output (SVG), so it works in the app, on the server and
  * in tests. A fabrication aid, not an engineered drawing.
  */
-import { add, arcPoint, arcThrough, boundsOf, cutList, dimensionName, memberLength, norm, scale, sectionAxes, sub, workBounds } from './scene.ts';
+import { add, arcPoint, arcThrough, boundsOf, cutList, dimensionName, memberLength, norm, rolledAxes, scale, sectionAxes, sub, workBounds } from './scene.ts';
 import type { CutList, ResolvedMember, ResolvedScene, Vec3 } from './scene.ts';
 import { BEAMS } from './sections.ts';
 
@@ -74,7 +74,8 @@ export function memberOutline(m: ResolvedMember): P2[] {
       return [...outer, ...inner.reverse()];
     }
   }
-  const { f, n } = sectionAxes(sub(m.to, m.from));
+  const axes = sectionAxes(sub(m.to, m.from));
+  const { f, n } = rolledAxes(axes.f, axes.n, m.roll);
   const corners: P2[] = [];
   for (const end of [m.from, m.to]) {
     for (const sf of [-1, 1]) {
