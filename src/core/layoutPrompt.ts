@@ -47,11 +47,13 @@ PARTS: hardware. "parts": [ { "kind": "hinge", "at": [x, y, z] } ]
 SURROUNDINGS (not steel, not in the cut list): "solids": [ { "kind": "stone", "center": [x, y, z], "size": [x, y, z] } ]
   kinds: concrete, stone, plaster, wood, paving. Use them for existing walls, pillars and paving the work attaches to.
 
-MEASUREMENTS (optional): "dimensions": [ { "from": [x, y, z], "to": [x, y, z], "label": "קטע מוחלף" } ]
-  Extra measurements the client cares about that the overall size does not show: an opening between walls, a
-  replaced pipe segment, a step height. The length is measured from "from" to "to"; "label" is a short NAME only,
-  never a number. Move them with the geometry when you change it. Overall width, height and each leaf are measured
-  automatically: do not add those.
+MEASUREMENTS (optional): "dimensions": [ { "between": ["post-l", "post-r"], "label": "פתח" } ]
+  Extra measurements the client cares about that the overall size does not show: the opening between two posts, a
+  replaced pipe segment, a step height. Prefer "between" with two member or group ids: the clear gap between them is
+  measured from the geometry, so it stays right when they move. Only for something with no member at its ends (a gap
+  between walls) use { "from": [x, y, z], "to": [x, y, z], "label": "..." }, and move those points with the geometry
+  when you change it. "label" is a short NAME only, never a number. Overall width, height and each leaf are measured
+  automatically: do not add those. Keep the "between" entries of the current layout as they are.
 
 MOVING PARTS: "groups": [ { "id": "leaf-l", "label": "כנף שמאל", "motion": { "type": "swing", "pivot": [x, 0, z], "angle": 90 } } ]
   swing: about a vertical axis through pivot (the hinge line). Opening inward, away from the street:

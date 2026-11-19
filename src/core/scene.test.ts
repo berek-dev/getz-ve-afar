@@ -140,3 +140,36 @@ test('dimensions are measured from the geometry; a label is only a name', async 
     ],
   );
 });
+
+test('a measurement between two posts follows them when the gate gets wider', async () => {
+  const { anchorDimensions, dimensionLines, prepareScene } = await import('./scene.ts');
+  const post = (id: string, x: number) => ({ id, profile: 'rect_tube', size: [80, 80, 3], from: [x, -600, 0], to: [x, 1250, 0] });
+  const gate = (rightX: number, dims: unknown[]) => ({
+    version: 1,
+    title: 'שער',
+    members: [post('post-l', 40), post('post-r', rightX), { id: 'rail', profile: 'rect_tube', size: [40, 20, 2], from: [100, 900, 0], to: [rightX - 60, 900, 0] }],
+    dimensions: dims,
+  });
+  // As Gemini wrote it: two fixed points on the posts' inner sides, 1.5 m apart
+  const narrow = gate(1620, [{ from: [80, 15, 200], to: [1580, 15, 200], label: 'פתח' }, { from: [0, 0, 0], to: [500, 0, 0], label: 'משהו' }]);
+  const anchored = anchorDimensions(narrow) as { dimensions: unknown[] };
+  assert.deepEqual(anchored.dimensions[0], { between: ['post-l', 'post-r'], label: 'פתח' });
+  assert.deepEqual(anchored.dimensions[1], { from: [0, 0, 0], to: [500, 0, 0], label: 'משהו' }); // touches nothing: left alone
+  // The edit moves the right post to make a 3 m opening and keeps the measurement as it was
+  const wide = prepareScene({ ...gate(3120, []), dimensions: anchored.dimensions });
+  assert.deepEqual(wide.errors, []);
+  const opening = dimensionLines(wide.scene).find((d) => d.name === 'פתח');
+  assert.equal(opening?.mm, 3000);
+});
+
+test('a measurement between parts that do not exist is dropped with a warning', async () => {
+  const { prepareScene } = await import('./scene.ts');
+  const p = prepareScene({
+    version: 1,
+    title: 't',
+    members: [{ id: 'a', profile: 'rect_tube', size: [40, 40, 2], from: [0, 0, 0], to: [0, 1000, 0] }],
+    dimensions: [{ between: ['a', 'nope'], label: 'x' }],
+  });
+  assert.equal(p.scene.dimensions?.length, 0);
+  assert.equal(p.warnings.length, 1);
+});

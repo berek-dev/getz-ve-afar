@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '../lib/api.ts';
 import type { JobDetail, JobModel } from '../lib/api.ts';
 import type { JobItem } from '../core/types.ts';
-import { cutList, prepareScene } from '../core/scene.ts';
+import { anchorDimensions, cutList, prepareScene } from '../core/scene.ts';
 import type { CutList } from '../core/scene.ts';
 import { buildLayoutPrompt, designRequests, parseLayoutReply } from '../core/layoutPrompt.ts';
 import type { PromptBoqLine } from '../core/layoutPrompt.ts';
@@ -332,7 +332,7 @@ function useModelChat(job: JobDetail, model: JobModel | null, onModel: (m: JobMo
     buildLayoutPrompt({
       job: { title: job.title, kind: job.kind, description: job.description },
       boq: boqForPrompt(job.items),
-      current: mode === 'edit' ? model?.layout : undefined,
+      current: mode === 'edit' ? anchorDimensions(model?.layout) : undefined,
       requests: mode === 'edit' && model ? designRequests(model.history) : [],
       request: text.trim() || 'Build the model from the bill of quantities and the job notes.',
       hasImage: Boolean(image),

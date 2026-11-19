@@ -146,6 +146,11 @@ export interface Dimension {
   from: Vec3;
   to: Vec3;
   label?: string;
+  /**
+   * The clear gap between two members or groups (ids), measured from the geometry every time: an opening
+   * between posts stays right when the posts move. from/to are then worked out from them.
+   */
+  between?: [string, string];
 }
 
 export interface Scene {
@@ -472,10 +477,18 @@ export function prepareScene(raw: unknown): Prepared {
   }
 
   const dimensions: Dimension[] = [];
-  for (const d of Array.isArray(src.dimensions) ? src.dimensions : []) {
+  for (const [i, d] of (Array.isArray(src.dimensions) ? src.dimensions : []).entries()) {
+    const label = text(d?.label, 30);
+    const ids = Array.isArray(d?.between) ? d.between.map((x: unknown) => text(x, 40)) : null;
+    if (ids) {
+      const line = ids.length === 2 && ids[0] && ids[1] ? gapLine(members, ids[0], ids[1]) : null;
+      if (line) dimensions.push({ ...line, label, between: [ids[0] as string, ids[1] as string] });
+      else warnings.push(`dimensions[${i}]: אין רווח למדוד בין ${ids.filter(Boolean).join(' ו־')}`);
+      continue;
+    }
     const from = vec(d?.from);
     const to = vec(d?.to);
-    if (from && to) dimensions.push({ from, to, label: text(d.label, 30) });
+    if (from && to) dimensions.push({ from, to, label });
   }
 
   if (members.length === 0) errors.push('אין במודל אף פרופיל תקין');
@@ -720,6 +733,82 @@ export function boundsOf(members: Member[], plates: Pick<Plate, 'center' | 'size
   }
   for (const p of scene.plates) grow(p.center, Math.max(...p.size) / 2);
   return { min, max };
+}
+
+/** Members with this id (repeats: "pickets#3" belongs to "pickets") or in the group with this id */
+function membersById(members: ResolvedMember[], id: string): ResolvedMember[] {
+  return members.filter((m) => m.id === id || m.id.startsWith(`${id}#`) || m.group === id);
+}
+
+/**
+ * The line measuring the clear gap between two members or groups: along the axis where they stand apart,
+ * from one's facing side to the other's, drawn low and just in front of them. Null when they touch or overlap.
+ */
+export function gapLine(members: ResolvedMember[], a: string, b: string): { from: Vec3; to: Vec3 } | null {
+  const ma = membersById(members, a);
+  const mb = membersById(members, b);
+  if (ma.length === 0 || mb.length === 0) return null;
+  const A = boundsOf(ma);
+  const B = boundsOf(mb);
+  let best: { i: 0 | 1 | 2; lo: number; hi: number } | null = null;
+  for (const i of [0, 1, 2] as const) {
+    const gapAB = B.min[i] - A.max[i];
+    const gapBA = A.min[i] - B.max[i];
+    const gap = Math.max(gapAB, gapBA);
+    if (gap > 1 && (!best || gap > best.hi - best.lo)) {
+      best = gapAB >= gapBA ? { i, lo: A.max[i], hi: B.min[i] } : { i, lo: B.max[i], hi: A.min[i] };
+    }
+  }
+  if (!best) return null;
+  const front = Math.max(A.max[2], B.max[2]) + 150;
+  const base: Vec3 =
+    best.i === 1 ? [Math.max(A.max[0], B.max[0]) + 150, 0, (A.min[2] + A.max[2]) / 2] : [0, Math.max(0, Math.min(A.min[1], B.min[1])) + 15, front];
+  const from: Vec3 = [...base];
+  const to: Vec3 = [...base];
+  from[best.i] = best.lo;
+  to[best.i] = best.hi;
+  return { from, to };
+}
+
+/**
+ * Ties the layout's own measurements to the parts they measure: a from/to measurement whose two ends sit on the
+ * facing sides of two members (along its direction) becomes { between: [those members] }, so it follows them
+ * when the layout changes. Anything else is left as it is. Works on the raw layout and returns a new one.
+ */
+export function anchorDimensions(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || !Array.isArray((raw as Scene).dimensions)) return raw;
+  const prepared = prepareScene(raw);
+  if (prepared.errors.length) return raw;
+  const members = prepared.scene.members;
+  const baseId = (id: string) => id.replace(/#\d+$/, '');
+  const dims = ((raw as Scene).dimensions as unknown[]).map((d) => {
+    const dim = d as Partial<Dimension>;
+    if (dim.between || !Array.isArray(dim.from) || !Array.isArray(dim.to)) return d;
+    const from = dim.from as Vec3;
+    const to = dim.to as Vec3;
+    const v = sub(to, from);
+    const i = ([0, 1, 2] as const).reduce((a, b) => (Math.abs(v[b]) > Math.abs(v[a]) ? b : a));
+    const [lo, hi] = v[i] >= 0 ? [from[i], to[i]] : [to[i], from[i]];
+    // The member whose far side (max) is at the low end, and the one whose near side (min) is at the high end;
+    // whole members only (a repeat or a group member is ambiguous), the closest fit wins
+    const near = (side: 'min' | 'max', at: number) => {
+      let pick: { id: string; off: number } | null = null;
+      for (const m of members) {
+        if (m.id.includes('#') || m.group) continue;
+        const b = boundsOf([m]);
+        const off = Math.abs(b[side][i] - at);
+        if (off <= 3 && (!pick || off < pick.off)) pick = { id: m.id, off };
+      }
+      return pick?.id ?? null;
+    };
+    const a = near('max', lo);
+    const b = near('min', hi);
+    if (!a || !b || a === b) return d;
+    const line = gapLine(members, a, b);
+    if (!line || Math.abs(len(sub(line.to, line.from)) - (hi - lo)) > 3) return d;
+    return { between: [baseId(a), baseId(b)], ...(dim.label ? { label: dim.label } : {}) };
+  });
+  return { ...(raw as object), dimensions: dims };
 }
 
 /** A dimension's label is a name ("פתח", "קטע מוחלף"); a number in it would go stale when the layout changes. */
