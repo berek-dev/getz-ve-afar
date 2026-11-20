@@ -81,7 +81,9 @@ export function SketchReader({ job, onRead }: { job: JobDetail; onRead: (design:
       {file ? (
         <div className="flex items-center gap-3 rounded-md border border-line p-2">
           {file.preview ? <img src={file.preview} alt="" className="h-16 w-16 rounded object-cover" /> : <Icon name="receipt" size={28} />}
-          <span className="min-w-0 flex-1 truncate text-[0.9rem]">{file.name}</span>
+          <span dir="ltr" className="min-w-0 flex-1 truncate text-end text-[0.9rem]">
+            {file.name}
+          </span>
           <button type="button" onClick={() => input.current?.click()} className="text-[0.9rem] font-semibold text-accent underline underline-offset-4">
             החלף
           </button>
@@ -114,7 +116,9 @@ export function SketchReader({ job, onRead }: { job: JobDetail; onRead: (design:
       )}
 
       <details className="rounded-md border border-line p-3" open={!ai}>
-        <summary className="cursor-pointer font-semibold">באפליקציה שלך (Gemini, Claude, ChatGPT)</summary>
+        <summary className="cursor-pointer font-semibold">
+          באפליקציה שלך: <bdi>Gemini</bdi>, <bdi>Claude</bdi> או <bdi>ChatGPT</bdi>
+        </summary>
         <div className="mt-3 space-y-2">
           <button type="button" onClick={copyInstructions} className="btn-secondary w-full">
             <Icon name="copy" size={18} />
