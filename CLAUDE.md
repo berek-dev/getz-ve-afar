@@ -25,8 +25,8 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
 - A job is four phases of numbered steps (`src/core/phases.ts`): פנייה, תכנון והצעה, ביצוע, תשלום וסגירה. Steps tick
   themselves off from the job's data; `nextAction` says what to do next. Each step is its own screen, `#/jobs/:id/:step`,
   built in `src/components/JobSteps.tsx` from the existing sections. New features go into a step, not a new tab.
-- Planning: הדמיה (optional) → מחיר וכתב כמויות → לוח זמנים → הצעת מחיר. Execution: שרטוט ייצור → הזמנת חומרים →
-  חיתוך → ייצור והתקנה → מסירה. One short line of text per screen; details go behind a tap.
+- Planning: שרטוט והדמיה (required for fabrication, optional otherwise) → מחיר וכתב כמויות → לוח זמנים → הצעת מחיר.
+  Execution: שרטוט ייצור → הזמנת חומרים → חיתוך → ייצור והתקנה → מסירה. One short line of text per screen; details go behind a tap.
 - Look "shop sheet": light, IBM Plex Sans Hebrew only, one orange (`accent`) for the main action of a screen, hairline
   cards (`plate`), steps numbered in circles (`mark`). Use the semantic colors in `src/styles.css`
   (page, card, sunken, line, ink, muted, faint, accent, ok, danger), never raw hex in components.
@@ -42,7 +42,12 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   stop at their faces) and keeps the design inside it as `design`; saved with source `builder`. Blocks
   (`src/core/blocks.ts`: stairs, platform, railing, ladder, gate) are placed by two grid points plus a few numbers;
   their frame pieces go through the same joint rules (a railing post stops on the beam under it). Levels are
-  finished floor: stair tops and platform decks sit at the grid level. Finger mode now; pen mode for tablets is planned.
+  finished floor: stair tops and platform decks sit at the grid level. The grid pinches and pans
+  (`src/core/viewport.ts`). Pen mode (tablet + stylus, `src/core/pen.ts`): a straight stroke is a member, ends between
+  grid lines add a line there (`insertGridLine` keeps drawn parts in place), a scribble erases, fingers pan; it turns on
+  by itself at the first pen touch. A hand sketch, tablet drawing or PDF is read by Gemini into the design format
+  (`src/core/designPrompt.ts`, `POST /jobs/:id/model/sketch`, streamed) and opens as an unsaved draft; the same
+  instructions can go to Yaal's own AI app. The builder's "גיליון" view shows the shop drawing while planning.
 - The shop drawing (`src/core/drawing.ts`, an A3 sheet) is shared as a PDF on A4 or A3 or as a PNG: the browser draws
   the SVG into a canvas (so Hebrew text is right) and `src/core/pdf.ts` wraps the deflated gray pixels in a one-page PDF.
 - Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).
@@ -57,5 +62,13 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   after 12 seconds, the next one is asked too and the first to finish wins. The model step also offers Yaal's own
   Gemini/Claude/ChatGPT app: copy the instructions and open it in one tap, paste the answer back from the clipboard.
 
+## Tests
+- Unit tests next to the code (`*.test.ts`); `src/core/pipeline.test.ts` runs sketch/pen → design → layout → cut list →
+  price lines → drawing → PDF end to end.
+- Route integration tests (`server/routes/*.test.ts`) use `server/testing/harness.ts`: a D1 stand-in on `node:sqlite` with
+  the real migrations, the route module's handlers run with the parts of Hono's context they use, and Google's API faked
+  (`fakeGemini`). The harness is excluded from the typecheck.
+
 ## Commands
-`npm test` · `npm run typecheck` · `npm run build` · `npm run dev` + `npm run dev:api` · `npm run db:migrate:local|remote`
+`npm test` · `npm run test:coverage` · `npm run typecheck` · `npm run build` · `npm run dev` + `npm run dev:api` ·
+`npm run db:migrate:local|remote`

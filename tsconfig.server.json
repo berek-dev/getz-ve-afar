@@ -15,5 +15,5 @@
     "types": ["@cloudflare/workers-types"]
   },
   "include": ["server", "functions", "src/core"],
-  "exclude": ["**/*.test.ts"]
+  "exclude": ["**/*.test.ts", "server/testing"]
 }

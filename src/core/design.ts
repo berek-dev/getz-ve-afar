@@ -10,7 +10,7 @@ import type { MaterialKey } from './catalog.ts';
 import { beamSizes } from './sections.ts';
 import { PROFILES, add, dot, halfExtent, len, norm, scale, sectionAxes, sub } from './scene.ts';
 import type { Dimension, Member, Part, Plate, Profile, Vec3 } from './scene.ts';
-import { BLOCKS, BLOCK_KINDS, buildBlock, newBlock, placementError } from './blocks.ts';
+import { BLOCK_KINDS, buildBlock, newBlock, placementError } from './blocks.ts';
 import type { BlockKind, DesignBlock, Frame, FrameInfill } from './blocks.ts';
 
 export type GridAxis = 'x' | 'y' | 'z';
@@ -466,8 +466,6 @@ export function updateBlock(design: Design, id: string, patch: { params?: Record
 export function removeBlock(design: Design, id: string): Design {
   return { ...design, blocks: design.blocks.filter((k) => k.id !== id) };
 }
-
-export const blockLabel = (kind: BlockKind) => BLOCKS[kind].label;
 
 export function setSpacing(design: Design, axis: GridAxis, index: number, value: number): Design {
   if (!(value > 0) || index < 0 || index >= design.grid[axis].length) return design;

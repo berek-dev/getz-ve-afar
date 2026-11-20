@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addBlock, addMember, blockReport, compileDesign, newDesign, readDesign, removeLastBay, updateBlock } from './design.ts';
+import { addBlock, addMember, blockReport, compileDesign, newDesign, readDesign, removeBlock, removeLastBay, updateBlock } from './design.ts';
 import type { Design } from './design.ts';
 import { placementError } from './blocks.ts';
 import type { BlockKind } from './blocks.ts';
@@ -144,4 +144,42 @@ test('blocks are saved with the design and go with the last bay', () => {
   const { design, removed } = removeLastBay(d, 'x');
   assert.equal(removed, 1);
   assert.equal(design.blocks.length, 0);
+  assert.equal(removeBlock(d, d.blocks[0].id).blocks.length, 0);
+  assert.equal(addBlock(d, 'stairs', [0, 0, 0], [1, 0, 0]).id, null); // won't place where it can't stand
+});
+
+test('a platform deeper than it is wide runs its long beams and joists the other way', () => {
+  const { d } = place({ ...newDesign(), grid: { x: [1500], y: [1000], z: [3000] } }, 'platform', [0, 1, 0], [1, 1, 1]);
+  const s = scene(d);
+  const joists = s.members.filter((m) => m.label === 'קורת משנה');
+  assert.equal(joists.length, 4);
+  for (const j of joists) assert.equal(j.from[2], j.to[2]); // joists run across, along X
+  assert.equal(s.members.filter((m) => m.label === 'עמוד במה').length, 4);
+});
+
+test('an industrial railing: a middle rail and a toe board between the posts, no bars', () => {
+  const { d, id } = place({ ...newDesign(), grid: { x: [3000], y: [1000], z: [] } }, 'railing', [0, 0, 0], [1, 0, 0], { fill: 1, toe: 1 });
+  const s = scene(d);
+  assert.equal(s.members.filter((m) => m.label === 'מאחז אמצעי').length, 2);
+  assert.equal(s.members.filter((m) => m.label === 'פס רגל').length, 2);
+  assert.equal(s.members.filter((m) => m.label === 'מוט מילוי').length, 0);
+  assert.equal(blockReport(d, id).warn, null);
+});
+
+test('blocks warn when something looks off', () => {
+  const g = { ...newDesign(), grid: { x: [3000], y: [4000], z: [] } };
+  const low = place(g, 'railing', [0, 0, 0], [1, 0, 0], { height: 900 });
+  assert.match(blockReport(low.d, low.id).warn ?? '', /1,050/);
+  const wide = place(g, 'railing', [0, 0, 0], [1, 0, 0], { gap: 150 });
+  assert.match(blockReport(wide.d, wide.id).warn ?? '', /100/);
+  const tall = place(g, 'ladder', [0, 0, 0], [0, 1, 0]);
+  assert.match(blockReport(tall.d, tall.id).warn ?? '', /מעטפת/);
+  const narrow = place({ ...newDesign(), grid: { x: [300], y: [2000], z: [] } }, 'gate', [0, 0, 0], [1, 0, 0]);
+  assert.match(blockReport(narrow.d, narrow.id).warn ?? '', /צר/);
+  assert.equal(scene(addMember(narrow.d, [0, 0, 0], [0, 1, 0], { profile: 'rect_tube', size: [60, 60, 3] }).design).members.filter((m) => m.id.includes('-stile')).length, 0);
+  const wideLeaf = place({ ...newDesign(), grid: { x: [3200], y: [2000], z: [] } }, 'gate', [0, 0, 0], [1, 0, 0]);
+  assert.match(blockReport(wideLeaf.d, wideLeaf.id).warn ?? '', /2.5 מטר/);
+  // A block whose points left the grid says so instead of drawing
+  const gone = { ...low.d, grid: { ...low.d.grid, x: [] as number[] } };
+  assert.match(blockReport(gone, low.id).warn ?? '', /לא ברשת/);
 });
