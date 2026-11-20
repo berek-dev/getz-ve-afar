@@ -63,7 +63,12 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (pen && e.pointerType === 'pen') {
       e.preventDefault();
-      e.currentTarget.setPointerCapture(e.pointerId);
+      try {
+        // Keeps the stroke's events coming if the pen leaves the grid; some browsers refuse, and the stroke still works
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // drawn without capture
+      }
       stroke.current = { id: e.pointerId, points: [toPoint(e.clientX, e.clientY)], cx: e.clientX, cy: e.clientY, travel: 0 };
       swallowClick.current = true;
       return;
