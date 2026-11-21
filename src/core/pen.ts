@@ -80,8 +80,9 @@ export function snapToLine(value: number, lines: number[], tol: number): { index
 
 /**
  * The two grid points of a pen line drawn in a view: `from`/`to` are in mm along the view's across (u) and up (v)
- * axes, on plane line `line`. New grid lines are added where the ends fall between lines. Returns the design with
- * those lines, the two points, and how many lines were added.
+ * axes, on plane line `line`. New grid lines are added where the ends fall between lines (as guesses, see
+ * design.ts). A line within `degrees` of level or plumb is made exactly so (a finger gets a little more room than
+ * a pen). Returns the design with those lines, the two points, and how many lines were added.
  */
 export function penSegment(
   design: Design,
@@ -90,8 +91,9 @@ export function penSegment(
   from: { u: number; v: number },
   to: { u: number; v: number },
   tolMm: number,
+  degrees = 8,
 ): { design: Design; a: DesignNode; b: DesignNode; added: number } {
-  const end = straighten({ x: from.u, y: from.v }, { x: to.u, y: to.v });
+  const end = straighten({ x: from.u, y: from.v }, { x: to.u, y: to.v }, degrees);
   const ends = [
     { u: from.u, v: from.v },
     { u: end.x, v: end.y },

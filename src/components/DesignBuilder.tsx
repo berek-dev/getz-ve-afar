@@ -15,18 +15,22 @@ import {
   addBlock,
   addInfill,
   addMember,
+  allGuessed,
   blockReport,
   compileDesign,
   gridLines,
+  guessCount,
+  guesses,
   memberCutLengths,
   newDesign,
-  parseSize,
   readDesign,
   removeBlock,
   removeInfill,
   removeLastBay,
   removeMember,
+  SIZE_FIELDS,
   setSpacing,
+  sizeFromFields,
   sizeText,
   updateBlock,
   updateInfill,
@@ -46,6 +50,9 @@ import { Icon } from './Icon.tsx';
 import { Sheet } from './Sheet.tsx';
 import { useCanvasGestures } from './canvasGestures.ts';
 import { SketchReader } from './SketchReader.tsx';
+import { PAD_W, SketchPad } from './SketchPad.tsx';
+import { SKETCH_PAGE_MM, sketchToDesign } from '../core/sketch.ts';
+import type { SketchLine } from '../core/sketch.ts';
 import { classifyStroke, penSegment, scribbleTarget } from '../core/pen.ts';
 import type { P2 } from '../core/pen.ts';
 import { viewBoxOf } from '../core/viewport.ts';
@@ -73,7 +80,13 @@ const AXIS_LABELS: Record<GridAxis, string> = { x: 'רוחב', y: 'גבהים', 
 const DEFAULT_PROFILE: ProfileChoice = { profile: 'rect_tube', size: [60, 60, 3] };
 const draftKey = (jobId: number) => `gva:design-draft:${jobId}`;
 const profileKey = 'gva:builder-profile';
+/** A pen has drawn here (a tablet): drawing mode means the pen, and fingers only pan */
 const penKey = 'gva:builder-pen';
+const drawKey = 'gva:builder-draw';
+const sketchKey = (jobId: number) => `gva:sketch-draft:${jobId}`;
+
+/** Drawing on the grid: off (taps on grid points), with a pen (fingers pan), or with a finger (two fingers pan) */
+type DrawMode = 'off' | 'pen' | 'finger';
 
 function loadJson<T>(key: string): T | null {
   try {
@@ -119,11 +132,29 @@ export function DesignBuilder({
   const [placing, setPlacing] = useState<BlockKind | null>(null);
   // What the AI said about a sketch it read: things it guessed, and how many pieces it left out
   const [fromSketch, setFromSketch] = useState<{ notes: string[]; missed: number } | null>(null);
-  // Pen mode (tablet and stylus): turns on by itself the first time a pen touches the grid
-  const [penMode, setPenMode] = useState(() => loadJson<boolean>(penKey) === true);
-  const setPen = (on: boolean) => {
-    setPenMode(on);
-    saveJson(penKey, on ? true : null);
+  // Drawing by hand on the grid: a finger on the phone, or a pen on a tablet, where it turns on by itself the first
+  // time a pen touches the grid
+  const [draw, setDrawMode] = useState<DrawMode>(() => {
+    const stored = loadJson<string>(drawKey);
+    if (stored === 'pen' || stored === 'finger') return stored;
+    return loadJson<boolean>(penKey) === true ? 'pen' : 'off';
+  });
+  const setDraw = (mode: DrawMode) => {
+    setDrawMode(mode);
+    saveJson(drawKey, mode === 'off' ? null : mode);
+  };
+  const penSeen = () => {
+    if (draw === 'pen') return;
+    saveJson(penKey, true);
+    setDraw('pen');
+    toast('מצב עט: מותחים קו בעט, קשקוש מוחק, אצבעות מזיזות.');
+  };
+  // A sketch by hand on a blank page, before the grid (null when not sketching); kept on the device meanwhile
+  const [sketch, setSketchLines] = useState<SketchLine[] | null>(() => loadJson<SketchLine[]>(sketchKey(job.id)));
+  const [sketchUndo, setSketchUndo] = useState<SketchLine[][]>([]);
+  const setSketch = (next: SketchLine[] | null) => {
+    setSketchLines(next);
+    saveJson(sketchKey(job.id), next);
   };
   const [saving, setSaving] = useState(false);
 
@@ -182,7 +213,7 @@ export function DesignBuilder({
   /** A pen line in the current view: its ends become grid points (new grid lines where they fall between lines) */
   const penLine = (from: { u: number; v: number }, to: { u: number; v: number }, tol: number) => {
     if (!axes) return;
-    const r = penSegment(design, axes, line, from, to, tol);
+    const r = penSegment(design, axes, line, from, to, tol, draw === 'finger' ? 10 : 8);
     setPending(null);
     setSelected(null);
     if (r.a.join() === r.b.join()) return;
@@ -273,6 +304,23 @@ export function DesignBuilder({
     } else if (!FLAT(view.kind) || view.kind === 'plan') setView({ kind: 'front', line: 0 });
   };
 
+  /** Drawing by hand on a blank page first; the grid comes from the drawing afterwards */
+  const startSketch = () => {
+    setSelected(null);
+    setPending(null);
+    setPlacing(null);
+    setSketchUndo([]);
+    setSketch([]);
+  };
+  const finishSketch = () => {
+    if (!sketch?.length) return;
+    change(sketchToDesign(sketch, { mmPerUnit: SKETCH_PAGE_MM / PAD_W, choice: current, material: design.material }));
+    setSketch(null);
+    setView({ kind: 'front', line: 0 });
+    toast('השרטוט מוכן. כותבים מידה אחת שנמדדה, וכל השאר מתכוונן לפיה.');
+  };
+  const guessed = guessCount(design);
+
   const sel = selected;
   const selMember = sel?.kind === 'member' ? design.members.find((m) => m.id === sel.id) : undefined;
   const selInfill = sel?.kind === 'infill' ? design.infills.find((f) => f.id === sel.id) : undefined;
@@ -280,6 +328,57 @@ export function DesignBuilder({
 
   return (
     <div>
+      {sketch ? (
+        <div>
+          <p className="px-1 text-[0.9rem] font-semibold">ציור ביד, מבט מהחזית</p>
+          <div className="mt-1.5">
+            <SketchPad
+              lines={sketch}
+              onLines={(next) => {
+                setSketchUndo((h) => [...h.slice(-49), sketch]);
+                setSketch(next);
+              }}
+              fingers={draw !== 'pen'}
+              onPenSeen={penSeen}
+            />
+          </div>
+          <p className="mt-1.5 px-1 text-[0.85rem] text-muted">
+            {draw === 'pen'
+              ? 'מותחים קווים בעט. קו עקום מתיישר ונצמד למה שכבר מצויר, קשקוש מוחק, אצבעות מזיזות.'
+              : 'מותחים קווים באצבע. קו עקום מתיישר ונצמד למה שכבר מצויר, קשקוש מוחק, שתי אצבעות מזיזות.'}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" onClick={() => setSheet({ kind: 'profile' })} className="btn-secondary min-h-11 flex-1 px-3 text-[0.9rem]">
+              <Icon name="frame" size={18} />
+              <span className="truncate">{sectionName(current.profile, current.size, design.material)}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const prev = sketchUndo.at(-1);
+                if (!prev) return;
+                setSketchUndo((h) => h.slice(0, -1));
+                setSketch(prev);
+              }}
+              disabled={sketchUndo.length === 0}
+              aria-label="בטל"
+              className="btn-secondary min-h-11 px-3 disabled:opacity-40"
+            >
+              <Icon name="undo" size={18} />
+            </button>
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <button type="button" onClick={finishSketch} disabled={sketch.length === 0} className="btn-primary flex-1 disabled:opacity-50">
+              <Icon name="ruler" />
+              המשך למידות
+            </button>
+            <button type="button" onClick={() => setSketch(null)} className="min-h-11 shrink-0 px-2 text-[0.9rem] text-muted underline underline-offset-4">
+              ביטול
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
       {model.layout != null && !savedDesign && (
         <p className="mb-3 rounded-md bg-accent-soft px-3 py-2.5 text-[0.9rem]">ההדמיה הנוכחית נבנתה בלי רשת. שמירה כאן תיצור גרסה חדשה במקומה, ואפשר לבטל.</p>
       )}
@@ -374,12 +473,8 @@ export function DesignBuilder({
               setSelected(s);
             }}
             onDim={(axis, index) => setSheet({ kind: 'dim', axis, index })}
-            penMode={penMode}
-            onPenSeen={() => {
-              if (penMode) return;
-              setPen(true);
-              toast('מצב עט: מותחים קו בעט, קשקוש מוחק, אצבעות מזיזות.');
-            }}
+            draw={draw}
+            onPenSeen={penSeen}
             onPenLine={penLine}
             onErase={erase}
           />
@@ -406,19 +501,31 @@ export function DesignBuilder({
       ) : (
         FLAT(view.kind) && (
           <p className="mt-1.5 px-1 text-[0.85rem] text-muted">
-            {penMode
-              ? 'מותחים קו בעט, גם בין קווי הרשת. קשקוש על חלק מוחק אותו. אצבעות מזיזות ומגדילות.'
-              : pending
-                ? 'גע בנקודה הבאה כדי להוסיף חלק, או שוב באותה נקודה כדי לסיים.'
-                : 'גע בשתי נקודות כדי להוסיף חלק. גע בחלק או במידה כדי לשנות.'}
+            {allGuessed(design)
+              ? 'המידות בכתום מלא משוערות. כותבים מידה אחת שנמדדה, וכל השרטוט מתכוונן לפיה.'
+              : draw === 'pen'
+                ? 'מותחים קו בעט, גם בין קווי הרשת. קשקוש על חלק מוחק אותו. אצבעות מזיזות ומגדילות.'
+                : draw === 'finger'
+                  ? 'מותחים קו באצבע, גם בין קווי הרשת. קשקוש על חלק מוחק אותו. שתי אצבעות מזיזות.'
+                  : pending
+                    ? 'גע בנקודה הבאה כדי להוסיף חלק, או שוב באותה נקודה כדי לסיים.'
+                    : guessed > 0
+                      ? 'מידה בכתום מלא עדיין משוערת. גע בה כדי לכתוב את המידה שנמדדה.'
+                      : 'גע בשתי נקודות כדי להוסיף חלק. גע בחלק או במידה כדי לשנות.'}
           </p>
         )
       )}
       {design.members.length === 0 && design.blocks.length === 0 && !placing && (
-        <button type="button" onClick={() => setSheet({ kind: 'sketch' })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-dashed border-line-strong text-[0.9rem] font-semibold">
-          <Icon name="camera" size={18} />
-          יש סקיצה? לבנות ממנה
-        </button>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button type="button" onClick={startSketch} className="flex min-h-11 items-center justify-center gap-2 rounded-md border border-dashed border-line-strong px-2 text-[0.9rem] font-semibold">
+            <Icon name="pencil" size={18} />
+            לצייר ביד
+          </button>
+          <button type="button" onClick={() => setSheet({ kind: 'sketch' })} className="flex min-h-11 items-center justify-center gap-2 rounded-md border border-dashed border-line-strong px-2 text-[0.9rem] font-semibold">
+            <Icon name="camera" size={18} />
+            מצילום סקיצה
+          </button>
+        </div>
       )}
 
       <div className="mt-2 flex flex-wrap gap-2">
@@ -436,12 +543,12 @@ export function DesignBuilder({
         </button>
         <button
           type="button"
-          onClick={() => setPen(!penMode)}
-          aria-pressed={penMode}
-          className={`min-h-11 items-center gap-1.5 rounded-md border px-3 text-[0.9rem] font-semibold ${penMode ? 'flex border-ink bg-ink text-white' : 'hidden border-line-strong bg-card md:flex'}`}
+          onClick={() => setDraw(draw !== 'off' ? 'off' : loadJson<boolean>(penKey) === true ? 'pen' : 'finger')}
+          aria-pressed={draw !== 'off'}
+          className={`flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[0.9rem] font-semibold ${draw !== 'off' ? 'border-ink bg-ink text-white' : 'border-line-strong bg-card'}`}
         >
           <Icon name="pencil" size={18} />
-          עט
+          {draw === 'pen' ? 'עט' : 'ציור'}
         </button>
         <button type="button" onClick={undo} disabled={history.length === 0} aria-label="בטל" className="btn-secondary min-h-11 px-3 disabled:opacity-40">
           <Icon name="undo" size={18} />
@@ -463,10 +570,13 @@ export function DesignBuilder({
       {cut && (
         <p className="tnum mt-1.5 px-1 text-[0.85rem] text-muted">
           {cut.pieces.reduce((s, p) => s + p.count, 0)} חלקים, בערך {fmtNum(Math.round(cut.totalKg))} ק״ג
+          {guessed > 0 && <span className="text-accent">{guessed === 1 ? ', מידה אחת משוערת' : `, ${guessed} מידות משוערות`}</span>}
         </p>
       )}
 
       {after}
+        </>
+      )}
 
       <Sheet open={selMember !== undefined} onClose={() => setSelected(null)} title={selMember ? sectionName(selMember.profile, selMember.size, design.material) : ''}>
         {selMember && (
@@ -563,7 +673,7 @@ function GridCanvas({
   onNode,
   onPick,
   onDim,
-  penMode,
+  draw,
   onPenSeen,
   onPenLine,
   onErase,
@@ -577,7 +687,7 @@ function GridCanvas({
   onNode: (n: DesignNode) => void;
   onPick: (s: Selected) => void;
   onDim: (axis: GridAxis, index: number) => void;
-  penMode: boolean;
+  draw: DrawMode;
   onPenSeen: () => void;
   /** A pen line, its ends in mm along the view's across and up axes; `tol` is how near a grid line counts as on it */
   onPenLine: (from: { u: number; v: number }, to: { u: number; v: number }, tol: number) => void;
@@ -602,16 +712,18 @@ function GridCanvas({
   // Filled in below, read when a pen stroke ends
   const pieces: { id: string; x1: number; y1: number; x2: number; y2: number; w: number }[] = [];
   const toMm = (p: P2) => ({ u: (p.x - M.left) / k, v: up ? vMax - (p.y - M.top) / k : (p.y - M.top) / k });
+  const finger = draw === 'finger';
   const onStroke = (points: P2[]) => {
-    const tol = 6 / zoomNow();
+    // A few screen pixels whatever the zoom; a finger gets a little more room than a pen
+    const tol = (finger ? 8 : 6) / zoomNow();
     const stroke = classifyStroke(points, tol);
-    if (stroke.kind === 'line') onPenLine(toMm(stroke.from), toMm(stroke.to), (16 / zoomNow()) / k);
+    if (stroke.kind === 'line') onPenLine(toMm(stroke.from), toMm(stroke.to), ((finger ? 20 : 16) / zoomNow()) / k);
     else if (stroke.kind === 'scribble') {
       const id = scribbleTarget(points, pieces, 8 / zoomNow());
       if (id) onErase(pickOf(id));
     } else if (stroke.kind === 'other') toast('לא זוהה קו ישר. מותחים קו ישר, או מקשקשים על חלק כדי למחוק.');
   };
-  const gestures = useCanvasGestures(svgRef, W, H, penMode ? { onMove: setInk, onEnd: onStroke } : null, onPenSeen);
+  const gestures = useCanvasGestures(svgRef, W, H, draw !== 'off' ? { onMove: setInk, onEnd: onStroke, fingers: finger } : null, onPenSeen);
   const zoomNow = () => gestures.view.zoom;
   // Points, labels and measurement pills keep their size on screen at any zoom
   const z = 1 / gestures.view.zoom;
@@ -694,6 +806,8 @@ function GridCanvas({
   const isSelected = (id: string) => selected !== null && (id.split('#')[0] === selected.id || blockOf(id) === selected.id);
 
   const uChainY = M.top + vMax * k + 24;
+  const guessU = guesses(design, axes.u);
+  const guessV = guesses(design, axes.v);
   const vChainX = 22;
 
   return (
@@ -702,7 +816,7 @@ function GridCanvas({
       ref={svgRef}
       viewBox={viewBoxOf(gestures.view, W, H)}
       className="plate block w-full select-none rounded-md bg-card"
-      style={{ touchAction: gestures.zoomed ? 'none' : 'pan-y' }}
+      style={{ touchAction: finger || gestures.zoomed ? 'none' : 'pan-y' }}
       role="img"
       aria-label="רשת השרטוט"
       {...gestures.handlers}
@@ -798,10 +912,10 @@ function GridCanvas({
 
       {/* measurements: tap to type a new one */}
       {grid[axes.u].map((s, i) => (
-        <DimPill key={`du${i}`} x={(sx(U[i]) + sx(U[i + 1])) / 2} y={uChainY} x1={sx(U[i])} x2={sx(U[i + 1])} value={s} onTap={() => onDim(axes.u, i)} horizontal z={z} />
+        <DimPill key={`du${i}`} x={(sx(U[i]) + sx(U[i + 1])) / 2} y={uChainY} x1={sx(U[i])} x2={sx(U[i + 1])} value={s} guess={guessU[i]} onTap={() => onDim(axes.u, i)} horizontal z={z} />
       ))}
       {grid[axes.v].map((s, j) => (
-        <DimPill key={`dv${j}`} x={vChainX} y={(sy(V[j]) + sy(V[j + 1])) / 2} x1={sy(V[j])} x2={sy(V[j + 1])} value={s} onTap={() => onDim(axes.v, j)} z={z} />
+        <DimPill key={`dv${j}`} x={vChainX} y={(sy(V[j]) + sy(V[j + 1])) / 2} x1={sy(V[j])} x2={sy(V[j + 1])} value={s} guess={guessV[j]} onTap={() => onDim(axes.v, j)} z={z} />
       ))}
     </svg>
     {gestures.zoomed && (
@@ -818,18 +932,40 @@ function GridCanvas({
   );
 }
 
-function DimPill({ x, y, x1, x2, value, onTap, horizontal = false, z = 1 }: { x: number; y: number; x1: number; x2: number; value: number; onTap: () => void; horizontal?: boolean; z?: number }) {
+/** A measurement to tap: outlined when measured, filled while it is still a guess (drawn by eye) */
+function DimPill({
+  x,
+  y,
+  x1,
+  x2,
+  value,
+  guess = false,
+  onTap,
+  horizontal = false,
+  z = 1,
+}: {
+  x: number;
+  y: number;
+  x1: number;
+  x2: number;
+  value: number;
+  guess?: boolean;
+  onTap: () => void;
+  horizontal?: boolean;
+  z?: number;
+}) {
   const label = fmtNum(value);
   const w = Math.max(30, label.length * 6.6 + 10) * z;
+  const dash = guess ? `${3 * z} ${3 * z}` : undefined;
   return (
-    <g onClick={onTap} className="cursor-pointer">
+    <g onClick={onTap} className="cursor-pointer" aria-label={guess ? `${label}, משוער` : label}>
       {horizontal ? (
-        <line x1={x1} x2={x2} y1={y} y2={y} className="stroke-faint" strokeWidth={z} />
+        <line x1={x1} x2={x2} y1={y} y2={y} className="stroke-faint" strokeWidth={z} strokeDasharray={dash} />
       ) : (
-        <line x1={x + 18} x2={x + 18} y1={x1} y2={x2} className="stroke-faint" strokeWidth={z} />
+        <line x1={x + 18} x2={x + 18} y1={x1} y2={x2} className="stroke-faint" strokeWidth={z} strokeDasharray={dash} />
       )}
-      <rect x={x - w / 2} y={y - 10 * z} width={w} height={20 * z} rx={10 * z} className="fill-card stroke-accent" strokeWidth={1.2 * z} />
-      <text x={x} y={y + 4 * z} textAnchor="middle" fontSize={11 * z} fontWeight="600" className="fill-accent">
+      <rect x={x - w / 2} y={y - 10 * z} width={w} height={20 * z} rx={10 * z} className={guess ? 'fill-accent stroke-accent' : 'fill-card stroke-accent'} strokeWidth={1.2 * z} />
+      <text x={x} y={y + 4 * z} textAnchor="middle" fontSize={11 * z} fontWeight="600" className={guess ? 'fill-card' : 'fill-accent'}>
         {label}
       </text>
     </g>
@@ -939,8 +1075,11 @@ function SpacingInput({ value, onCommit }: { value: number; onCommit: (v: number
 
 export function ProfilePicker({ value, onChange }: { value: ProfileChoice; onChange: (c: ProfileChoice) => void }) {
   const [profile, setProfile] = useState<Profile>(value.profile);
-  const [text, setText] = useState(value.profile === profile ? sizeText(value.size) : '');
-  const typed = parseSize(profile, text);
+  // Another size, one number per field: the phone's number pad has no "/"
+  const fieldsFor = (p: Profile) => SIZE_FIELDS[p].map((_, i) => (p === value.profile ? String(value.size[i] ?? '') : ''));
+  const [fields, setFields] = useState<string[]>(() => fieldsFor(value.profile));
+  const typed = sizeFromFields(profile, fields);
+  const example = COMMON_SIZES[profile][Math.min(2, COMMON_SIZES[profile].length - 1)] ?? [];
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
@@ -950,7 +1089,7 @@ export function ProfilePicker({ value, onChange }: { value: ProfileChoice; onCha
             type="button"
             onClick={() => {
               setProfile(p);
-              setText('');
+              setFields(fieldsFor(p));
             }}
             aria-pressed={profile === p}
             className={`min-h-10 rounded-md border px-3 text-[0.9rem] font-semibold ${profile === p ? 'border-ink bg-ink text-white' : 'border-line-strong bg-card'}`}
@@ -973,19 +1112,27 @@ export function ProfilePicker({ value, onChange }: { value: ProfileChoice; onCha
           </button>
         ))}
       </div>
-      <div className="flex gap-2">
-        <input
-          className="field tnum flex-1"
-          dir="ltr"
-          inputMode="decimal"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={profile === 'rect_tube' ? '60/40/2' : profile === 'flat' ? '40/5' : profile === 'round_tube' ? '48.3/2.9' : '20'}
-          aria-label="מידה אחרת"
-        />
-        <button type="button" disabled={!typed} onClick={() => typed && onChange({ profile, size: typed })} className="btn-secondary px-4 disabled:opacity-40">
-          בחר
-        </button>
+      <div>
+        <p className="mb-1 text-[0.85rem] text-muted">מידה אחרת, במ״מ</p>
+        <div className="flex items-end gap-2">
+          {SIZE_FIELDS[profile].map((name, i) => (
+            <label key={`${profile}${i}`} className="block min-w-0 flex-1">
+              <span className="mb-0.5 block text-[0.8rem] text-muted">{name}</span>
+              <input
+                className="field tnum w-full text-center"
+                dir="ltr"
+                inputMode="decimal"
+                value={fields[i] ?? ''}
+                onChange={(e) => setFields((f) => f.map((v, k) => (k === i ? e.target.value : v)))}
+                placeholder={example[i] !== undefined ? String(example[i]) : ''}
+                aria-label={`${PROFILE_LABELS[profile]}: ${name}`}
+              />
+            </label>
+          ))}
+          <button type="button" disabled={!typed} onClick={() => typed && onChange({ profile, size: typed })} className="btn-secondary px-4 disabled:opacity-40">
+            בחר
+          </button>
+        </div>
       </div>
     </div>
   );

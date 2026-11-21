@@ -58,6 +58,11 @@ export interface Design {
   /** Stairs, platforms, railings, ladders and gates (blocks.ts) */
   blocks: DesignBlock[];
   material: MaterialKey;
+  /**
+   * Spacings drawn by eye and not measured yet (true), per axis, in step with `grid`. Absent when everything is
+   * measured. The first measurement typed into a design that is all guesses scales the whole of it.
+   */
+  guess?: Partial<Record<GridAxis, boolean[]>>;
 }
 
 export interface ProfileChoice {
@@ -89,6 +94,32 @@ export const COMMON_SIZES: Record<Profile, number[][]> = {
   hea: beamSizes('hea').filter((h) => h <= 300).map((h) => [h]),
   upn: beamSizes('upn').filter((h) => h <= 300).map((h) => [h]),
 };
+
+/**
+ * What each number of a size is, to type them one per field (a phone's number pad has no "/"). The depth of a
+ * tube and the second leg of an angle may stay empty: the same as the first.
+ */
+export const SIZE_FIELDS: Record<Profile, string[]> = {
+  rect_tube: ['רוחב', 'עומק', 'דופן'],
+  angle: ['צלע', 'צלע שנייה', 'עובי'],
+  flat: ['רוחב', 'עובי'],
+  round_tube: ['קוטר', 'דופן'],
+  round_bar: ['קוטר'],
+  square_bar: ['צלע'],
+  ipe: ['גובה'],
+  hea: ['גובה'],
+  upn: ['גובה'],
+};
+
+/** A size typed one number per field (SIZE_FIELDS), or null; a decimal comma counts as a point */
+export function sizeFromFields(profile: Profile, fields: string[]): number[] | null {
+  const parts = fields.map((f) => f.trim().replace(',', '.'));
+  if (parts.some((f) => f !== '' && !/^\d+(\.\d+)?$/.test(f))) return null;
+  // A square tube or an equal angle: the second number may stay empty
+  const filled = (profile === 'rect_tube' || profile === 'angle') && parts[1] === '' ? [parts[0], parts[2] ?? ''] : parts;
+  if (filled.some((f) => f === '')) return null;
+  return parseSize(profile, filled.join('/'));
+}
 
 /** How many numbers a size takes ("60/40/2" = 3) */
 export const SIZE_PARTS: Record<Profile, number> = {
@@ -170,7 +201,50 @@ export function readDesign(raw: unknown): Design | null {
     }
     blocks.push({ id: k.id, kind: k.kind as BlockKind, a, b, params, profiles });
   }
-  return { version: 1, grid: { x, y, z }, members, infills, blocks, material: (d.material as MaterialKey) ?? 'black' };
+  const read: Design = { version: 1, grid: { x, y, z }, members, infills, blocks, material: (d.material as MaterialKey) ?? 'black' };
+  let out = read;
+  for (const axis of AXES) {
+    const flags = (d.guess as Record<string, unknown> | undefined)?.[axis];
+    if (Array.isArray(flags) && flags.length === read.grid[axis].length && flags.every((f) => typeof f === 'boolean')) out = withGuess(out, axis, flags);
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------------------------------- guesses
+
+const AXES: GridAxis[] = ['x', 'y', 'z'];
+
+/** Which spacings along an axis are still guesses (one flag per spacing) */
+export function guesses(design: Design, axis: GridAxis): boolean[] {
+  const flags = design.guess?.[axis];
+  return design.grid[axis].map((_, i) => flags?.[i] === true);
+}
+
+/** The design with an axis's guess flags replaced; `guess` is dropped once nothing is a guess */
+function withGuess(design: Design, axis: GridAxis, flags: boolean[]): Design {
+  const next: Partial<Record<GridAxis, boolean[]>> = { ...design.guess, [axis]: flags };
+  const kept = Object.fromEntries(AXES.filter((a) => next[a]?.some(Boolean)).map((a) => [a, next[a] as boolean[]]));
+  const rest: Design = { ...design };
+  delete rest.guess;
+  return Object.keys(kept).length ? { ...rest, guess: kept } : rest;
+}
+
+/** Every spacing marked as a guess (a sketch drawn by eye, before any measurement) */
+export function allGuesses(design: Design): Design {
+  let d = design;
+  for (const axis of AXES) d = withGuess(d, axis, design.grid[axis].map(() => true));
+  return d;
+}
+
+/** How many spacings are still guesses */
+export function guessCount(design: Design): number {
+  return AXES.reduce((n, axis) => n + guesses(design, axis).filter(Boolean).length, 0);
+}
+
+/** Nothing measured yet: there are spacings and every one of them is a guess */
+export function allGuessed(design: Design): boolean {
+  const total = AXES.reduce((n, axis) => n + design.grid[axis].length, 0);
+  return total > 0 && guessCount(design) === total;
 }
 
 // ------------------------------------------------------------------------------------------ geometry
@@ -467,17 +541,29 @@ export function removeBlock(design: Design, id: string): Design {
   return { ...design, blocks: design.blocks.filter((k) => k.id !== id) };
 }
 
+/**
+ * A measured spacing: it stops being a guess. The first measurement of a design that is all guesses (a sketch drawn
+ * by eye) sets its scale too: every other spacing grows or shrinks by the same factor, rounded to 10 mm.
+ */
 export function setSpacing(design: Design, axis: GridAxis, index: number, value: number): Design {
   if (!(value > 0) || index < 0 || index >= design.grid[axis].length) return design;
-  const list = design.grid[axis].map((s, i) => (i === index ? Math.round(value) : s));
-  return { ...design, grid: { ...design.grid, [axis]: list } };
+  const v = Math.round(value);
+  let grid = design.grid;
+  const old = grid[axis][index];
+  if (allGuessed(design) && old !== v) {
+    const f = v / old;
+    const scaled = (list: number[]) => list.map((s) => Math.max(10, Math.round((s * f) / 10) * 10));
+    grid = { x: scaled(grid.x), y: scaled(grid.y), z: scaled(grid.z) };
+  }
+  const list = grid[axis].map((s, i) => (i === index ? v : s));
+  return withGuess({ ...design, grid: { ...grid, [axis]: list } }, axis, guesses(design, axis).map((g, i) => g && i !== index));
 }
 
 /** Adds a bay at the end of an axis (same as the last one, or 1,000 for the first depth bay) */
 export function addBay(design: Design, axis: GridAxis): Design {
   const list = design.grid[axis];
   if (list.length >= 40) return design;
-  return { ...design, grid: { ...design.grid, [axis]: [...list, list.at(-1) ?? 1000] } };
+  return withGuess({ ...design, grid: { ...design.grid, [axis]: [...list, list.at(-1) ?? 1000] } }, axis, [...guesses(design, axis), false]);
 }
 
 const AXIS_INDEX: Record<GridAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
@@ -486,7 +572,8 @@ const AXIS_INDEX: Record<GridAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
  * A grid line at `pos` (mm from the first line) along an axis: the one already there (within half a millimetre),
  * or a new one that splits a bay, extends the grid past its last line, or (along X and Z) starts it earlier.
  * Everything already drawn keeps its place: node indices past the new line move up by one.
- * Returns the line's index. Levels never go below the ground.
+ * Returns the line's index. Levels never go below the ground. A line added this way is placed by eye (a pen or
+ * finger stroke), so the bays it makes are marked as guesses until measured.
  */
 export function insertGridLine(design: Design, axis: GridAxis, pos: number): { design: Design; index: number } {
   const i = AXIS_INDEX[axis];
@@ -498,20 +585,25 @@ export function insertGridLine(design: Design, axis: GridAxis, pos: number): { d
   if (spacings.length >= 40) return { design, index: lines.reduce((best, l, k) => (Math.abs(l - at) < Math.abs((lines[best] ?? 0) - at) ? k : best), 0) };
 
   let list: number[];
+  let flags: boolean[];
   let index: number;
   let shiftFrom: number; // node indices >= this move up by one
+  const was = guesses(design, axis);
   const last = lines[lines.length - 1];
   if (at > last) {
     list = [...spacings, at - last];
+    flags = [...was, true];
     index = lines.length;
     shiftFrom = Number.POSITIVE_INFINITY;
   } else if (at < 0) {
     list = [-at, ...spacings];
+    flags = [true, ...was];
     index = 0;
     shiftFrom = 0;
   } else {
     const bay = lines.findIndex((l, k) => k < lines.length - 1 && l < at && at < lines[k + 1]);
     list = [...spacings.slice(0, bay), at - lines[bay], lines[bay + 1] - at, ...spacings.slice(bay + 1)];
+    flags = [...was.slice(0, bay), true, true, ...was.slice(bay + 1)];
     index = bay + 1;
     shiftFrom = bay + 1;
   }
@@ -522,12 +614,16 @@ export function insertGridLine(design: Design, axis: GridAxis, pos: number): { d
     return out;
   };
   return {
-    design: {
-      ...design,
-      grid: { ...design.grid, [axis]: list },
-      members: design.members.map((m) => ({ ...m, a: move(m.a), b: move(m.b) })),
-      blocks: design.blocks.map((k) => ({ ...k, a: move(k.a), b: move(k.b) })),
-    },
+    design: withGuess(
+      {
+        ...design,
+        grid: { ...design.grid, [axis]: list },
+        members: design.members.map((m) => ({ ...m, a: move(m.a), b: move(m.b) })),
+        blocks: design.blocks.map((k) => ({ ...k, a: move(k.a), b: move(k.b) })),
+      },
+      axis,
+      flags,
+    ),
     index,
   };
 }
@@ -541,7 +637,7 @@ export function removeLastBay(design: Design, axis: GridAxis): { design: Design;
   const onLast = (k: { a: DesignNode; b: DesignNode }) => k.a[i] === last || k.b[i] === last;
   const gone = design.members.filter(onLast).map((m) => m.id);
   const blocks = design.blocks.filter((k) => !onLast(k));
-  let next: Design = { ...design, blocks, grid: { ...design.grid, [axis]: list.slice(0, -1) } };
+  let next: Design = withGuess({ ...design, blocks, grid: { ...design.grid, [axis]: list.slice(0, -1) } }, axis, guesses(design, axis).slice(0, -1));
   for (const id of gone) next = removeMember(next, id);
   return { design: next, removed: gone.length + design.blocks.length - blocks.length };
 }

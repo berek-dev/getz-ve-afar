@@ -43,9 +43,13 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   (`src/core/blocks.ts`: stairs, platform, railing, ladder, gate) are placed by two grid points plus a few numbers;
   their frame pieces go through the same joint rules (a railing post stops on the beam under it). Levels are
   finished floor: stair tops and platform decks sit at the grid level. The grid pinches and pans
-  (`src/core/viewport.ts`). Pen mode (tablet + stylus, `src/core/pen.ts`): a straight stroke is a member, ends between
-  grid lines add a line there (`insertGridLine` keeps drawn parts in place), a scribble erases, fingers pan; it turns on
-  by itself at the first pen touch. A hand sketch, tablet drawing or PDF is read by Gemini into the design format
+  (`src/core/viewport.ts`). Drawing mode ("ציור", `src/core/pen.ts`): a straight stroke is a member, ends between
+  grid lines add a line there (`insertGridLine` keeps drawn parts in place), a scribble erases. With a finger (phone)
+  two fingers pan; with a pen (tablet) fingers pan, and it switches to the pen by itself at the first pen touch.
+  Drawing by hand first: an empty builder offers "לצייר ביד", a blank page (`SketchPad.tsx`, `src/core/sketch.ts`)
+  where strokes straighten and snap to each other; "המשך למידות" turns them into a grid. Spacings placed by eye are
+  guesses (`design.guess`, filled pills) until typed; the first number typed into an all-guess design scales all of
+  it. Sizes are typed one number per field (`SIZE_FIELDS`): a phone's number pad has no "/". A hand sketch, tablet drawing or PDF is read by Gemini into the design format
   (`src/core/designPrompt.ts`, `POST /jobs/:id/model/sketch`, streamed) and opens as an unsaved draft; the same
   instructions can go to Yaal's own AI app. The builder's "גיליון" view shows the shop drawing while planning.
 - The shop drawing (`src/core/drawing.ts`, an A3 sheet) is shared as a PDF on A4 or A3 or as a PNG: the browser draws

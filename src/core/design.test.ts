@@ -1,15 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  addBay,
   addInfill,
   addMember,
+  allGuessed,
+  allGuesses,
   compileDesign,
+  guessCount,
+  guesses,
+  insertGridLine,
   memberCutLengths,
   newDesign,
   parseSize,
   readDesign,
   removeLastBay,
   setSpacing,
+  sizeFromFields,
   updateMember,
 } from './design.ts';
 import type { Design } from './design.ts';
@@ -124,4 +131,65 @@ test('grid chains measure bays along the top and levels down the left', () => {
   const layout = compileDesign(d, 'x') as { dimensions: { from: number[]; to: number[] }[] };
   assert.equal(layout.dimensions.length, 4);
   assert.deepEqual(layout.dimensions[1], { from: [2000, 2200, 0], to: [3500, 2200, 0] });
+});
+
+test('spacings drawn by eye are guesses until measured; the first measurement scales the whole sketch', () => {
+  let d: Design = allGuesses({ ...newDesign(), grid: { x: [1500, 1000], y: [1000], z: [] } });
+  assert.equal(guessCount(d), 3);
+  assert.ok(allGuessed(d));
+  // The width measured at 3,000 where the sketch said 1,500: everything doubles
+  d = setSpacing(d, 'x', 0, 3000);
+  assert.deepEqual(d.grid, { x: [3000, 2000], y: [2000], z: [] });
+  assert.deepEqual(guesses(d, 'x'), [false, true]);
+  assert.equal(allGuessed(d), false);
+  // Later measurements change only their own bay
+  d = setSpacing(d, 'y', 0, 1850);
+  assert.deepEqual(d.grid, { x: [3000, 2000], y: [1850], z: [] });
+  // Typing the value it already shows confirms a guess
+  d = setSpacing(d, 'x', 1, 2000);
+  assert.equal(guessCount(d), 0);
+  assert.equal(d.guess, undefined, 'nothing left to mark');
+});
+
+test('a measured design never rescales; lines added by drawing are guesses, bays added by hand are not', () => {
+  let d = newDesign();
+  d = setSpacing(d, 'x', 0, 2500);
+  assert.deepEqual(d.grid.y, [2000]);
+  const split = insertGridLine(d, 'y', 900);
+  assert.deepEqual(split.design.grid.y, [900, 1100]);
+  assert.deepEqual(guesses(split.design, 'y'), [true, true]);
+  const past = insertGridLine(split.design, 'x', 3000);
+  assert.deepEqual(guesses(past.design, 'x'), [false, true]);
+  const before = insertGridLine(past.design, 'x', -400);
+  assert.deepEqual(before.design.grid.x, [400, 2500, 500]);
+  assert.deepEqual(guesses(before.design, 'x'), [true, false, true]);
+  const more = addBay(before.design, 'x');
+  assert.deepEqual(guesses(more, 'x'), [true, false, true, false]);
+  const fewer = removeLastBay(more, 'x').design;
+  assert.deepEqual(guesses(fewer, 'x'), [true, false, true]);
+  // One measured bay is enough: the next measurement changes only its own
+  const measured = setSpacing(fewer, 'x', 0, 300);
+  assert.deepEqual(measured.grid.x, [300, 2500, 500]);
+});
+
+test('guesses travel with a saved design; flags that do not match the grid are dropped', () => {
+  const d = allGuesses({ ...newDesign(), grid: { x: [1200, 800], y: [1000], z: [] } });
+  const back = readDesign(JSON.parse(JSON.stringify(compileDesign(d, 't').design)));
+  assert.deepEqual(back?.guess, { x: [true, true], y: [true] });
+  const odd = readDesign({ ...d, guess: { x: [true], y: ['yes'] } });
+  assert.equal(odd?.guess, undefined);
+  assert.equal(readDesign(newDesign())?.guess, undefined);
+});
+
+test('a size typed one number per field: no "/" needed, a comma is a decimal point', () => {
+  assert.deepEqual(sizeFromFields('flat', ['50', '8']), [50, 8]);
+  assert.deepEqual(sizeFromFields('rect_tube', ['60', '40', '2']), [60, 40, 2]);
+  assert.deepEqual(sizeFromFields('rect_tube', ['50', '', '3']), [50, 50, 3], 'square when the depth stays empty');
+  assert.deepEqual(sizeFromFields('angle', ['40', ' ', '4']), [40, 40, 4]);
+  assert.deepEqual(sizeFromFields('round_tube', ['48,3', '2.9']), [48.3, 2.9]);
+  assert.deepEqual(sizeFromFields('ipe', ['200']), [200]);
+  assert.equal(sizeFromFields('ipe', ['210']), null, 'not a standard beam');
+  assert.equal(sizeFromFields('flat', ['50', '']), null);
+  assert.equal(sizeFromFields('flat', ['50/8', '']), null);
+  assert.equal(sizeFromFields('flat', ['-5', '8']), null);
 });

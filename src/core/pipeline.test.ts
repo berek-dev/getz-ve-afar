@@ -6,9 +6,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
 import { designFromReply } from './designPrompt.ts';
-import { addBlock, compileDesign, newDesign, readDesign } from './design.ts';
+import { addBlock, compileDesign, guessCount, newDesign, readDesign, setSpacing } from './design.ts';
 import type { Design } from './design.ts';
 import { penSegment } from './pen.ts';
+import { SKETCH_PAGE_MM, addSketchLine, sketchToDesign } from './sketch.ts';
+import type { SketchLine } from './sketch.ts';
 import { cutList, metalBounds, prepareScene } from './scene.ts';
 import { linesFromModel } from './modelBoq.ts';
 import { shopDrawingSvg } from './drawing.ts';
@@ -106,4 +108,35 @@ test('blocks on a platform: the railing stands on the deck, the stairs arrive at
   const treads = scene.plates.filter((p) => p.label === 'מדרך');
   assert.equal(Math.round(Math.max(...treads.map((t) => t.center[1] + t.thickness / 2))), 1200 - Math.round(1200 / 7));
   assert.ok(cut.totalKg > 300);
+});
+
+test('a hand sketch on the pad → measured → layout → cut list → saved and read back', () => {
+  let lines: SketchLine[] = [];
+  const strokes: [number, number, number, number][] = [
+    [40, 320, 42, 80], // post
+    [44, 83, 300, 78], // top rail
+    [298, 76, 301, 322], // post
+    [41, 200, 299, 204], // middle rail
+  ];
+  for (const [x1, y1, x2, y2] of strokes) lines = addSketchLine(lines, { x: x1, y: y1 }, { x: x2, y: y2 }, 12) ?? lines;
+  assert.equal(lines.length, 4);
+  let design = sketchToDesign(lines, { mmPerUnit: SKETCH_PAGE_MM / 360, choice: { profile: 'rect_tube', size: [60, 60, 3] } });
+  assert.equal(guessCount(design), 3);
+  // The opening measured on site: everything scales with it, then the middle rail height is measured too
+  design = setSpacing(design, 'x', 0, 2500);
+  assert.equal(design.grid.x[0], 2500);
+  design = setSpacing(design, 'y', 0, 900);
+  const { cut } = stages(design);
+  assert.equal(cut.pieces.reduce((n, p) => n + p.count, 0), 4);
+  // Posts to the top of the top rail, both rails between the posts
+  const height = design.grid.y[0] + design.grid.y[1];
+  assert.deepEqual(
+    cut.pieces.map((p) => [p.length, p.count]),
+    [
+      [2440, 2],
+      [height + 30, 2],
+    ],
+  );
+  const back = readDesign(JSON.parse(JSON.stringify(compileDesign(design, 't').design)));
+  assert.deepEqual(back?.guess, { y: [false, true] });
 });

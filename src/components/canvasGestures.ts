@@ -1,7 +1,9 @@
 /**
  * Fingers on the builder's grid: pinch to zoom, drag to pan once zoomed in, ctrl+wheel (or a trackpad pinch) on a
- * computer. A pen draws instead (pen mode): its points go to `onPen`, and fingers still pan and zoom meanwhile, so a
- * palm on the screen does nothing. Taps that turned into a gesture don't reach the grid points.
+ * computer. When drawing is on, strokes draw instead and their points go to `onMove`/`onEnd`. With a pen (pen mode)
+ * only the pen draws, and fingers still pan and zoom meanwhile, so a palm on the screen does nothing. With `fingers`,
+ * one finger (or the mouse) draws too, and a second finger turning up makes it a pinch. A short touch is still a
+ * tap; taps that turned into a gesture don't reach the grid points.
  */
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
@@ -12,6 +14,8 @@ export interface PenEvents {
   /** Drawing points (the SVG's own units) of a stroke as it goes, and when the pen lifts */
   onMove: (points: { x: number; y: number }[]) => void;
   onEnd: (points: { x: number; y: number }[]) => void;
+  /** One finger (or the mouse) draws too; two fingers pan and zoom */
+  fingers?: boolean;
 }
 
 type Gesture =
@@ -29,7 +33,7 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
   const pointers = useRef(new Map<number, { cx: number; cy: number }>());
   const gesture = useRef<Gesture>({ kind: 'none' });
   const swallowClick = useRef(false);
-  const stroke = useRef<{ id: number; points: { x: number; y: number }[]; cx: number; cy: number; travel: number } | null>(null);
+  const stroke = useRef<{ id: number; points: { x: number; y: number }[]; cx: number; cy: number; travel: number; finger: boolean } | null>(null);
 
   const frac = (cx: number, cy: number) => {
     const r = svgRef.current?.getBoundingClientRect();
@@ -61,27 +65,41 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
   }, [svgRef, W, H]);
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (pen && e.pointerType === 'pen') {
-      e.preventDefault();
-      try {
-        // Keeps the stroke's events coming if the pen leaves the grid; some browsers refuse, and the stroke still works
-        e.currentTarget.setPointerCapture(e.pointerId);
-      } catch {
-        // drawn without capture
+    if (e.pointerType === 'pen') {
+      // A pen means a tablet: pen mode, where fingers never draw
+      if (!pen || pen.fingers) onPenSeen?.();
+      if (pen) {
+        e.preventDefault();
+        try {
+          // Keeps the stroke's events coming if the pen leaves the grid; some browsers refuse, and the stroke still works
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          // drawn without capture
+        }
+        stroke.current = { id: e.pointerId, points: [toPoint(e.clientX, e.clientY)], cx: e.clientX, cy: e.clientY, travel: 0, finger: false };
+        swallowClick.current = true;
+        return;
       }
-      stroke.current = { id: e.pointerId, points: [toPoint(e.clientX, e.clientY)], cx: e.clientX, cy: e.clientY, travel: 0 };
-      swallowClick.current = true;
-      return;
     }
-    if (!pen && e.pointerType === 'pen') onPenSeen?.();
-    if (stroke.current) return; // a palm while the pen draws
+    if (stroke.current && !stroke.current.finger) return; // a palm while the pen draws
     if (pointers.current.size === 0) swallowClick.current = false;
     pointers.current.set(e.pointerId, { cx: e.clientX, cy: e.clientY });
     if (pointers.current.size === 2) {
+      if (stroke.current) {
+        // A second finger: the first one was starting a pinch, not a line
+        stroke.current = null;
+        pen?.onMove([]);
+      }
       const t = twoFingers();
       gesture.current = { kind: 'pinch', start: viewRef.current, fx: t.fx, fy: t.fy, d: t.d };
       swallowClick.current = true;
     } else if (pointers.current.size === 1) {
+      if (pen?.fingers && (e.pointerType !== 'mouse' || e.button === 0)) {
+        stroke.current = { id: e.pointerId, points: [toPoint(e.clientX, e.clientY)], cx: e.clientX, cy: e.clientY, travel: 0, finger: true };
+        gesture.current = { kind: 'none' };
+        swallowClick.current = true;
+        return;
+      }
       const { fx, fy } = frac(e.clientX, e.clientY);
       gesture.current = { kind: 'press', start: viewRef.current, fx, fy, cx: e.clientX, cy: e.clientY, moved: false };
     }
@@ -94,6 +112,7 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
       s.cx = e.clientX;
       s.cy = e.clientY;
       s.points.push(toPoint(e.clientX, e.clientY));
+      if (s.finger) pointers.current.set(e.pointerId, { cx: e.clientX, cy: e.clientY });
       pen?.onMove([...s.points]);
       return;
     }
@@ -119,10 +138,16 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
     if (s && e.pointerId === s.id) {
       stroke.current = null;
       pen?.onMove([]);
+      if (s.finger) {
+        pointers.current.delete(e.pointerId);
+        gesture.current = { kind: 'none' };
+      }
       if (e.type !== 'pointerup') return;
       if (s.travel < TAP_SLOP) {
-        // A pen tap works like a finger tap: on the grid point, part or measurement under it
+        // A tap still works on the grid point, part or measurement under it. A finger's own click follows; the pen
+        // held its capture, so its click is passed on to what lies under it.
         swallowClick.current = false;
+        if (s.finger) return;
         const target = document.elementFromPoint(e.clientX, e.clientY);
         target?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY }));
         return;
