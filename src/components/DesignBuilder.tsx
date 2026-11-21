@@ -800,6 +800,7 @@ function GridCanvas({
     else if (stroke.kind === 'scribble') {
       const id = scribbleTarget(points, pieces, 8 / zoomNow());
       if (id) onErase(pickOf(id));
+      else toast('כדי למחוק, מקשקשים על החלק עצמו.');
     } else if (stroke.kind === 'other') toast('לא זוהה קו ישר. מותחים קו ישר, או מקשקשים על חלק כדי למחוק.');
   };
   const gestures = useCanvasGestures(svgRef, W, H, draw !== 'off' ? { onMove: setInk, onEnd: onStroke, fingers: finger } : null, onPenSeen);
@@ -897,13 +898,16 @@ function GridCanvas({
   const guessV = guesses(design, axes.v);
   const vChainX = 22;
 
+  // Set on the wrapper too: Safari on the iPhone does not apply touch-action to an SVG element
+  const touchAction = finger || gestures.zoomed ? 'none' : 'pan-y';
+
   return (
-    <div className="relative">
+    <div className="relative" style={{ touchAction }}>
     <svg
       ref={svgRef}
       viewBox={viewBoxOf(gestures.view, W, H)}
       className="plate block w-full select-none rounded-md bg-card"
-      style={{ touchAction: finger || gestures.zoomed ? 'none' : 'pan-y' }}
+      style={{ touchAction }}
       role="img"
       aria-label="רשת השרטוט"
       {...gestures.handlers}

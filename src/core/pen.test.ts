@@ -22,6 +22,18 @@ test('strokes: a touch, a straight line, a scribble, a curve', () => {
   assert.equal(classifyStroke([], 6).kind, 'other');
 });
 
+test('a scribble drifting along the line it covers is still a scribble', () => {
+  // Up and down across a level line while moving right: the back and forth is on the shorter axis
+  const across: P2[] = [];
+  for (let i = 0; i <= 6; i++) across.push({ x: i * 14, y: i % 2 ? -30 : 30 });
+  assert.equal(classifyStroke(across, 8).kind, 'scribble');
+  // A wobbly straight line, an L and a U are not
+  assert.equal(classifyStroke(line({ x: 0, y: 0 }, { x: 0, y: 200 }, 40, 4), 8).kind, 'line');
+  assert.equal(classifyStroke([...line({ x: 0, y: 0 }, { x: 0, y: 100 }), ...line({ x: 0, y: 100 }, { x: 100, y: 100 })], 8).kind, 'other');
+  const u = [...line({ x: 0, y: 0 }, { x: 0, y: 100 }), ...line({ x: 0, y: 100 }, { x: 60, y: 100 }), ...line({ x: 60, y: 100 }, { x: 60, y: 0 })];
+  assert.equal(classifyStroke(u, 8).kind, 'other');
+});
+
 test('almost level or plumb lines are made exactly so', () => {
   assert.deepEqual(straighten({ x: 0, y: 0 }, { x: 1000, y: 60 }), { x: 1000, y: 0 });
   assert.deepEqual(straighten({ x: 0, y: 0 }, { x: 50, y: 900 }), { x: 0, y: 900 });
@@ -71,4 +83,28 @@ test('a scribble erases the piece most of it covers', () => {
   const scribble = line({ x: 20, y: 2 }, { x: 80, y: -2 }, 10, 3);
   assert.equal(scribbleTarget(scribble, segs, 6), 'm1');
   assert.equal(scribbleTarget([{ x: 50, y: 25 }, { x: 52, y: 26 }, { x: 54, y: 24 }], segs, 6), null);
+});
+
+test('a finger scribble crossing a piece erases it, though few of its points are near it', () => {
+  const segs = [
+    { id: 'post', x1: 100, y1: 0, x2: 100, y2: 200, w: 4 },
+    { id: 'beam', x1: 0, y1: 200, x2: 200, y2: 200, w: 4 },
+  ];
+  // Wide strokes across the post, sampled densely where the finger slows down to turn
+  const scribble: P2[] = [];
+  for (let i = 0; i < 6; i++) {
+    const side = i % 2 ? 1 : -1;
+    const y = 60 + i * 12;
+    for (const f of [0.95, 1, 0.9]) scribble.push({ x: 100 + side * 40 * f, y });
+  }
+  const near = scribble.filter((p) => Math.abs(p.x - 100) <= 8).length;
+  assert.equal(near, 0, 'no point lies on the post');
+  assert.equal(scribbleTarget(scribble, segs, 6), 'post');
+  // One pass over a piece is not a scribble on it
+  assert.equal(scribbleTarget([{ x: 60, y: 60 }, { x: 140, y: 64 }], segs, 6), null);
+  // Over a corner, the piece crossed most wins
+  const corner: P2[] = [];
+  for (let i = 0; i < 6; i++) corner.push({ x: i % 2 ? 120 : 80, y: 150 + i * 4 });
+  corner.push({ x: 90, y: 215 });
+  assert.equal(scribbleTarget(corner, segs, 6), 'post');
 });

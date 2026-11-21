@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { addSketchLine, eraseSketchLine, sketchToDesign } from './sketch.ts';
 import type { SketchLine } from './sketch.ts';
 import { guessCount, memberCutLengths, setSpacing } from './design.ts';
+import { classifyStroke } from './pen.ts';
+import type { P2 } from './pen.ts';
 
 const TOL = 10;
 const choice = { profile: 'rect_tube' as const, size: [60, 60, 3] };
@@ -64,6 +66,11 @@ test('a scribble removes the line it covers', () => {
   ];
   assert.deepEqual(eraseSketchLine(lines, scribble, 8), [lines[1]]);
   assert.equal(eraseSketchLine(lines, [{ x: 150, y: 20 }, { x: 160, y: 25 }], 8), null);
+  // A finger scribble: wide strokes up and down across the level line while drifting right
+  const finger: P2[] = [];
+  for (let i = 0; i < 7; i++) finger.push({ x: 60 + i * 10, y: i % 2 ? 130 : 70 });
+  assert.equal(classifyStroke(finger, 8).kind, 'scribble');
+  assert.deepEqual(eraseSketchLine(lines, finger, 8), [lines[1]]);
 });
 
 test('the drawing becomes a grid of guesses: lowest point on the ground, lines as members', () => {

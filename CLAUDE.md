@@ -48,6 +48,9 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   (`src/core/viewport.ts`). Drawing mode ("ציור", `src/core/pen.ts`): a straight stroke is a member, ends between
   grid lines add a line there (`insertGridLine` keeps drawn parts in place), a scribble erases. With a finger (phone)
   two fingers pan; with a pen (tablet) fingers pan, and it switches to the pen by itself at the first pen touch.
+  iPhone Safari ignores `touch-action` on SVG elements, so drawing canvases set it on their wrapper div too, and
+  `canvasGestures.ts` cancels `touchmove` while a stroke, pinch or pan is on (otherwise the page scrolls mid-stroke).
+  A scribble erases the piece it crosses back and forth most (`scribbleTarget`), not only one most points lie on.
   Drawing by hand first: an empty builder offers "לצייר ביד", a blank page (`SketchPad.tsx`, `src/core/sketch.ts`)
   where strokes straighten and snap to each other; "המשך למידות" turns them into a grid. Spacings placed by eye are
   guesses (`design.guess`, filled pills) until typed; the first number typed into an all-guess design scales all of

@@ -45,7 +45,7 @@ export function SketchPad({
       if (next) {
         onLines(next);
         toast('נמחק. אפשר לבטל.');
-      }
+      } else if (lines.length > 0) toast('כדי למחוק, מקשקשים על הקו עצמו.');
     } else if (stroke.kind === 'other') toast('לא זוהה קו ישר. מותחים קו ישר, או מקשקשים על קו כדי למחוק.');
   };
   const gestures = useCanvasGestures(svgRef, PAD_W, PAD_H, { onMove: setInk, onEnd: onStroke, fingers }, onPenSeen);
@@ -54,7 +54,8 @@ export function SketchPad({
   const ends = new Map(lines.flatMap((l) => [l.a, l.b]).map((p) => [`${p.x},${p.y}`, p]));
 
   return (
-    <div className="relative">
+    // touch-action on the wrapper too: Safari on the iPhone does not apply it to an SVG element
+    <div className="relative" style={{ touchAction: 'none' }}>
       <svg
         ref={svgRef}
         viewBox={viewBoxOf(gestures.view, PAD_W, PAD_H)}

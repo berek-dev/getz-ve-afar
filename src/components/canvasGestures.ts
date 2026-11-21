@@ -64,6 +64,21 @@ export function useCanvasGestures(svgRef: RefObject<SVGSVGElement | null>, W: nu
     return () => svg.removeEventListener('wheel', onWheel);
   }, [svgRef, W, H]);
 
+  // While a stroke, a pinch or a pan is under way, the touch moves the drawing, never the page. touch-action alone
+  // is not enough: Safari on the iPhone can start scrolling anyway (and cancels the stroke), so the moves are held
+  // back here (needs a non-passive listener). Pointer events come before their touch events, so the stroke is known.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onTouchMove = (e: TouchEvent) => {
+      const g = gesture.current;
+      const ours = stroke.current !== null || g.kind === 'pinch' || (g.kind === 'press' && g.start.zoom > 1);
+      if (ours && e.cancelable) e.preventDefault();
+    };
+    svg.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => svg.removeEventListener('touchmove', onTouchMove);
+  }, [svgRef]);
+
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.pointerType === 'pen') {
       // A pen means a tablet: pen mode, where fingers never draw

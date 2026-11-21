@@ -30,16 +30,12 @@ function deviation(points: P2[]): number {
   return Math.max(...points.map((p) => Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / L));
 }
 
-/** Times the stroke turns back along its longer direction (a scribble goes back and forth) */
-function reversals(points: P2[], tol: number): number {
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const alongX = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys);
+/** Times the stroke turns back along one axis (more than `tol` each way) */
+function reversalsAlong(values: number[], tol: number): number {
   let turns = 0;
   let dir = 0;
-  let anchor = alongX ? xs[0] : ys[0];
-  for (const p of points) {
-    const v = alongX ? p.x : p.y;
+  let anchor = values[0];
+  for (const v of values) {
     const d = v - anchor;
     if (Math.abs(d) < tol) continue;
     const s = Math.sign(d);
@@ -50,6 +46,26 @@ function reversals(points: P2[], tol: number): number {
   return turns;
 }
 
+/**
+ * Times a scribble goes back and forth, on whichever axis it does so most. A scribble over a line usually crosses it
+ * while drifting along it, so the back and forth can be on the shorter axis.
+ */
+function reversals(points: P2[], tol: number): number {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return Math.max(reversalsAlong(xs, tol), reversalsAlong(ys, tol));
+}
+
+/** Whether segment p1-p2 crosses segment q1-q2 */
+function crosses(p1: P2, p2: P2, q1: P2, q2: P2): boolean {
+  const side = (a: P2, b: P2, c: P2) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const d1 = side(q1, q2, p1);
+  const d2 = side(q1, q2, p2);
+  const d3 = side(p1, p2, q1);
+  const d4 = side(p1, p2, q2);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
 /** What a stroke is. `tol` is a small distance in the stroke's units (a few screen pixels). */
 export function classifyStroke(points: P2[], tol: number): Stroke {
   if (points.length === 0) return { kind: 'other' };
@@ -58,7 +74,8 @@ export function classifyStroke(points: P2[], tol: number): Stroke {
   const len = pathLength(points);
   if (len < tol) return { kind: 'tap', at: first };
   const chord = dist(first, last);
-  if (len > 2.5 * Math.max(chord, tol) && reversals(points, tol) >= 2) return { kind: 'scribble' };
+  // Back and forth at least twice, and far longer than the distance it got: a straight or curved line is neither
+  if (len > 1.8 * Math.max(chord, tol) && reversals(points, tol) >= 2) return { kind: 'scribble' };
   if (chord >= 3 * tol && deviation(points) <= Math.max(tol, 0.1 * chord)) return { kind: 'line', from: first, to: last };
   return { kind: 'other' };
 }
@@ -127,9 +144,13 @@ export function penSegment(
   return { design: d, a, b, added };
 }
 
-/** Which drawn piece a scribble covers: the one most of its points lie near (segments in the stroke's units) */
+/**
+ * Which drawn piece a scribble covers (segments in the stroke's units): the one it crosses most, back and forth at
+ * least twice, or else the one most of its points lie near (a scribble along the piece). A finger crosses a line
+ * fast and turns slowly away from it, so few of its points are near the line itself; the crossings count instead.
+ */
 export function scribbleTarget(points: P2[], segments: { id: string; x1: number; y1: number; x2: number; y2: number; w: number }[], tol: number): string | null {
-  let best: { id: string; hits: number } | null = null;
+  let best: { id: string; crossings: number; hits: number } | null = null;
   for (const s of segments) {
     const dx = s.x2 - s.x1;
     const dy = s.y2 - s.y1;
@@ -139,7 +160,13 @@ export function scribbleTarget(points: P2[], segments: { id: string; x1: number;
       const t = L2 > 0 ? Math.max(0, Math.min(1, ((p.x - s.x1) * dx + (p.y - s.y1) * dy) / L2)) : 0;
       if (dist(p, { x: s.x1 + t * dx, y: s.y1 + t * dy }) <= tol + s.w / 2) hits++;
     }
-    if (hits > 0 && (!best || hits > best.hits)) best = { id: s.id, hits };
+    let crossings = 0;
+    const q1 = { x: s.x1, y: s.y1 };
+    const q2 = { x: s.x2, y: s.y2 };
+    for (let i = 1; i < points.length; i++) if (crosses(points[i - 1], points[i], q1, q2)) crossings++;
+    const covered = crossings >= 2 || hits >= Math.max(2, points.length * 0.3);
+    if (!covered) continue;
+    if (!best || crossings > best.crossings || (crossings === best.crossings && hits > best.hits)) best = { id: s.id, crossings, hits };
   }
-  return best && best.hits >= Math.max(2, points.length * 0.3) ? best.id : null;
+  return best ? best.id : null;
 }
