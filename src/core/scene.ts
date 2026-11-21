@@ -501,7 +501,8 @@ export function prepareScene(raw: unknown): Prepared {
     if (from && to) dimensions.push({ from, to, label });
   }
 
-  if (members.length === 0) errors.push('אין במודל אף פרופיל תקין');
+  // A box of sheet alone (a tank) is a model too
+  if (members.length === 0 && plates.length === 0) errors.push('אין במודל אף פרופיל תקין');
 
   return {
     scene: {

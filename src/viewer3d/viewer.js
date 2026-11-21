@@ -330,6 +330,7 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
 
     for (const m of sc.members) {
       const info = {
+        id: m.id ?? null,
         mark: cut.markOf[m.id] || null,
         text: `${C.sectionName(m.profile, m.size, m.material)}, ${fmt(Math.round(C.memberLength(m)))} מ״מ${m.via ? ' (מכופף)' : ''}${m.label ? `, ${m.label}` : ''}`,
       };
@@ -342,7 +343,7 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
     for (const p of sc.plates) {
       const mesh = plateMesh(p);
       mesh.castShadow = mesh.receiveShadow = true;
-      mesh.userData.info = { mark: null, text: `${p.label || 'פח'} ${p.thickness} מ״מ, ${fmt(Math.max(...p.size))}/${fmt(Math.min(...p.size))}` };
+      mesh.userData.info = { id: p.id ?? null, mark: null, text: `${p.label || 'פח'} ${p.thickness} מ״מ, ${fmt(Math.max(...p.size))}/${fmt(Math.min(...p.size))}` };
       holder(p.group).add(mesh);
     }
     for (const p of sc.parts) {

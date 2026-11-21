@@ -15,19 +15,23 @@ import {
   addBlock,
   addInfill,
   addMember,
+  addPlate,
   allGuessed,
   blockReport,
   compileDesign,
+  elementOf,
   gridLines,
   guessCount,
   guesses,
   memberCutLengths,
   newDesign,
+  plateError,
   readDesign,
   removeBlock,
   removeInfill,
   removeLastBay,
   removeMember,
+  removePlate,
   SIZE_FIELDS,
   setSpacing,
   sizeFromFields,
@@ -35,10 +39,11 @@ import {
   updateBlock,
   updateInfill,
   updateMember,
+  updatePlate,
   xLineName,
   zLineName,
 } from '../core/design.ts';
-import type { Design, DesignNode, GridAxis, ProfileChoice } from '../core/design.ts';
+import type { Design, DesignNode, GridAxis, PlateFit, ProfileChoice } from '../core/design.ts';
 import { BLOCKS, BLOCK_KINDS, blockParam, blockProfile, placementError } from '../core/blocks.ts';
 import type { BlockKind, ParamSpec } from '../core/blocks.ts';
 import { PROFILES, arcPoint, arcThrough, cutList, halfExtent, prepareScene, sectionAxes, sectionName, sub, norm } from '../core/scene.ts';
@@ -64,7 +69,14 @@ interface View {
   kind: ViewKind;
   line: number;
 }
-type Selected = { kind: 'member' | 'infill' | 'block'; id: string } | null;
+type Selected = { kind: 'member' | 'infill' | 'block' | 'plate'; id: string } | null;
+/** What two taps on the grid will place: a block, or a plate */
+type Placing = BlockKind | 'plate';
+const PLATE_SPEC = { label: 'פח', about: 'משטח בין קווי הרשת: קיר, רצפה, כיסוי או פאנל.', place: 'גע בשתי פינות נגדיות של המשטח.' };
+const placingSpec = (p: Placing) => (p === 'plate' ? PLATE_SPEC : BLOCKS[p]);
+/** "4 חלקים, 6 פחים": the profile pieces, and the plates when there are some */
+const partsLine = (pieces: number, plates: number) =>
+  [pieces > 0 || plates === 0 ? `${pieces} חלקים` : null, plates === 1 ? 'פח אחד' : plates > 1 ? `${plates} פחים` : null].filter(Boolean).join(', ');
 type SheetState = { kind: 'grid' } | { kind: 'profile' } | { kind: 'blocks' } | { kind: 'sketch' } | { kind: 'dim'; axis: GridAxis; index: number } | null;
 
 const AXIS_I: Record<GridAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
@@ -129,7 +141,7 @@ export function DesignBuilder({
   const [selected, setSelected] = useState<Selected>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [current, setCurrent] = useState<ProfileChoice>(() => loadJson<ProfileChoice>(profileKey) ?? DEFAULT_PROFILE);
-  const [placing, setPlacing] = useState<BlockKind | null>(null);
+  const [placing, setPlacing] = useState<Placing | null>(null);
   // What the AI said about a sketch it read: things it guessed, and how many pieces it left out
   const [fromSketch, setFromSketch] = useState<{ notes: string[]; missed: number } | null>(null);
   // Drawing by hand on the grid: a finger on the phone, or a pen on a tablet, where it turns on by itself the first
@@ -170,7 +182,7 @@ export function DesignBuilder({
   );
   const dirty = edited || outdated;
   const prepared = useMemo(() => prepareScene(layout), [layout]);
-  const usable = prepared.errors.length === 0 && prepared.scene.members.length > 0;
+  const usable = prepared.errors.length === 0 && prepared.scene.members.length + prepared.scene.plates.length > 0;
   const cut = useMemo(() => (usable ? cutList(prepared.scene) : null), [usable, prepared]);
   const lengths = useMemo(() => memberCutLengths(design), [design]);
 
@@ -193,6 +205,17 @@ export function DesignBuilder({
     setSelected(null);
     if (!pending) return setPending(n);
     if (pending.join() === n.join()) return setPending(null);
+    if (placing === 'plate') {
+      const wrong = plateError(pending, n);
+      if (wrong) return toast(wrong);
+      const { design: next, id } = addPlate(design, pending, n);
+      if (!id) return;
+      change(next);
+      setPlacing(null);
+      setPending(null);
+      setSelected({ kind: 'plate', id });
+      return;
+    }
     if (placing) {
       const wrong = placementError(placing, pending, n);
       if (wrong) return toast(wrong);
@@ -217,6 +240,16 @@ export function DesignBuilder({
     setPending(null);
     setSelected(null);
     if (r.a.join() === r.b.join()) return;
+    if (placing === 'plate') {
+      const wrong = plateError(r.a, r.b);
+      if (wrong) return toast(wrong);
+      const plate = addPlate(r.design, r.a, r.b);
+      if (!plate.id) return;
+      change(plate.design);
+      setPlacing(null);
+      setSelected({ kind: 'plate', id: plate.id });
+      return;
+    }
     if (placing) {
       const wrong = placementError(placing, r.a, r.b);
       if (wrong) return toast(wrong);
@@ -244,11 +277,12 @@ export function DesignBuilder({
     toast('הסקיצה נקראה. בודקים את המידות ומתקנים בנגיעה.');
   };
 
-  /** A scribble over a piece removes it */
+  /** A scribble over a piece removes it (or "מחק" on a piece picked in 3D) */
   const erase = (s: Selected) => {
     if (!s) return;
     if (s.kind === 'member') change(removeMember(design, s.id));
     else if (s.kind === 'infill') change(removeInfill(design, s.id));
+    else if (s.kind === 'plate') change(removePlate(design, s.id));
     else change(removeBlock(design, s.id));
     setSelected(null);
     toast('נמחק. אפשר לבטל.');
@@ -289,12 +323,21 @@ export function DesignBuilder({
     setView({ kind, line: 0 });
     setPending(null);
   };
-  const startBlock = (kind: BlockKind) => {
+  const startBlock = (kind: Placing) => {
     setSheet(null);
     setSelected(null);
     setPending(null);
     setPlacing(kind);
-    if (kind === 'platform') {
+    if (kind === 'plate') {
+      if (!FLAT(view.kind)) setView({ kind: 'front', line: 0 });
+    } else if (kind === 'tank') {
+      // A tank is marked in plan, on the level it stands on, and needs depth
+      if (design.grid.z.length === 0) {
+        change(addBay(design, 'z'));
+        toast('נוסף עומק של 1,000 מ״מ. אפשר לשנות אותו במידה.');
+      }
+      if (view.kind !== 'plan') setView({ kind: 'plan', line: 0 });
+    } else if (kind === 'platform') {
       // A platform is marked in plan, on a level above the ground, and needs depth
       if (design.grid.z.length === 0) {
         change(addBay(design, 'z'));
@@ -325,6 +368,7 @@ export function DesignBuilder({
   const selMember = sel?.kind === 'member' ? design.members.find((m) => m.id === sel.id) : undefined;
   const selInfill = sel?.kind === 'infill' ? design.infills.find((f) => f.id === sel.id) : undefined;
   const selBlock = sel?.kind === 'block' ? design.blocks.find((k) => k.id === sel.id) : undefined;
+  const selPlate = sel?.kind === 'plate' ? design.plates.find((p) => p.id === sel.id) : undefined;
 
   return (
     <div>
@@ -446,7 +490,26 @@ export function DesignBuilder({
         {!FLAT(view.kind) && !(usable && cut) ? (
           <p className="plate rounded-md p-5 text-center text-muted">עוד אין חלקים. בחזית, גע בשתי נקודות ברשת.</p>
         ) : view.kind === '3d' && cut ? (
-          <ModelView prepared={prepared} cut={cut} designKey="builder" title={job.title} />
+          <ModelView
+            prepared={prepared}
+            cut={cut}
+            designKey="builder"
+            title={job.title}
+            onEdit={(id) => {
+              const s = elementOf(design, id);
+              if (!s) return false;
+              setPending(null);
+              setPlacing(null);
+              setSelected(s);
+              return true;
+            }}
+            onDelete={(id) => {
+              const s = elementOf(design, id);
+              if (!s) return false;
+              erase(s);
+              return true;
+            }}
+          />
         ) : view.kind === 'sheet' && cut ? (
           <ModelDrawing scene={prepared.scene} cut={cut} businessName={businessName} />
         ) : axes && axes.u === 'z' && design.grid.z.length === 0 ? (
@@ -484,8 +547,8 @@ export function DesignBuilder({
       {placing ? (
         <div className="mt-1.5 flex items-start gap-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
           <p className="min-w-0 flex-1">
-            <span className="font-semibold">{BLOCKS[placing].label}: </span>
-            {pending ? 'עכשיו הנקודה השנייה.' : BLOCKS[placing].place}
+            <span className="font-semibold">{placingSpec(placing).label}: </span>
+            {pending ? (placing === 'plate' ? 'עכשיו הפינה הנגדית.' : 'עכשיו הנקודה השנייה.') : placingSpec(placing).place}
           </p>
           <button
             type="button"
@@ -515,7 +578,7 @@ export function DesignBuilder({
           </p>
         )
       )}
-      {design.members.length === 0 && design.blocks.length === 0 && !placing && (
+      {design.members.length === 0 && design.blocks.length === 0 && design.plates.length === 0 && !placing && (
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button type="button" onClick={startSketch} className="flex min-h-11 items-center justify-center gap-2 rounded-md border border-dashed border-line-strong px-2 text-[0.9rem] font-semibold">
             <Icon name="pencil" size={18} />
@@ -569,7 +632,7 @@ export function DesignBuilder({
       {outdated && <p className="mt-1.5 px-1 text-[0.85rem] text-muted">אורכי החיתוך חושבו מחדש. שמור כדי לעדכן את השרטוט.</p>}
       {cut && (
         <p className="tnum mt-1.5 px-1 text-[0.85rem] text-muted">
-          {cut.pieces.reduce((s, p) => s + p.count, 0)} חלקים, בערך {fmtNum(Math.round(cut.totalKg))} ק״ג
+          {partsLine(cut.pieces.reduce((s, p) => s + p.count, 0), cut.plates.reduce((s, p) => s + p.count, 0))}, בערך {fmtNum(Math.round(cut.totalKg))} ק״ג
           {guessed > 0 && <span className="text-accent">{guessed === 1 ? ', מידה אחת משוערת' : `, ${guessed} מידות משוערות`}</span>}
         </p>
       )}
@@ -612,6 +675,18 @@ export function DesignBuilder({
           />
         )}
       </Sheet>
+      <Sheet open={selPlate !== undefined} onClose={() => setSelected(null)} title="פח">
+        {selPlate && (
+          <PlateEditor
+            key={selPlate.id}
+            design={design}
+            id={selPlate.id}
+            piece={prepared.scene.plates.find((p) => p.id === selPlate.id) ?? null}
+            onChange={change}
+            onClose={() => setSelected(null)}
+          />
+        )}
+      </Sheet>
       <Sheet open={sheet?.kind === 'sketch'} onClose={() => setSheet(null)} title="לבנות מסקיצה">
         {sheet?.kind === 'sketch' && <SketchReader job={job} onRead={sketchRead} />}
       </Sheet>
@@ -620,6 +695,10 @@ export function DesignBuilder({
           <button type="button" onClick={() => setSheet({ kind: 'sketch' })} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
             <span className="font-semibold">מסקיצה או PDF</span>
             <span className="text-[0.85rem] text-muted">צילום של שרטוט ביד: הרשת, המידות והחלקים ממנו. מחליף את מה שמשורטט.</span>
+          </button>
+          <button type="button" onClick={() => startBlock('plate')} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
+            <span className="font-semibold">{PLATE_SPEC.label}</span>
+            <span className="text-[0.85rem] text-muted">{PLATE_SPEC.about}</span>
           </button>
           {BLOCK_KINDS.map((k) => (
             <button key={k} type="button" onClick={() => startBlock(k)} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
@@ -790,6 +869,19 @@ function GridCanvas({
       crossing.push({ m, x: sx(a[ui]), y: sy(a[vi]), w: Math.max(6, 2 * halfExtent(m, f, n, eu) * k), h: Math.max(6, 2 * halfExtent(m, f, n, ev) * k) });
     }
   }
+  // Plates of the design, and of blocks placed in another view: face on when they lie on (or by) this plane, as a
+  // thin strip when they cross it
+  const sheets: { id: string; x: number; y: number; w: number; h: number; face: boolean }[] = [];
+  for (const p of scene.plates) {
+    const block = blockOf(p.id);
+    if (block ? own.has(block) : !design.plates.some((d) => d.id === p.id)) continue;
+    const h: Vec3 = p.normal === 'y' ? [p.size[0] / 2, p.thickness / 2, p.size[1] / 2] : p.normal === 'x' ? [p.thickness / 2, p.size[1] / 2, p.size[0] / 2] : [p.size[0] / 2, p.size[1] / 2, p.thickness / 2];
+    const face = AXIS_I[p.normal] === pi;
+    if (face ? Math.abs(p.center[pi] - plane) > 150 : plane < p.center[pi] - h[pi] - 150 || plane > p.center[pi] + h[pi] + 150) continue;
+    const y1 = sy(p.center[vi] - h[vi]);
+    const y2 = sy(p.center[vi] + h[vi]);
+    sheets.push({ id: p.id, x: sx(p.center[ui] - h[ui]), y: Math.min(y1, y2), w: Math.max(2, 2 * h[ui] * k), h: Math.max(2, Math.abs(y2 - y1)), face });
+  }
   for (const p of scene.plates) {
     const block = blockOf(p.id);
     if (!block || !own.has(block)) continue;
@@ -797,12 +889,7 @@ function GridCanvas({
     seenPlates.push({ id: p.id, x: sx(p.center[ui] - h[ui]), y: Math.min(sy(p.center[vi] - h[vi]), sy(p.center[vi] + h[vi])), w: 2 * h[ui] * k, h: Math.max(1.5, 2 * h[vi] * k) });
   }
 
-  const pickOf = (id: string): Selected => {
-    const block = blockOf(id);
-    if (block && design.blocks.some((x) => x.id === block)) return { kind: 'block', id: block };
-    const base = id.split('#')[0];
-    return design.infills.some((f) => f.id === base) ? { kind: 'infill', id: base } : { kind: 'member', id: base };
-  };
+  const pickOf = (id: string): Selected => elementOf(design, id);
   const isSelected = (id: string) => selected !== null && (id.split('#')[0] === selected.id || blockOf(id) === selected.id);
 
   const uChainY = M.top + vMax * k + 24;
@@ -832,6 +919,21 @@ function GridCanvas({
       ))}
       {V.map((v, j) => (
         <line key={`v${j}`} x1={M.left - 6} x2={M.left + uMax * k + 6} y1={sy(v)} y2={sy(v)} className="stroke-line" strokeWidth={z} strokeDasharray={`${4 * z} ${4 * z}`} />
+      ))}
+
+      {/* plates */}
+      {sheets.map((p) => (
+        <rect
+          key={p.id}
+          x={p.x}
+          y={p.y}
+          width={p.w}
+          height={p.h}
+          onClick={() => onPick(pickOf(p.id))}
+          className={`cursor-pointer ${isSelected(p.id) ? 'fill-accent stroke-accent' : p.face ? 'fill-muted stroke-muted' : 'fill-ink stroke-ink'}`}
+          fillOpacity={p.face ? 0.16 : 0.7}
+          strokeWidth={z}
+        />
       ))}
 
       {/* members */}
@@ -1260,6 +1362,103 @@ function InfillEditor({ design, id, onChange, onClose }: { design: Design; id: s
 }
 
 /** A block's numbers and profiles; what it works out to, and a warning when something looks off */
+const THICKNESSES = [1.5, 2, 3, 4, 5, 6, 8, 10];
+const FIT_LABELS: Record<PlateFit, string> = { face: 'על המסגרת', inside: 'בתוך המסגרת', center: 'על קווי הרשת' };
+/** The two faces of a plate's frame, by the plane it lies in: +1 first */
+const SIDE_LABELS: Record<GridAxis, [string, string]> = { z: ['מלפנים', 'מאחור'], x: ['מימין', 'משמאל'], y: ['מלמעלה', 'מלמטה'] };
+
+function PlateEditor({
+  design,
+  id,
+  piece,
+  onChange,
+  onClose,
+}: {
+  design: Design;
+  id: string;
+  /** The plate as the layout has it (its real size), when it has one */
+  piece: { size: [number, number]; thickness: number } | null;
+  onChange: (d: Design) => void;
+  onClose: () => void;
+}) {
+  const plate = design.plates.find((p) => p.id === id);
+  const [label, setLabel] = useState(plate?.label ?? '');
+  if (!plate) return null;
+  const axis = (['x', 'y', 'z'] as GridAxis[]).find((a) => plate.a[AXIS_I[a]] === plate.b[AXIS_I[a]]) ?? 'z';
+  const set = (patch: Parameters<typeof updatePlate>[2]) => onChange(updatePlate(design, id, patch));
+  const [w, h] = piece ? [Math.max(...piece.size), Math.min(...piece.size)] : [0, 0];
+  const choice = (active: boolean) => `min-h-10 rounded-md border px-3 text-[0.9rem] font-semibold ${active ? 'border-ink bg-ink text-white' : 'border-line-strong bg-card'}`;
+
+  return (
+    <div className="space-y-4">
+      {piece && (
+        <p className="tnum text-[0.95rem]">
+          {fmtNum(Math.round(w))}/{fmtNum(Math.round(h))} מ״מ, בערך {fmtNum(Math.round((w * h * piece.thickness * 7.85) / 1e6))} ק״ג
+        </p>
+      )}
+      <div>
+        <span className="mb-1 block text-[0.85rem] text-muted">עובי, מ״מ</span>
+        <div className="flex flex-wrap gap-1.5">
+          {THICKNESSES.map((t) => (
+            <button key={t} type="button" onClick={() => set({ thickness: t })} aria-pressed={plate.thickness === t} className={`tnum ${choice(plate.thickness === t)}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+      <ParamRow
+        key={`t-${plate.thickness}`}
+        spec={{ key: 'thickness', label: 'עובי אחר', def: 3, min: 0.5, max: 50 }}
+        value={plate.thickness}
+        onChange={(t) => set({ thickness: t })}
+      />
+      <div>
+        <span className="mb-1 block text-[0.85rem] text-muted">איפה הוא יושב</span>
+        <div className="flex flex-wrap gap-1.5">
+          {(Object.keys(FIT_LABELS) as PlateFit[]).map((f) => (
+            <button key={f} type="button" onClick={() => set({ fit: f })} aria-pressed={plate.fit === f} className={choice(plate.fit === f)}>
+              {FIT_LABELS[f]}
+            </button>
+          ))}
+        </div>
+      </div>
+      {plate.fit === 'face' && (
+        <div>
+          <span className="mb-1 block text-[0.85rem] text-muted">על איזה צד של המסגרת</span>
+          <div className="flex flex-wrap gap-1.5">
+            {([1, -1] as const).map((side, i) => (
+              <button key={side} type="button" onClick={() => set({ side })} aria-pressed={plate.side === side} className={choice(plate.side === side)}>
+                {SIDE_LABELS[axis][i]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <label className="block">
+        <span className="mb-1 block text-[0.85rem] text-muted">שם (לא חובה)</span>
+        <input
+          className="field"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          onBlur={() => label !== (plate.label ?? '') && set({ label: label.trim() || undefined })}
+          placeholder="דופן, רצפה, כיסוי..."
+        />
+      </label>
+      <button
+        type="button"
+        onClick={() => {
+          onChange(removePlate(design, id));
+          onClose();
+        }}
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-danger font-semibold text-danger"
+      >
+        <Icon name="trash" size={18} />
+        מחק פח
+      </button>
+    </div>
+  );
+}
+
 function BlockEditor({ design, id, onChange, onClose }: { design: Design; id: string; onChange: (d: Design) => void; onClose: () => void }) {
   const [open, setOpen] = useState<string | null>(null);
   const block = design.blocks.find((x) => x.id === id);

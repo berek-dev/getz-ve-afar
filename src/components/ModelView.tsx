@@ -20,6 +20,8 @@ export function ModelView({
   footer,
   overlay,
   showGround = true,
+  onEdit,
+  onDelete,
 }: {
   prepared: Prepared;
   cut: CutList;
@@ -30,6 +32,9 @@ export function ModelView({
   /** Drawn over the model (e.g. "working on it") */
   overlay?: ReactNode;
   showGround?: boolean;
+  /** A picked piece can be edited or deleted where it came from (the hand builder); false when it can't */
+  onEdit?: (id: string) => boolean;
+  onDelete?: (id: string) => boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const viewer = useRef<Viewer | null>(null);
@@ -131,6 +136,30 @@ export function ModelView({
               {pick.mark && <b className="text-accent">{pick.mark} </b>}
               {pick.text}
             </p>
+            {pick.id && onEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (pick.id && onEdit(pick.id)) viewer.current?.clearSelection();
+                }}
+                className="flex h-11 shrink-0 items-center gap-1 px-2 font-semibold"
+              >
+                <Icon name="pencil" size={16} />
+                עריכה
+              </button>
+            )}
+            {pick.id && onDelete && (
+              <button
+                type="button"
+                aria-label="מחק"
+                onClick={() => {
+                  if (pick.id && onDelete(pick.id)) viewer.current?.clearSelection();
+                }}
+                className="grid h-11 w-11 shrink-0 place-items-center"
+              >
+                <Icon name="trash" size={18} />
+              </button>
+            )}
             <button
               type="button"
               aria-label="סגור"

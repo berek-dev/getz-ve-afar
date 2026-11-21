@@ -6,6 +6,8 @@ import type { CutList, Prepared } from '../core/scene.ts';
 export type ViewerCore = typeof Scene & { BEAMS: typeof BEAMS };
 
 export interface PickInfo {
+  /** The piece's id in the layout (members and plates), to edit it where it came from */
+  id?: string | null;
   /** Cut-list mark (A, B, ...) for profile pieces */
   mark: string | null;
   text: string;

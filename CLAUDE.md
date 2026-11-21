@@ -39,8 +39,10 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
 - Building by hand ("לפי מידות" on the model step, `src/components/DesignBuilder.tsx`): a grid of typed spacings
   (X bays, Y levels, Z depth), members between grid points, base plates and infill bars (`src/core/design.ts`).
   `compileDesign` turns it into the normal layout (joints trimmed as a shop builds them: columns run through, beams
-  stop at their faces) and keeps the design inside it as `design`; saved with source `builder`. Blocks
-  (`src/core/blocks.ts`: stairs, platform, railing, ladder, gate) are placed by two grid points plus a few numbers;
+  stop at their faces) and keeps the design inside it as `design`; saved with source `builder`. Plates ("פח", `design.plates`) are placed by two
+  opposite grid corners in any view and sit on the face of the frame pieces on their edges (its outside size), inside
+  them, or on the grid lines; with nothing around them, on the lines. Blocks
+  (`src/core/blocks.ts`: stairs, platform, railing, ladder, gate, tank) are placed by two grid points plus a few numbers;
   their frame pieces go through the same joint rules (a railing post stops on the beam under it). Levels are
   finished floor: stair tops and platform decks sit at the grid level. The grid pinches and pans
   (`src/core/viewport.ts`). Drawing mode ("ציור", `src/core/pen.ts`): a straight stroke is a member, ends between
@@ -51,7 +53,8 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   guesses (`design.guess`, filled pills) until typed; the first number typed into an all-guess design scales all of
   it. Sizes are typed one number per field (`SIZE_FIELDS`): a phone's number pad has no "/". A hand sketch, tablet drawing or PDF is read by Gemini into the design format
   (`src/core/designPrompt.ts`, `POST /jobs/:id/model/sketch`, streamed) and opens as an unsaved draft; the same
-  instructions can go to Yaal's own AI app. The builder's "גיליון" view shows the shop drawing while planning.
+  instructions can go to Yaal's own AI app. The builder's "גיליון" view shows the shop drawing while planning;
+  in its 3D view a picked piece can be edited or deleted (`elementOf` maps a layout piece back to the design).
 - The shop drawing (`src/core/drawing.ts`, an A3 sheet) is shared as a PDF on A4 or A3 or as a PNG: the browser draws
   the SVG into a canvas (so Hebrew text is right) and `src/core/pdf.ts` wraps the deflated gray pixels in a one-page PDF.
 - Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).

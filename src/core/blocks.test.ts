@@ -183,3 +183,46 @@ test('blocks warn when something looks off', () => {
   const gone = { ...low.d, grid: { ...low.d.grid, x: [] as number[] } };
   assert.match(blockReport(gone, low.id).warn ?? '', /לא ברשת/);
 });
+
+test('a tank: a box of sheet with the outside size asked, its volume, and legs when it stands above the ground', () => {
+  const grid = { x: [1500], y: [800], z: [1000] };
+  const { d, id } = place({ ...newDesign(), grid }, 'tank', [0, 0, 0], [1, 0, 1], { height: 1000, sheet: 3 });
+  const s = scene(d);
+  const sheets = s.plates.filter((p) => p.id.startsWith(`${id}/`));
+  assert.deepEqual(sheets.map((p) => p.label), ['תחתית', 'דופן', 'דופן', 'דופן', 'דופן', 'מכסה']);
+  // The outside: 1,500/1,000/1,000 from the ground up
+  const b = metalBounds(s);
+  assert.deepEqual(b.min.map(Math.round), [0, 0, 0]);
+  assert.deepEqual(b.max.map(Math.round), [1500, 1000, 1000]);
+  // Side walls fit between the front and back walls, under the lid and over the bottom
+  assert.deepEqual(sheets[3].size, [994, 994]);
+  const report = blockReport(d, id);
+  assert.deepEqual(report.info, ['מידות חוץ 1,500/1,000/1,000 מ״מ', 'נפח פנימי בערך 1,476 ליטר']);
+  assert.equal(report.warn, null);
+  // 6 sheets: 2 of 1,500/1,000, 2 of 1,500/994, 2 of 994/994
+  const cut = cutList(s);
+  assert.deepEqual(cut.plates.map((p) => [p.w, p.h, p.count]).sort(), [[1500, 1000, 2], [1500, 994, 2], [994, 994, 2]].sort());
+  assert.deepEqual(cut.pieces, []);
+
+  // Open on top, on legs, standing on the 800 level
+  const raised = place({ ...newDesign(), grid }, 'tank', [0, 1, 0], [1, 1, 1], { legs: 1, top: 0 });
+  const r = scene(raised.d);
+  assert.equal(r.plates.filter((p) => p.label === 'מכסה').length, 0);
+  const legs = r.members.filter((m) => m.label === 'רגל מיכל');
+  assert.equal(legs.length, 4);
+  assert.ok(legs.every((m) => bottom(m) >= 8 && Math.round(top(m)) === 800), 'on base plates, up to the bottom sheet');
+  assert.equal(Math.round(Math.min(...r.plates.filter((p) => p.label === 'תחתית').map((p) => p.center[1] - p.thickness / 2))), 800);
+});
+
+test('a tank checks itself: legs on the ground, a hatch too big, a big wall of thin sheet', () => {
+  const grid = { x: [1500], y: [800], z: [1000] };
+  const on = place({ ...newDesign(), grid }, 'tank', [0, 0, 0], [1, 0, 1], { legs: 1 });
+  assert.match(blockReport(on.d, on.id).warn ?? '', /על הקרקע/);
+  const hatch = place({ ...newDesign(), grid }, 'tank', [0, 0, 0], [1, 0, 1], { hatch: 950 });
+  assert.match(blockReport(hatch.d, hatch.id).warn ?? '', /הפתח גדול/);
+  const tall = place({ ...newDesign(), grid: { x: [2500], y: [800], z: [1000] } }, 'tank', [0, 0, 0], [1, 0, 1], { height: 1800 });
+  assert.match(blockReport(tall.d, tall.id).warn ?? '', /לבדוק מחזקים/);
+  assert.match(placementError('tank', [0, 0, 0], [1, 1, 1]) ?? '', /מפלס אחד/);
+  assert.match(placementError('tank', [0, 0, 0], [1, 0, 0]) ?? '', /פינות נגדיות/);
+  assert.equal(placementError('tank', [0, 0, 0], [1, 0, 1]), null);
+});

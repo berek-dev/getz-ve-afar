@@ -2,22 +2,27 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   addBay,
+  addBlock,
   addInfill,
+  addPlate,
   addMember,
   allGuessed,
   allGuesses,
   compileDesign,
+  elementOf,
   guessCount,
   guesses,
   insertGridLine,
   memberCutLengths,
   newDesign,
   parseSize,
+  plateError,
   readDesign,
   removeLastBay,
   setSpacing,
   sizeFromFields,
   updateMember,
+  updatePlate,
 } from './design.ts';
 import type { Design } from './design.ts';
 import { cutList, prepareScene } from './scene.ts';
@@ -192,4 +197,93 @@ test('a size typed one number per field: no "/" needed, a comma is a decimal poi
   assert.equal(sizeFromFields('flat', ['50', '']), null);
   assert.equal(sizeFromFields('flat', ['50/8', '']), null);
   assert.equal(sizeFromFields('flat', ['-5', '8']), null);
+});
+
+/** A 2,000/1,500 frame of 60/60/3: two posts, a top beam and a rail lying on the ground */
+function frame2000(): Design {
+  const sq = { profile: 'rect_tube' as const, size: [60, 60, 3] };
+  let d: Design = { ...newDesign(), grid: { x: [2000], y: [1500], z: [] } };
+  for (const [a, b] of [
+    [[0, 0, 0], [0, 1, 0]],
+    [[1, 0, 0], [1, 1, 0]],
+    [[0, 1, 0], [1, 1, 0]],
+    [[0, 0, 0], [1, 0, 0]],
+  ] as [Design['members'][number]['a'], Design['members'][number]['a']][])
+    d = addMember(d, a, b, sq).design;
+  return d;
+}
+const platesOf = (d: Design) => (compileDesign(d, 't').plates as { id: string; center: number[]; size: number[]; normal: string; thickness: number }[]).filter((p) => p.id.startsWith('p'));
+
+test('a plate on a frame covers its outside and sits on its face; inside, it fits between the pieces', () => {
+  const placed = addPlate(frame2000(), [0, 0, 0], [1, 1, 0], 3);
+  assert.ok(placed.id);
+  const plate = placed.design.plates[0];
+  assert.equal(plate.fit, 'face', 'there is a frame around it');
+  // Outside of the posts and the top beam; the bottom rail sits on the ground, so the plate starts at the ground
+  assert.deepEqual(platesOf(placed.design)[0], { id: plate.id, center: [1000, 765, 31.5], size: [2060, 1530], normal: 'z', thickness: 3, label: 'פח' });
+  const back = updatePlate(placed.design, plate.id, { side: -1 });
+  assert.equal(platesOf(back)[0].center[2], -31.5);
+  // Inside: between the posts, from the top of the rail to the underside of the beam
+  const inside = updatePlate(placed.design, plate.id, { fit: 'inside' });
+  assert.deepEqual(platesOf(inside)[0].size, [1940, 1410]);
+  assert.deepEqual(platesOf(inside)[0].center, [1000, 765, 0]);
+});
+
+test('a plate on its own stays on the grid lines; one on the ground lies on it; a floor sits on its beams', () => {
+  const alone = addPlate({ ...newDesign(), grid: { x: [1200], y: [800], z: [600] } }, [0, 0, 0], [1, 0, 1], 4);
+  assert.equal(alone.design.plates[0].fit, 'center');
+  assert.deepEqual(platesOf(alone.design)[0], { id: alone.id, center: [600, 2, 300], size: [1200, 600], normal: 'y', thickness: 4, label: 'פח' });
+  // A floor on four beams at 1,000
+  const sq = { profile: 'rect_tube' as const, size: [60, 60, 3] };
+  let d: Design = { ...newDesign(), grid: { x: [2000], y: [1000], z: [1000] } };
+  for (const [a, b] of [
+    [[0, 1, 0], [1, 1, 0]],
+    [[0, 1, 1], [1, 1, 1]],
+    [[0, 1, 0], [0, 1, 1]],
+    [[1, 1, 0], [1, 1, 1]],
+  ] as [Design['members'][number]['a'], Design['members'][number]['a']][])
+    d = addMember(d, a, b, sq).design;
+  const floor = addPlate(d, [0, 1, 0], [1, 1, 1], 3);
+  assert.deepEqual(platesOf(floor.design)[0].center, [1000, 1031.5, 500]);
+  assert.deepEqual(platesOf(floor.design)[0].size, [2060, 1060]);
+  // Its weight comes through to the cut list: 2.06 x 1.06 m of 3 mm steel
+  const cut = cutList(prepareScene(JSON.parse(JSON.stringify(compileDesign(floor.design, 't')))).scene);
+  assert.equal(cut.plates.length, 1);
+  assert.ok(Math.abs(cut.plates[0].kg - 2.06 * 1.06 * 3 * 7.85) < 1);
+});
+
+test('plates need two opposite corners; they move with the grid, go with the last bay, and read back', () => {
+  assert.match(plateError([0, 0, 0], [1, 0, 0]) ?? '', /לא על אותו קו/);
+  assert.match(plateError([0, 0, 0], [1, 1, 1]) ?? '', /באותו מבט/);
+  assert.equal(addPlate(newDesign(), [0, 0, 0], [0, 0, 0]).id, null);
+  const d = addPlate(frame2000(), [0, 0, 0], [1, 1, 0]).design;
+  const split = insertGridLine(d, 'x', 500).design;
+  assert.deepEqual([split.plates[0].a, split.plates[0].b], [[0, 0, 0], [2, 1, 0]]);
+  const { design: fewer, removed } = removeLastBay(split, 'x');
+  assert.equal(fewer.plates.length, 0);
+  assert.ok(removed >= 1);
+  const back = readDesign(JSON.parse(JSON.stringify(compileDesign(d, 't').design)));
+  assert.deepEqual(back?.plates, d.plates);
+  assert.deepEqual(readDesign({ ...d, plates: [{ id: 'x', a: [0, 0, 0], b: [1, 0, 0], thickness: 3 }, { id: 'y', a: [0, 0, 0], b: [1, 1, 0] }] })?.plates, []);
+});
+
+test('a piece picked in 3D leads back to what the design holds: member, base plate, infill bars, plate, block', () => {
+  let d = frame2000();
+  const post = d.members[0].id;
+  d = updateMember(d, post, { base: { w: 200, d: 200, t: 10 } });
+  d = addInfill(d, [d.members[2].id, d.members[3].id], { profile: 'square_bar', size: [16] }, 100).design;
+  const fill = d.infills[0].id;
+  d = addPlate(d, [0, 0, 0], [1, 1, 0]).design;
+  const plate = d.plates[0].id;
+  const layout = compileDesign(d, 't') as { members: { id: string }[]; plates: { id: string }[] };
+  const ids = [...layout.members.map((m) => m.id), ...layout.plates.map((p) => p.id)];
+  assert.ok(ids.includes(`${post}-base`) && ids.includes(fill) && ids.includes(plate));
+  assert.deepEqual(elementOf(d, post), { kind: 'member', id: post });
+  assert.deepEqual(elementOf(d, `${post}-base`), { kind: 'member', id: post });
+  assert.deepEqual(elementOf(d, fill), { kind: 'infill', id: fill });
+  assert.deepEqual(elementOf(d, plate), { kind: 'plate', id: plate });
+  const deep = addBlock({ ...d, grid: { ...d.grid, z: [800] } }, 'tank', [0, 0, 0], [1, 0, 1]);
+  assert.deepEqual(elementOf(deep.design, `${deep.id}/front`), { kind: 'block', id: deep.id });
+  assert.equal(elementOf(d, 'b9/front'), null);
+  assert.equal(elementOf(d, 'nothing'), null);
 });

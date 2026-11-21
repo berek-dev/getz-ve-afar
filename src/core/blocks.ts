@@ -1,5 +1,5 @@
 /**
- * Ready-made blocks for the hand builder: stairs, a platform, a railing, a ladder and a gate. Each is placed by
+ * Ready-made blocks for the hand builder: stairs, a platform, a railing, a ladder, a gate and a tank. Each is placed by
  * two grid points and set by a few numbers and profiles. A block gives three kinds of pieces:
  * - frame pieces: centerlines that meet the rest of the frame by the shop's joint rules (design.ts), so a railing
  *   post stops on the beam under it and a gate rail stops at the stile;
@@ -12,8 +12,8 @@ import type { BasePlate, DesignNode, ProfileChoice } from './design.ts';
 import { add, arcPoint, arcThrough, dot, halfExtent, len, norm, scale, sectionAxes, sub } from './scene.ts';
 import type { Member, Part, Plate, Profile, Vec3 } from './scene.ts';
 
-export type BlockKind = 'stairs' | 'platform' | 'railing' | 'ladder' | 'gate';
-export const BLOCK_KINDS: readonly BlockKind[] = ['stairs', 'platform', 'railing', 'ladder', 'gate'];
+export type BlockKind = 'stairs' | 'platform' | 'railing' | 'ladder' | 'gate' | 'tank';
+export const BLOCK_KINDS: readonly BlockKind[] = ['stairs', 'platform', 'railing', 'ladder', 'gate', 'tank'];
 
 export interface DesignBlock {
   id: string;
@@ -212,6 +212,47 @@ export const BLOCKS: Record<BlockKind, BlockSpec> = {
       { key: 'post', label: 'עמוד', def: rect(100, 100, 4), when: (p) => p('posts') === 1 },
     ],
   },
+  tank: {
+    kind: 'tank',
+    label: 'מיכל',
+    about: 'תחתית, דפנות ומכסה מפח, ורגליים לפי הצורך',
+    place: 'במבט על: גע בשתי פינות נגדיות של המיכל, במפלס שעליו הוא עומד.',
+    params: [
+      { key: 'height', label: 'גובה חוץ', def: 1000, min: 200, max: 4000 },
+      { key: 'sheet', label: 'עובי פח', def: 3, min: 1, max: 12 },
+      {
+        key: 'top',
+        label: 'מכסה',
+        def: 1,
+        options: [
+          { value: 1, label: 'סגור' },
+          { value: 0, label: 'פתוח' },
+        ],
+      },
+      {
+        key: 'hatch',
+        label: 'פתח במכסה',
+        def: 500,
+        options: [
+          { value: 0, label: 'בלי' },
+          { value: 400, label: '400/400' },
+          { value: 500, label: '500/500' },
+          { value: 600, label: '600/600' },
+        ],
+        when: (p) => p('top') === 1,
+      },
+      {
+        key: 'legs',
+        label: 'רגליים',
+        def: 0,
+        options: [
+          { value: 0, label: 'בלי' },
+          { value: 1, label: 'עד הקרקע' },
+        ],
+      },
+    ],
+    roles: [{ key: 'leg', label: 'רגל', def: rect(60, 60, 3), when: (p) => p('legs') === 1 }],
+  },
 };
 
 /** A block's number, or its default */
@@ -245,6 +286,10 @@ export function placementError(kind: BlockKind, a: DesignNode, b: DesignNode): s
     case 'platform':
       if (!same(1)) return 'במה בגובה אחד: גע בשתי פינות באותו מפלס.';
       if (a[1] === 0) return 'במה צריכה גובה: מסמנים אותה במבט על, במפלס מעל הקרקע.';
+      if (same(0) || same(2)) return 'במבט על: גע בשתי פינות נגדיות, לא באותו קו.';
+      return null;
+    case 'tank':
+      if (!same(1)) return 'מיכל עומד במפלס אחד: גע בשתי פינות במבט על.';
       if (same(0) || same(2)) return 'במבט על: גע בשתי פינות נגדיות, לא באותו קו.';
       return null;
   }
@@ -351,7 +396,61 @@ export function buildBlock(b: DesignBlock, pa: Vec3, pb: Vec3, frames: Frame[]):
       return ladder(b.id, pa, pb, p, role);
     case 'gate':
       return gate(b.id, pa, pb, p, role, frames);
+    case 'tank':
+      return tank(b.id, pa, pb, p, role);
   }
+}
+
+/**
+ * A box of sheet: the two points are opposite outside corners of its footprint, standing on their level. The
+ * bottom is under the walls, the front and back walls run the full length, the side walls fit between them, and the
+ * lid (if closed) sits on the walls. Legs, if asked for, stand under the corners down to the ground.
+ */
+function tank(id: string, pa: Vec3, pb: Vec3, p: Read, role: Role): BlockOutput {
+  const out = empty();
+  const [x0, x1] = [Math.min(pa[0], pb[0]), Math.max(pa[0], pb[0])];
+  const [z0, z1] = [Math.min(pa[2], pb[2]), Math.max(pa[2], pb[2])];
+  const y0 = pa[1];
+  const L = x1 - x0;
+  const W = z1 - z0;
+  const H = p('height');
+  const t = p('sheet');
+  const closed = p('top') === 1;
+  const wall = H - t - (closed ? t : 0);
+  if (L <= 2 * t || W <= 2 * t || wall <= 0) {
+    out.warn = 'המיכל קטן מדי לעובי הפח.';
+    return out;
+  }
+  const xm = (x0 + x1) / 2;
+  const zm = (z0 + z1) / 2;
+  const yw = y0 + t + wall / 2;
+  out.plates.push(
+    { id: `${id}/bottom`, center: [xm, y0 + t / 2, zm], size: [L, W], normal: 'y', thickness: t, label: 'תחתית' },
+    { id: `${id}/front`, center: [xm, yw, z1 - t / 2], size: [L, wall], normal: 'z', thickness: t, label: 'דופן' },
+    { id: `${id}/back`, center: [xm, yw, z0 + t / 2], size: [L, wall], normal: 'z', thickness: t, label: 'דופן' },
+    { id: `${id}/left`, center: [x0 + t / 2, yw, zm], size: [W - 2 * t, wall], normal: 'x', thickness: t, label: 'דופן' },
+    { id: `${id}/right`, center: [x1 - t / 2, yw, zm], size: [W - 2 * t, wall], normal: 'x', thickness: t, label: 'דופן' },
+  );
+  if (closed) out.plates.push({ id: `${id}/lid`, center: [xm, y0 + H - t / 2, zm], size: [L, W], normal: 'y', thickness: t, label: 'מכסה' });
+
+  if (p('legs') === 1 && y0 > 0) {
+    const leg = role('leg');
+    const hx = half(leg, UP, [1, 0, 0]);
+    const hz = half(leg, UP, [0, 0, 1]);
+    let k = 0;
+    for (const x of [x0 + hx, x1 - hx])
+      for (const z of [z0 + hz, z1 - hz])
+        out.frames.push({ id: `${id}/leg${++k}`, ...leg, from: [x, 0, z], to: [x, y0, z], label: 'רגל מיכל', base: { w: 150, d: 150, t: 8 } });
+  }
+
+  const liters = ((L - 2 * t) * (W - 2 * t) * wall) / 1e6;
+  const hatch = closed ? p('hatch') : 0;
+  out.notes.push(`מיכל: פח ${fmt(t)} מ״מ, נפח פנימי בערך ${fmt(liters)} ליטר.${hatch > 0 ? ` פתח ${fmt(hatch)}/${fmt(hatch)} במכסה.` : ''}`);
+  out.info.push(`מידות חוץ ${fmt(L)}/${fmt(W)}/${fmt(H)} מ״מ`, `נפח פנימי בערך ${fmt(liters)} ליטר`);
+  if (p('legs') === 1 && y0 === 0) out.warn = 'המיכל עומד על הקרקע, אז אין לו רגליים. לרגליים מסמנים אותו במפלס מעל הקרקע.';
+  else if (hatch > 0 && (hatch > L - 2 * t - 100 || hatch > W - 2 * t - 100)) out.warn = 'הפתח גדול מדי למכסה.';
+  else if (t <= 3 && Math.max(L, W) > 1200 && wall > 1000) out.warn = `דופן של ${fmt(Math.max(L, W))}/${fmt(wall)} מ״מ בפח ${fmt(t)} מ״מ: לבדוק מחזקים או פח עבה יותר.`;
+  return out;
 }
 
 type Role = (k: string) => ProfileChoice;

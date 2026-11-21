@@ -1,6 +1,6 @@
 /**
- * A design built by hand, without AI: a grid of typed spacings, members between grid points, base plates and
- * infill bars. It compiles to the same layout JSON (scene.ts) the 3D viewer, shop drawing and cut list use, and
+ * A design built by hand, without AI: a grid of typed spacings, members between grid points, base plates, infill
+ * bars and plates (sheets between grid lines). It compiles to the same layout JSON (scene.ts) the 3D viewer, shop drawing and cut list use, and
  * travels inside that layout as `design`, so the builder can open it again.
  *
  * Grid: spacings along X (left to right), Y (levels, from the ground up) and Z (back to front, towards the
@@ -50,11 +50,31 @@ export interface DesignInfill {
   gap: number;
 }
 
+/**
+ * Where a plate sits against the parts around its edges: on their face (a sheet welded over the frame, the size of
+ * the frame's outside), inside them (a panel between them), or centred on the grid lines (a sheet on its own).
+ */
+export type PlateFit = 'face' | 'inside' | 'center';
+export const PLATE_FITS: readonly PlateFit[] = ['face', 'inside', 'center'];
+
+export interface DesignPlate {
+  id: string;
+  /** Two opposite corners of the plate, on one grid plane (one index the same in both) */
+  a: DesignNode;
+  b: DesignNode;
+  thickness: number;
+  fit: PlateFit;
+  /** On the face: which face, along the plane's axis (+1 = up, to the street, to the right) */
+  side: 1 | -1;
+  label?: string;
+}
+
 export interface Design {
   version: 1;
   grid: DesignGrid;
   members: DesignMember[];
   infills: DesignInfill[];
+  plates: DesignPlate[];
   /** Stairs, platforms, railings, ladders and gates (blocks.ts) */
   blocks: DesignBlock[];
   material: MaterialKey;
@@ -152,7 +172,7 @@ export function parseSize(profile: Profile, text: string): number[] | null {
 export const sizeText = (size: number[]) => size.join('/');
 
 export function newDesign(material: MaterialKey = 'black'): Design {
-  return { version: 1, grid: { x: [2000], y: [2000], z: [] }, members: [], infills: [], blocks: [], material };
+  return { version: 1, grid: { x: [2000], y: [2000], z: [] }, members: [], infills: [], plates: [], blocks: [], material };
 }
 
 // ------------------------------------------------------------------------------------------- reading
@@ -201,7 +221,23 @@ export function readDesign(raw: unknown): Design | null {
     }
     blocks.push({ id: k.id, kind: k.kind as BlockKind, a, b, params, profiles });
   }
-  const read: Design = { version: 1, grid: { x, y, z }, members, infills, blocks, material: (d.material as MaterialKey) ?? 'black' };
+  const plates: DesignPlate[] = [];
+  for (const raw of Array.isArray(d.plates) ? (d.plates as unknown[]) : []) {
+    const q = raw as Partial<DesignPlate> | null;
+    const a = nodeOf(q?.a);
+    const b = nodeOf(q?.b);
+    if (!q || !a || !b || typeof q.id !== 'string' || !isNum(q.thickness) || q.thickness <= 0 || plateError(a, b)) continue;
+    plates.push({
+      id: q.id,
+      a,
+      b,
+      thickness: q.thickness,
+      fit: PLATE_FITS.includes(q.fit as PlateFit) ? (q.fit as PlateFit) : 'face',
+      side: q.side === -1 ? -1 : 1,
+      ...(typeof q.label === 'string' && q.label ? { label: q.label } : {}),
+    });
+  }
+  const read: Design = { version: 1, grid: { x, y, z }, members, infills, plates, blocks, material: (d.material as MaterialKey) ?? 'black' };
   let out = read;
   for (const axis of AXES) {
     const flags = (d.guess as Record<string, unknown> | undefined)?.[axis];
@@ -428,6 +464,78 @@ function infillBars(fill: FrameInfill, p: Resolved, q: Resolved): Member | null 
   };
 }
 
+/** Why two grid points can't be the corners of a plate, or null */
+export function plateError(a: DesignNode, b: DesignNode): string | null {
+  const same = ([0, 1, 2] as const).filter((i) => a[i] === b[i]).length;
+  if (same === 3) return 'גע בשתי פינות שונות.';
+  if (same === 2) return 'פח הוא מלבן: גע בשתי פינות נגדיות, לא על אותו קו.';
+  if (same === 0) return 'שתי הפינות צריכות להיות באותו מבט.';
+  return null;
+}
+
+const AXIS_NAMES = ['x', 'y', 'z'] as const;
+const unitAlong = (i: number): Vec3 => {
+  const v: Vec3 = [0, 0, 0];
+  v[i] = 1;
+  return v;
+};
+
+/**
+ * A plate as the layout draws it: the rectangle between its two grid corners, grown to the outside of the frame
+ * pieces on its edges (on their face, and moved out to that face), shrunk to their inside, or left on the grid
+ * lines. Frame pieces lying on the ground sit on it, and so does a plate on them.
+ */
+function platePiece(p: DesignPlate, grid: DesignGrid, frames: Frame[]): Plate | null {
+  if (!nodeInGrid(grid, p.a) || !nodeInGrid(grid, p.b) || plateError(p.a, p.b) || !(p.thickness > 0)) return null;
+  const A = nodePosition(grid, p.a);
+  const B = nodePosition(grid, p.b);
+  const k = ([0, 1, 2] as const).find((x) => p.a[x] === p.b[x]) ?? 2;
+  const [i, j] = ([0, 1, 2] as const).filter((x) => x !== k);
+  const w = A[k];
+  const lo: Vec3 = [Math.min(A[0], B[0]), Math.min(A[1], B[1]), Math.min(A[2], B[2])];
+  const hi: Vec3 = [Math.max(A[0], B[0]), Math.max(A[1], B[1]), Math.max(A[2], B[2])];
+  const near = (u: number, v: number) => Math.abs(u - v) < 0.5;
+  // Frame pieces lying along an edge of the rectangle, in its plane
+  const along = (fixed: number, value: number, run: number) =>
+    frames.filter((f) => {
+      if (!near(f.from[k], w) || !near(f.to[k], w) || !near(f.from[fixed], value) || !near(f.to[fixed], value)) return false;
+      return Math.min(Math.max(f.from[run], f.to[run]), hi[run]) - Math.max(Math.min(f.from[run], f.to[run]), lo[run]) > 1;
+    });
+  const reach = (list: Frame[], dir: Vec3) =>
+    list.reduce((most, f) => {
+      const axes = sectionAxes(norm(sub(f.to, f.from)));
+      return Math.max(most, halfExtent(f, axes.f, axes.n, dir));
+    }, 0);
+  const edges: [number, 'lo' | 'hi', Frame[]][] = [
+    [i, 'lo', along(i, lo[i], j)],
+    [i, 'hi', along(i, hi[i], j)],
+    [j, 'lo', along(j, lo[j], i)],
+    [j, 'hi', along(j, hi[j], i)],
+  ];
+  const grow = p.fit === 'face' ? 1 : p.fit === 'inside' ? -1 : 0;
+  for (const [x, end, list] of edges) {
+    const e = reach(list, unitAlong(x));
+    if (end === 'lo') lo[x] -= grow * e;
+    else hi[x] += grow * e;
+    // A piece lying on the ground sits on it: the plate's edge on it moves up with it
+    if (x === 1 && end === 'lo' && near(lo[1] + grow * e, 0) && list.length) lo[1] += reach(list, UP);
+  }
+  if (lo[1] < 0) lo[1] = 0;
+  if (hi[i] - lo[i] < 1 || hi[j] - lo[j] < 1) return null;
+  const all = edges.flatMap(([, , list]) => list);
+  const depth = reach(all, unitAlong(k));
+  const t = p.thickness;
+  let c = w + (k === 1 && near(w, 0) ? depth : 0) + (p.fit === 'face' ? p.side * (depth + t / 2) : 0);
+  if (k === 1 && c - t / 2 < 0) c = t / 2;
+  const center: Vec3 = [0, 0, 0];
+  center[i] = (lo[i] + hi[i]) / 2;
+  center[j] = (lo[j] + hi[j]) / 2;
+  center[k] = c;
+  const ext = (x: number) => hi[x] - lo[x];
+  const size: [number, number] = k === 2 ? [ext(0), ext(1)] : k === 0 ? [ext(2), ext(1)] : [ext(0), ext(2)];
+  return { id: p.id, center, size, normal: AXIS_NAMES[k], thickness: t, label: p.label ?? 'פח' };
+}
+
 /** The layout the rest of the app draws, prices and cuts, with the design inside it */
 export function compileDesign(design: Design, title: string): Record<string, unknown> {
   const c = collect(design);
@@ -449,7 +557,14 @@ export function compileDesign(design: Design, title: string): Record<string, unk
     if (bars) members.push(bars);
   }
   members.push(...c.members);
-  const plates: Plate[] = [...resolved.flatMap((r) => (r.plate ? [r.plate] : [])), ...c.plates];
+  const plates: Plate[] = [
+    ...resolved.flatMap((r) => (r.plate ? [r.plate] : [])),
+    ...c.plates,
+    ...design.plates.flatMap((p) => {
+      const piece = platePiece(p, design.grid, c.frames);
+      return piece ? [piece] : [];
+    }),
+  ];
 
   // Grid chains: bays along the top, levels down the left (the drawing measures the overall size itself)
   const { grid } = design;
@@ -542,6 +657,41 @@ export function removeBlock(design: Design, id: string): Design {
 }
 
 /**
+ * The part of the design a piece of its layout came from (a piece picked in 3D, on the grid or in the drawing): a
+ * block for its pieces, a member for itself and its base plate, an infill for its bars, a plate. Null for anything
+ * else (a piece of a layout made another way).
+ */
+export function elementOf(design: Design, pieceId: string): { kind: 'member' | 'infill' | 'block' | 'plate'; id: string } | null {
+  const id = pieceId.split('#')[0];
+  const block = id.includes('/') ? id.split('/')[0] : null;
+  if (block) return design.blocks.some((k) => k.id === block) ? { kind: 'block', id: block } : null;
+  if (design.plates.some((p) => p.id === id)) return { kind: 'plate', id };
+  if (design.infills.some((f) => f.id === id)) return { kind: 'infill', id };
+  const member = id.endsWith('-base') ? id.slice(0, -'-base'.length) : id;
+  return design.members.some((m) => m.id === member) ? { kind: 'member', id: member } : null;
+}
+
+/** A plate between two opposite grid corners; on the face of the frame where there is one, else on the lines */
+export function addPlate(design: Design, a: DesignNode, b: DesignNode, thickness = 3): { design: Design; id: string | null } {
+  if (plateError(a, b)) return { design, id: null };
+  const id = newId('p', new Set(design.plates.map((p) => p.id)));
+  const plate: DesignPlate = { id, a, b, thickness, fit: 'face', side: 1 };
+  // With nothing around it to sit on, a plate stands on its own, on the grid lines
+  const alone = platePiece({ ...plate, fit: 'inside' }, design.grid, collect(design).frames);
+  const onLines = platePiece({ ...plate, fit: 'center' }, design.grid, []);
+  const framed = alone && onLines && (alone.size[0] < onLines.size[0] - 0.5 || alone.size[1] < onLines.size[1] - 0.5);
+  return { design: { ...design, plates: [...design.plates, framed ? plate : { ...plate, fit: 'center' }] }, id };
+}
+
+export function updatePlate(design: Design, id: string, patch: Partial<Omit<DesignPlate, 'id' | 'a' | 'b'>>): Design {
+  return { ...design, plates: design.plates.map((p) => (p.id === id ? { ...p, ...patch } : p)) };
+}
+
+export function removePlate(design: Design, id: string): Design {
+  return { ...design, plates: design.plates.filter((p) => p.id !== id) };
+}
+
+/**
  * A measured spacing: it stops being a guess. The first measurement of a design that is all guesses (a sketch drawn
  * by eye) sets its scale too: every other spacing grows or shrinks by the same factor, rounded to 10 mm.
  */
@@ -619,6 +769,7 @@ export function insertGridLine(design: Design, axis: GridAxis, pos: number): { d
         ...design,
         grid: { ...design.grid, [axis]: list },
         members: design.members.map((m) => ({ ...m, a: move(m.a), b: move(m.b) })),
+        plates: design.plates.map((p) => ({ ...p, a: move(p.a), b: move(p.b) })),
         blocks: design.blocks.map((k) => ({ ...k, a: move(k.a), b: move(k.b) })),
       },
       axis,
@@ -637,9 +788,10 @@ export function removeLastBay(design: Design, axis: GridAxis): { design: Design;
   const onLast = (k: { a: DesignNode; b: DesignNode }) => k.a[i] === last || k.b[i] === last;
   const gone = design.members.filter(onLast).map((m) => m.id);
   const blocks = design.blocks.filter((k) => !onLast(k));
-  let next: Design = withGuess({ ...design, blocks, grid: { ...design.grid, [axis]: list.slice(0, -1) } }, axis, guesses(design, axis).slice(0, -1));
+  const plates = design.plates.filter((p) => !onLast(p));
+  let next: Design = withGuess({ ...design, blocks, plates, grid: { ...design.grid, [axis]: list.slice(0, -1) } }, axis, guesses(design, axis).slice(0, -1));
   for (const id of gone) next = removeMember(next, id);
-  return { design: next, removed: gone.length + design.blocks.length - blocks.length };
+  return { design: next, removed: gone.length + design.blocks.length - blocks.length + design.plates.length - plates.length };
 }
 
 /** The member's cut length once its ends are trimmed at the joints */
