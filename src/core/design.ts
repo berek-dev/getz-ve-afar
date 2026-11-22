@@ -9,7 +9,7 @@
 import type { MaterialKey } from './catalog.ts';
 import { beamSizes } from './sections.ts';
 import { PROFILES, SLOPE_UPS, add, dot, halfExtent, len, norm, scale, sectionAxes, sub } from './scene.ts';
-import type { Dimension, Member, Part, Plate, Profile, SlopeUp, Vec3 } from './scene.ts';
+import type { Dimension, Member, Part, Plate, Profile, SlopeUp, Solid, Vec3 } from './scene.ts';
 import { BLOCK_KINDS, buildBlock, newBlock, placementError } from './blocks.ts';
 import type { BlockKind, DesignBlock, Frame, FrameInfill } from './blocks.ts';
 import { isSheet, isTint, purlinGap, sheetCount, sheetInfo, sheetTint } from './sheets.ts';
@@ -81,6 +81,18 @@ export interface DesignPlate {
   slope?: { up: SlopeUp; deg: number };
 }
 
+/**
+ * An existing wall (the house, a fence) that the work is fixed to: drawn and held in the strength check, never cut
+ * or priced. Its face is the rectangle between two opposite grid corners on a standing grid plane; its body goes
+ * `thickness` back, away from the work.
+ */
+export interface DesignWall {
+  id: string;
+  a: DesignNode;
+  b: DesignNode;
+  thickness: number;
+}
+
 export interface Design {
   version: 1;
   grid: DesignGrid;
@@ -89,6 +101,8 @@ export interface Design {
   plates: DesignPlate[];
   /** Stairs, platforms, railings, ladders and gates (blocks.ts) */
   blocks: DesignBlock[];
+  /** Existing walls the work is fixed to */
+  walls?: DesignWall[];
   material: MaterialKey;
   /**
    * Spacings drawn by eye and not measured yet (true), per axis, in step with `grid`. Absent when everything is
@@ -256,7 +270,24 @@ export function readDesign(raw: unknown): Design | null {
         : {}),
     });
   }
-  const read: Design = { version: 1, grid: { x, y, z }, members, infills, plates, blocks, material: (d.material as MaterialKey) ?? 'black' };
+  const walls: DesignWall[] = [];
+  for (const raw of Array.isArray(d.walls) ? (d.walls as unknown[]) : []) {
+    const w = raw as Partial<DesignWall> | null;
+    const a = nodeOf(w?.a);
+    const b = nodeOf(w?.b);
+    if (!w || !a || !b || typeof w.id !== 'string' || wallError(a, b)) continue;
+    walls.push({ id: w.id, a, b, thickness: isNum(w.thickness) && w.thickness >= 50 && w.thickness <= 1000 ? w.thickness : 200 });
+  }
+  const read: Design = {
+    version: 1,
+    grid: { x, y, z },
+    members,
+    infills,
+    plates,
+    blocks,
+    ...(walls.length ? { walls } : {}),
+    material: (d.material as MaterialKey) ?? 'black',
+  };
   let out = read;
   for (const axis of AXES) {
     const flags = (d.guess as Record<string, unknown> | undefined)?.[axis];
@@ -795,6 +826,7 @@ export function compileDesign(design: Design, title: string): Record<string, unk
   if (grid.x.length > 1) for (let i = 0; i < grid.x.length; i++) dimensions.push({ from: [xs.at(i) ?? 0, top, front], to: [xs.at(i + 1) ?? 0, top, front] });
   if (grid.y.length > 1) for (let j = 0; j < grid.y.length; j++) dimensions.push({ from: [0, ys.at(j) ?? 0, front], to: [0, ys.at(j + 1) ?? 0, front] });
 
+  const solids = (design.walls ?? []).filter((w) => nodeInGrid(grid, w.a) && nodeInGrid(grid, w.b)).map((w) => wallBox(design, w));
   return {
     version: 1,
     title,
@@ -802,6 +834,7 @@ export function compileDesign(design: Design, title: string): Record<string, unk
     members,
     plates,
     ...(c.parts.length ? { parts: c.parts } : {}),
+    ...(solids.length ? { solids } : {}),
     dimensions,
     ...(c.notes.length ? { notes: c.notes } : {}),
     design,
@@ -916,6 +949,49 @@ export function removePlate(design: Design, id: string): Design {
   return { ...design, plates: design.plates.filter((p) => p.id !== id) };
 }
 
+/** Why two grid points can't be the corners of a wall's face, or null */
+export function wallError(a: DesignNode, b: DesignNode): string | null {
+  if (a[1] === b[1]) return 'קיר עומד: גע בפינה למטה ובפינה הנגדית למעלה.';
+  const sameX = a[0] === b[0];
+  const sameZ = a[2] === b[2];
+  if (sameX === sameZ) return 'מסמנים קיר בחזית או בצד: שתי פינות נגדיות באותו מבט.';
+  return null;
+}
+
+export function addWall(design: Design, a: DesignNode, b: DesignNode, thickness = 200): { design: Design; id: string | null } {
+  if (wallError(a, b)) return { design, id: null };
+  const walls = design.walls ?? [];
+  const id = newId('w', new Set(walls.map((w) => w.id)));
+  return { design: { ...design, walls: [...walls, { id, a, b, thickness }] }, id };
+}
+
+export function updateWall(design: Design, id: string, patch: Partial<Pick<DesignWall, 'thickness'>>): Design {
+  return { ...design, walls: (design.walls ?? []).map((w) => (w.id === id ? { ...w, ...patch } : w)) };
+}
+
+export function removeWall(design: Design, id: string): Design {
+  const walls = (design.walls ?? []).filter((w) => w.id !== id);
+  const { walls: _old, ...rest } = design;
+  return walls.length ? { ...rest, walls } : rest;
+}
+
+/** A wall as the scene's solid: its face on the grid plane, its body behind it, away from the work */
+export function wallBox(design: Design, w: DesignWall): Solid {
+  const pa = nodePosition(design.grid, w.a);
+  const pb = nodePosition(design.grid, w.b);
+  const k = w.a[0] === w.b[0] ? 0 : 2;
+  const face = pa[k];
+  // Which side the work is on: the middle of everything placed
+  const pts = [...design.members, ...design.blocks, ...design.plates].flatMap((x) => [nodePosition(design.grid, x.a), nodePosition(design.grid, x.b)]);
+  const mid = pts.length ? pts.reduce((s, q) => s + q[k], 0) / pts.length : face + 1;
+  const back = mid >= face ? -1 : 1;
+  const center: Vec3 = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2, (pa[2] + pb[2]) / 2];
+  center[k] = face + (back * w.thickness) / 2;
+  const size: Vec3 = [Math.abs(pb[0] - pa[0]), Math.abs(pb[1] - pa[1]), Math.abs(pb[2] - pa[2])];
+  size[k] = w.thickness;
+  return { kind: 'plaster', center, size, label: 'קיר קיים' };
+}
+
 /**
  * A measured spacing: it stops being a guess. The first measurement of a design that is all guesses (a sketch drawn
  * by eye) sets its scale too: every other spacing grows or shrinks by the same factor, rounded to 10 mm.
@@ -996,6 +1072,7 @@ export function insertGridLine(design: Design, axis: GridAxis, pos: number): { d
         members: design.members.map((m) => ({ ...m, a: move(m.a), b: move(m.b) })),
         plates: design.plates.map((p) => ({ ...p, a: move(p.a), b: move(p.b) })),
         blocks: design.blocks.map((k) => ({ ...k, a: move(k.a), b: move(k.b) })),
+        ...(design.walls ? { walls: design.walls.map((w) => ({ ...w, a: move(w.a), b: move(w.b) })) } : {}),
       },
       axis,
       flags,
@@ -1014,9 +1091,10 @@ export function removeLastBay(design: Design, axis: GridAxis): { design: Design;
   const gone = design.members.filter(onLast).map((m) => m.id);
   const blocks = design.blocks.filter((k) => !onLast(k));
   const plates = design.plates.filter((p) => !onLast(p));
-  let next: Design = withGuess({ ...design, blocks, plates, grid: { ...design.grid, [axis]: list.slice(0, -1) } }, axis, guesses(design, axis).slice(0, -1));
+  const walls = design.walls?.filter((w) => !onLast(w));
+  let next: Design = withGuess({ ...design, blocks, plates, ...(walls ? { walls } : {}), grid: { ...design.grid, [axis]: list.slice(0, -1) } }, axis, guesses(design, axis).slice(0, -1));
   for (const id of gone) next = removeMember(next, id);
-  return { design: next, removed: gone.length + design.blocks.length - blocks.length + design.plates.length - plates.length };
+  return { design: next, removed: gone.length + design.blocks.length - blocks.length + design.plates.length - plates.length + (design.walls?.length ?? 0) - (walls?.length ?? 0) };
 }
 
 /** The member's cut length once its ends are trimmed at the joints */

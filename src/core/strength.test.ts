@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { addMember, addPlate, compileDesign, newDesign } from './design.ts';
+import { addMember, addPlate, addWall, compileDesign, newDesign } from './design.ts';
 import type { Design, ProfileChoice } from './design.ts';
 import { prepareScene } from './scene.ts';
 import type { ResolvedScene } from './scene.ts';
-import { checkStrength } from './strength.ts';
+import { DEFAULT_STRENGTH, checkStrength } from './strength.ts';
 
 const rect = (...size: number[]): ProfileChoice => ({ profile: 'rect_tube', size });
 const sceneOf = (d: Design): ResolvedScene => {
@@ -88,4 +88,40 @@ test('gate posts carry their leaves: weight on the hinges and the wind on the le
   assert.equal(r.members.length, 2);
   // Each leaf's wind (about 1.9 by 1.75 of pickets and frame) bends its post at the ground
   for (const s of r.supports) assert.ok(s.moment > 1 && s.moment < 6, String(s.moment));
+});
+
+/** A lean-to: rafters from the house wall (Z = 0) to a beam on two posts at Z = 3,000, roofing on the rafters */
+function leanTo(withWall: boolean, posts = true): Design {
+  let d: Design = { ...newDesign(), grid: { x: [1000, 1000, 1000, 1000], y: [2500], z: [3000] } };
+  if (posts) {
+    for (const x of [0, 4]) d = addMember(d, [x, 0, 1], [x, 1, 1], rect(100, 100, 3)).design;
+    d = addMember(d, [0, 1, 1], [4, 1, 1], rect(120, 60, 3)).design;
+  }
+  for (let x = 0; x <= 4; x++) d = addMember(d, [x, 1, 0], [x, 1, 1], rect(80, 40, 2)).design;
+  d = addPlate(d, [0, 1, 0], [4, 1, 1], 3, 'pc_corrugated').design;
+  return withWall ? addWall(d, [0, 0, 0], [4, 1, 0]).design : d;
+}
+
+test('a lean-to holds on the house wall; without the wall its rafters hang off the beam', () => {
+  const free = checkStrength(sceneOf(leanTo(false)));
+  assert.equal(free.wallSupports, 0);
+  assert.equal(free.status, 'fail');
+
+  const held = checkStrength(sceneOf(leanTo(true)));
+  assert.equal(held.wallSupports, 5);
+  assert.notEqual(held.status, 'fail');
+  // The rafters now span 3,000 between the wall and the beam
+  const rafter = held.members.find((m) => m.name.includes('80/40/2'));
+  assert.ok(rafter && rafter.util < 1, JSON.stringify(rafter));
+  // The wall holds part of the roof: the posts carry less than with nothing at the wall
+  const postsDown = (r: typeof held) => r.supports.filter((s) => s.at[2] > 1000).reduce((t, s) => t + s.down, 0);
+  assert.ok(postsDown(held) < postsDown(free));
+});
+
+test('a canopy hanging on the wall alone stands only when its anchors are fixed', () => {
+  const d = leanTo(true, false);
+  assert.equal(checkStrength(sceneOf(d), { ...DEFAULT_STRENGTH, wall: 'pinned' }).status, 'unstable');
+  const fixed = checkStrength(sceneOf(d), { ...DEFAULT_STRENGTH, wall: 'fixed' });
+  assert.notEqual(fixed.status, 'unstable');
+  assert.equal(fixed.wallSupports, 5);
 });

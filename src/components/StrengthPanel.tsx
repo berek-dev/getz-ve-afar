@@ -26,6 +26,7 @@ const SHOWN = 8;
  */
 export function StrengthPanel({
   report,
+  hasWalls,
   settings,
   onSettings,
   title,
@@ -36,6 +37,8 @@ export function StrengthPanel({
   onApply,
 }: {
   report: StrengthReport;
+  /** The model has an existing wall: show how pieces are fixed to it */
+  hasWalls: boolean;
   settings: StrengthSettings;
   onSettings: (s: StrengthSettings) => void;
   title: string;
@@ -75,7 +78,15 @@ export function StrengthPanel({
         <p className={`font-semibold ${TONE[tone].text}`}>
           {report.status === 'fail' ? (failing === 1 ? 'חלק אחד חלש מדי' : `${failing} חלקים חלשים מדי`) : HEADLINE[report.status]}
         </p>
-        {report.status === 'unstable' && <p className="mt-1 text-[0.9rem]">משהו זז בלי שום דבר שיחזיק אותו. בדוק שהכול מחובר, ושהעמודים יושבים על הקרקע.</p>}
+        {report.status === 'unstable' && (
+          <p className="mt-1 text-[0.9rem]">
+            {hasWalls && settings.wall === 'pinned'
+              ? 'משהו זז בלי שום דבר שיחזיק אותו. גגון שתלוי על הקיר בלי עמודים צריך עיגון מקובע: בחר "מקובע" בחיבור לקיר, למטה.'
+              : hasWalls
+                ? 'משהו זז בלי שום דבר שיחזיק אותו. בדוק שהכול מחובר, ושהחלקים מגיעים עד הקיר או עד הקרקע.'
+                : 'משהו זז בלי שום דבר שיחזיק אותו. בדוק שהכול מחובר ושהעמודים יושבים על הקרקע. גגון שנתלה על קיר: הוסף "קיר קיים".'}
+          </p>
+        )}
         <p className="mt-1 text-[0.85rem] text-muted">הערכה לבחירת פרופילים. פרגולה, גגון ומעקה צריכים אישור יציבות של מהנדס.</p>
       </div>
 
@@ -148,6 +159,10 @@ export function StrengthPanel({
             השקיעה הגדולה: {fmtNum(Math.round(report.sag.mm))} מ״מ, מותר {fmtNum(Math.round(report.sag.limit))}
           </li>
         )}
+        {report.wallSupports > 0 && (
+          <li>{report.wallSupports === 1 ? 'נקודה אחת מעוגנת לקיר.' : `${report.wallSupports} נקודות מעוגנות לקיר.`}</li>
+        )}
+        {hasWalls && report.wallSupports === 0 && report.status !== 'empty' && <li className="text-danger">שום חלק לא מגיע עד הקיר, אז הקיר לא מחזיק כלום.</li>}
         {report.movers > 0 && <li className="text-muted">כנף נעה לא נבדקת בעצמה. המשקל והרוח שלה עוברים לעמודים בצירים או בגלגלות.</li>}
         {report.leavesMissing > 0 && <li className="text-danger">לא מצאתי עמוד שמחזיק כנף, אז העומס שלה לא נכנס לבדיקה.</li>}
         {report.loose.length > 0 && (
@@ -201,6 +216,29 @@ export function StrengthPanel({
             </div>
             <p className="mt-1 text-[0.8rem] text-muted">מקובע: פלטה על 4 ברגים, או יציקה בבטון. על ציר: פלטה קטנה או בורג אחד.</p>
           </div>
+          {hasWalls && (
+            <div>
+              <p className="mb-1 text-[0.85rem] text-muted">החיבור לקיר</p>
+              <div className="flex gap-2">
+                {(
+                  [
+                    ['pinned', 'על ציר'],
+                    ['fixed', 'מקובע'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onSettings({ ...settings, wall: key })}
+                    className={`min-h-10 flex-1 rounded-md border px-3 text-[0.9rem] font-semibold ${settings.wall === key ? 'border-ink bg-ink text-white' : 'border-line-strong'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[0.8rem] text-muted">על ציר: קורה על פלטה עם ברגים בשורה אחת, או על קורת עיגון לאורך הקיר. מקובע: פלטה עם ברגים למעלה ולמטה, לגגון שתלוי על הקיר בלי עמודים.</p>
+            </div>
+          )}
           <ul className="list-inside list-disc space-y-0.5 text-[0.85rem] text-muted">
             <li>חיבורים מרותכים. מקדמי עומס 1.35 למשקל ו־1.5 לעומס ולרוח.</li>
             <li>פלדה בחוזק 235, נירוסטה 210, אלומיניום 150.</li>

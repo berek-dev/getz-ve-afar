@@ -34,6 +34,11 @@ import {
   removeLastBay,
   removeMember,
   removePlate,
+  removeWall,
+  addWall,
+  updateWall,
+  wallBox,
+  wallError,
   SIZE_FIELDS,
   setSpacing,
   sizeFromFields,
@@ -77,17 +82,24 @@ interface View {
   kind: ViewKind;
   line: number;
 }
-type Selected = { kind: 'member' | 'infill' | 'block' | 'plate'; id: string } | null;
-/** What two taps on the grid will place: a block, a plate, or roofing sheets (a plate of סנטף) */
-type Placing = BlockKind | 'plate' | 'sheet';
+type Selected = { kind: 'member' | 'infill' | 'block' | 'plate' | 'wall'; id: string } | null;
+/** What two taps on the grid will place: a block, a plate, roofing sheets (a plate of סנטף), or an existing wall */
+type Placing = BlockKind | 'plate' | 'sheet' | 'wall';
 const PLATE_SPEC = { label: 'פח', about: 'משטח בין קווי הרשת: קיר, רצפה, כיסוי או פאנל.', place: 'גע בשתי פינות נגדיות של המשטח.' };
 const SHEET_SPEC = {
   label: 'סנטף וקירוי',
   about: 'קירוי לגגון או לפרגולה: סנטף מלבני או גלי, PVC, פוליקרבונט חלול או מלא.',
   place: 'במבט על, בגובה הקירוי: גע בשתי פינות נגדיות.',
 };
-const placingSpec = (p: Placing) => (p === 'plate' ? PLATE_SPEC : p === 'sheet' ? SHEET_SPEC : BLOCKS[p]);
+const WALL_SPEC = {
+  label: 'קיר קיים',
+  about: 'הקיר של הבית שהגגון או המעקה מתחברים אליו. לא נכנס לחיתוך ולמחיר, ומחזיק את החלקים בבדיקת החוזק.',
+  place: 'בחזית או בצד: גע בפינה למטה ובפינה הנגדית למעלה, על הקו שבו הקיר.',
+};
+const placingSpec = (p: Placing) => (p === 'plate' ? PLATE_SPEC : p === 'sheet' ? SHEET_SPEC : p === 'wall' ? WALL_SPEC : BLOCKS[p]);
 const PLATE_LIKE = (p: Placing | null): p is 'plate' | 'sheet' => p === 'plate' || p === 'sheet';
+/** Placed by two opposite corners */
+const CORNERS = (p: Placing | null) => PLATE_LIKE(p) || p === 'wall';
 /** "4 חלקים, 6 פחים, קירוי אחד": the profile pieces, and the plates and roofing sheets when there are some */
 const partsLine = (pieces: number, plates: number, sheets = 0) =>
   [
@@ -249,6 +261,17 @@ export function DesignBuilder({
     setSelected(null);
     if (!pending) return setPending(n);
     if (pending.join() === n.join()) return setPending(null);
+    if (placing === 'wall') {
+      const wrong = wallError(pending, n);
+      if (wrong) return toast(wrong);
+      const { design: next, id } = addWall(design, pending, n);
+      if (!id) return;
+      change(next);
+      setPlacing(null);
+      setPending(null);
+      setSelected({ kind: 'wall', id });
+      return;
+    }
     if (PLATE_LIKE(placing)) {
       const wrong = plateError(pending, n);
       if (wrong) return toast(wrong);
@@ -284,6 +307,16 @@ export function DesignBuilder({
     setPending(null);
     setSelected(null);
     if (r.a.join() === r.b.join()) return;
+    if (placing === 'wall') {
+      const wrong = wallError(r.a, r.b);
+      if (wrong) return toast(wrong);
+      const wall = addWall(r.design, r.a, r.b);
+      if (!wall.id) return;
+      change(wall.design);
+      setPlacing(null);
+      setSelected({ kind: 'wall', id: wall.id });
+      return;
+    }
     if (PLATE_LIKE(placing)) {
       const wrong = plateError(r.a, r.b);
       if (wrong) return toast(wrong);
@@ -327,6 +360,7 @@ export function DesignBuilder({
     if (s.kind === 'member') change(removeMember(design, s.id));
     else if (s.kind === 'infill') change(removeInfill(design, s.id));
     else if (s.kind === 'plate') change(removePlate(design, s.id));
+    else if (s.kind === 'wall') change(removeWall(design, s.id));
     else change(removeBlock(design, s.id));
     setSelected(null);
     toast('נמחק. אפשר לבטל.');
@@ -375,6 +409,9 @@ export function DesignBuilder({
     setPlacing(kind);
     if (kind === 'plate') {
       if (!FLAT(view.kind)) setView({ kind: 'front', line: 0 });
+    } else if (kind === 'wall') {
+      // A wall stands: marked in the front or side view
+      if (!FLAT(view.kind) || view.kind === 'plan') setView({ kind: 'front', line: 0 });
     } else if (kind === 'sheet') {
       // A roof is marked in plan, at its height, and needs depth
       if (design.grid.z.length === 0) {
@@ -452,6 +489,7 @@ export function DesignBuilder({
       return k ? BLOCKS[k.kind].label : 'הבלוק';
     }
     if (s.kind === 'plate') return design.plates.find((x) => x.id === s.id)?.sheet ? 'הקירוי' : 'הפח';
+    if (s.kind === 'wall') return 'הקיר';
     return 'המילוי';
   };
   /** One grid line along the view's across (u) or second (v) axis */
@@ -481,6 +519,7 @@ export function DesignBuilder({
   const selInfill = sel?.kind === 'infill' ? design.infills.find((f) => f.id === sel.id) : undefined;
   const selBlock = sel?.kind === 'block' ? design.blocks.find((k) => k.id === sel.id) : undefined;
   const selPlate = sel?.kind === 'plate' ? design.plates.find((p) => p.id === sel.id) : undefined;
+  const selWall = sel?.kind === 'wall' ? design.walls?.find((w) => w.id === sel.id) : undefined;
 
   return (
     <div>
@@ -754,7 +793,7 @@ export function DesignBuilder({
         <div className="mt-1.5 flex items-start gap-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
           <p className="min-w-0 flex-1">
             <span className="font-semibold">{placingSpec(placing).label}: </span>
-            {pending ? (PLATE_LIKE(placing) ? 'עכשיו הפינה הנגדית.' : 'עכשיו הנקודה השנייה.') : placingSpec(placing).place}
+            {pending ? (CORNERS(placing) ? 'עכשיו הפינה הנגדית.' : 'עכשיו הנקודה השנייה.') : placingSpec(placing).place}
           </p>
           <button
             type="button"
@@ -926,10 +965,15 @@ export function DesignBuilder({
           />
         )}
       </Sheet>
+      <Sheet open={selWall !== undefined} onClose={() => setSelected(null)} title="קיר קיים">
+        {selWall && <MoveRow onMove={() => startMove({ kind: 'wall', id: selWall.id })} />}
+        {selWall && <WallEditor key={selWall.id} design={design} id={selWall.id} onChange={change} onClose={() => setSelected(null)} />}
+      </Sheet>
       <Sheet open={checking} onClose={() => setChecking(false)} title="בדיקת חוזק">
         {checking && report && (
           <StrengthPanel
             report={report}
+            hasWalls={(design.walls?.length ?? 0) > 0}
             settings={strength}
             onSettings={setStrength}
             title={job.title}
@@ -967,7 +1011,7 @@ export function DesignBuilder({
             <span className="font-semibold">מסקיצה או PDF</span>
             <span className="text-[0.85rem] text-muted">צילום של שרטוט ביד: הרשת, המידות והחלקים ממנו. מחליף את מה שמשורטט.</span>
           </button>
-          {(['plate', 'sheet'] as const).map((k) => (
+          {(['plate', 'sheet', 'wall'] as const).map((k) => (
             <button key={k} type="button" onClick={() => startBlock(k)} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
               <span className="font-semibold">{placingSpec(k).label}</span>
               <span className="text-[0.85rem] text-muted">{placingSpec(k).about}</span>
@@ -1199,6 +1243,17 @@ function GridCanvas({
     seenPlates.push({ id: p.id, x: sx(p.center[ui] - h[ui]), y: Math.min(sy(p.center[vi] - h[vi]), sy(p.center[vi] + h[vi])), w: 2 * h[ui] * k, h: Math.max(1.5, 2 * h[vi] * k) });
   }
 
+  // Existing walls in this view: face on when the view looks at their face, cut across when it crosses them
+  const walls: { id: string; x: number; y: number; w: number; h: number; face: boolean }[] = [];
+  for (const wall of design.walls ?? []) {
+    const box = wallBox(design, wall);
+    const lo = (k: number) => box.center[k] - box.size[k] / 2;
+    const hi = (k: number) => box.center[k] + box.size[k] / 2;
+    if (plane < lo(pi) - 150 || plane > hi(pi) + 150) continue;
+    const y1 = sy(lo(vi));
+    const y2 = sy(hi(vi));
+    walls.push({ id: wall.id, x: sx(lo(ui)), y: Math.min(y1, y2), w: Math.max(2, (hi(ui) - lo(ui)) * k), h: Math.max(2, Math.abs(y2 - y1)), face: box.size[pi] < Math.min(box.size[ui], box.size[vi]) });
+  }
   const pickOf = (id: string): Selected => elementOf(design, id);
   // An infill shows with the two members it hangs on
   const rails: string[] = selected?.kind === 'infill' ? (design.infills.find((f) => f.id === selected.id)?.between ?? []) : [];
@@ -1237,6 +1292,23 @@ function GridCanvas({
       ))}
       {V.map((v, j) => (
         <line key={`v${j}`} x1={M.left - 6} x2={M.left + uMax * k + 6} y1={sy(v)} y2={sy(v)} className="stroke-line" strokeWidth={z} strokeDasharray={`${4 * z} ${4 * z}`} />
+      ))}
+
+      {/* existing walls: hatched where seen face on, solid where cut across */}
+      <defs>
+        <pattern id="wall-hatch" width={8 * z} height={8 * z} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2={8 * z} className="stroke-faint" strokeWidth={1.2 * z} />
+        </pattern>
+      </defs>
+      {walls.map((w) => (
+        <g key={w.id} transform={moved(w.id)} onClick={() => onPick({ kind: 'wall', id: w.id })} className="cursor-pointer">
+          <rect x={w.x} y={w.y} width={w.w} height={w.h} fill={w.face ? 'url(#wall-hatch)' : undefined} className={isSelected(w.id) ? 'fill-accent/30 stroke-accent' : w.face ? 'stroke-faint' : 'fill-faint stroke-faint'} strokeWidth={1.5 * z} fillOpacity={w.face ? 1 : 0.55} />
+          {w.face && w.w > 40 * z && w.h > 20 * z && (
+            <text x={w.x + w.w / 2} y={w.y + w.h / 2} textAnchor="middle" dominantBaseline="middle" fontSize={11 * z} className="fill-muted" pointerEvents="none">
+              קיר
+            </text>
+          )}
+        </g>
       ))}
 
       {/* plates */}
@@ -1917,6 +1989,41 @@ function PlateEditor({
       >
         <Icon name="trash" size={18} />
         {sheet ? 'מחק קירוי' : 'מחק פח'}
+      </button>
+    </div>
+  );
+}
+
+const WALL_THICKNESS = [100, 150, 200, 250, 300];
+
+/** An existing wall: how thick it is, and removing it */
+function WallEditor({ design, id, onChange, onClose }: { design: Design; id: string; onChange: (d: Design) => void; onClose: () => void }) {
+  const wall = design.walls?.find((w) => w.id === id);
+  if (!wall) return null;
+  const choice = (active: boolean) => `min-h-10 rounded-md border px-3 text-[0.9rem] font-semibold ${active ? 'border-ink bg-ink text-white' : 'border-line-strong bg-card'}`;
+  return (
+    <div className="space-y-4">
+      <p className="text-[0.9rem] text-muted">לא נכנס לחיתוך ולמחיר. חלקים שמגיעים אליו מעוגנים אליו בבדיקת החוזק.</p>
+      <div>
+        <span className="mb-1 block text-[0.85rem] text-muted">עובי הקיר, מ״מ</span>
+        <div className="flex flex-wrap gap-1.5">
+          {WALL_THICKNESS.map((t) => (
+            <button key={t} type="button" onClick={() => onChange(updateWall(design, id, { thickness: t }))} aria-pressed={wall.thickness === t} className={`tnum ${choice(wall.thickness === t)}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          onChange(removeWall(design, id));
+          onClose();
+        }}
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-danger font-semibold text-danger"
+      >
+        <Icon name="trash" size={18} />
+        מחק קיר
       </button>
     </div>
   );

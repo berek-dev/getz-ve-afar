@@ -4,14 +4,14 @@
  * so a piece keeps its size wherever it goes. Turning is by 90 degrees in the plane of the view, about the piece's
  * first point; a member can also be turned about its own axis (`roll`: a 60/40 tube laid on its side).
  */
-import { elementOf, gridLines, insertGridLine, nodePosition, plateError } from './design.ts';
+import { elementOf, gridLines, insertGridLine, nodePosition, plateError, wallBox, wallError } from './design.ts';
 import type { Design, DesignNode, GridAxis } from './design.ts';
 import { placementError } from './blocks.ts';
 import { SLOPE_UPS, halfExtent, norm, plateAxes, plateCorners, sectionAxes, sub } from './scene.ts';
 import type { Profile, ResolvedScene, SlopeUp, Vec3 } from './scene.ts';
 
-export type Element = { kind: 'member' | 'infill' | 'block' | 'plate'; id: string };
-type End = { list: 'members' | 'blocks' | 'plates'; id: string; end: 'a' | 'b' };
+export type Element = { kind: 'member' | 'infill' | 'block' | 'plate' | 'wall'; id: string };
+type End = { list: 'members' | 'blocks' | 'plates' | 'walls'; id: string; end: 'a' | 'b' };
 type Result = { design: Design } | { error: string };
 
 const AXES: GridAxis[] = ['x', 'y', 'z'];
@@ -30,6 +30,8 @@ function endsOf(design: Design, el: Element): End[] {
       return design.blocks.some((k) => k.id === el.id) ? two('blocks', el.id) : [];
     case 'plate':
       return design.plates.some((p) => p.id === el.id) ? two('plates', el.id) : [];
+    case 'wall':
+      return (design.walls ?? []).some((w) => w.id === el.id) ? two('walls', el.id) : [];
     case 'infill': {
       const f = design.infills.find((x) => x.id === el.id);
       return f ? f.between.flatMap((id) => two('members', id)) : [];
@@ -38,7 +40,7 @@ function endsOf(design: Design, el: Element): End[] {
 }
 
 function nodeAt(design: Design, e: End): DesignNode {
-  const item = (design[e.list] as { id: string; a: DesignNode; b: DesignNode }[]).find((x) => x.id === e.id);
+  const item = ((design[e.list] ?? []) as { id: string; a: DesignNode; b: DesignNode }[]).find((x) => x.id === e.id);
   return item ? item[e.end] : [0, 0, 0];
 }
 
@@ -76,7 +78,7 @@ function place(design: Design, el: Element, ends: End[], targets: Vec3[]): Resul
   }
   for (let i = 0; i < ends.length; i++) {
     const e = ends[i];
-    const list = (d[e.list] as { id: string }[]).map((x) => (x.id === e.id ? { ...x, [e.end]: nodes[i] } : x));
+    const list = ((d[e.list] ?? []) as { id: string }[]).map((x) => (x.id === e.id ? { ...x, [e.end]: nodes[i] } : x));
     d = { ...d, [e.list]: list };
   }
   // The same rules as placing it in the first place
@@ -92,6 +94,11 @@ function place(design: Design, el: Element, ends: End[], targets: Vec3[]): Resul
   if (el.kind === 'plate') {
     const plate = d.plates.find((p) => p.id === el.id);
     const wrong = plate && plateError(plate.a, plate.b);
+    if (wrong) return { error: wrong };
+  }
+  if (el.kind === 'wall') {
+    const wall = d.walls?.find((w) => w.id === el.id);
+    const wrong = wall && wallError(wall.a, wall.b);
     if (wrong) return { error: wrong };
   }
   return { design: d };
@@ -216,6 +223,12 @@ const sameElement = (a: Element, b: Element) => a.kind === b.kind && a.id === b.
  * pieces that belong to it (base plates left out, so a post is measured by its tube). Null when nothing is drawn.
  */
 export function extentAlong(design: Design, scene: ResolvedScene, el: Element, k: 0 | 1 | 2): [number, number] | null {
+  if (el.kind === 'wall') {
+    const w = design.walls?.find((x) => x.id === el.id);
+    if (!w) return null;
+    const box = wallBox(design, w);
+    return [box.center[k] - box.size[k] / 2, box.center[k] + box.size[k] / 2];
+  }
   let lo = Infinity;
   let hi = -Infinity;
   const along: Vec3 = [0, 0, 0];

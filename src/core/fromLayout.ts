@@ -7,7 +7,8 @@
  * base plate. What the builder has no place for (curved pieces, hardware, concrete) is left out and listed.
  */
 import { compileDesign, newDesign, readDesign } from './design.ts';
-import type { Design, DesignInfill, DesignMember, DesignNode, DesignPlate } from './design.ts';
+import type { Design, DesignInfill, DesignMember, DesignNode, DesignPlate, DesignWall } from './design.ts';
+import { wallError } from './design.ts';
 import { PART_LABELS, add, dot, halfExtent, len, norm, plateCorners, prepareScene, scale, sectionAxes, sub } from './scene.ts';
 import type { Member, ResolvedMember, Vec3 } from './scene.ts';
 
@@ -150,6 +151,34 @@ export function designFromLayout(layout: unknown): { design: Design; notes: stri
     // The grid: every coordinate used, X and Z moved to start at 0, Y from the ground
     const points: Vec3[] = [...kept.flatMap((i) => [pieces[i].a, pieces[i].b]), ...corners.flat()];
     if (points.length === 0) return null;
+    // Walls the work is fixed to (thin standing solids): their face nearest the work, as wide and tall as the work
+    const lo = [0, 1, 2].map((k) => Math.min(...points.map((q) => q[k])));
+    const hi = [0, 1, 2].map((k) => Math.max(...points.map((q) => q[k])));
+    const walls: { c1: Vec3; c2: Vec3; thickness: number }[] = [];
+    for (const sol of scene.solids) {
+      const tall = sol.size[1] >= 800;
+      const thinX = sol.size[0] <= 600 && sol.size[0] <= 0.35 * sol.size[2];
+      const thinZ = sol.size[2] <= 600 && sol.size[2] <= 0.35 * sol.size[0];
+      if (!tall || thinX === thinZ) continue;
+      const k = thinX ? 0 : 2;
+      const o = thinX ? 2 : 0;
+      const mid = (lo[k] + hi[k]) / 2;
+      const [f1, f2] = [sol.center[k] - sol.size[k] / 2, sol.center[k] + sol.size[k] / 2];
+      const face = Math.abs(f1 - mid) < Math.abs(f2 - mid) ? f1 : f2;
+      const oLo = Math.max(lo[o], sol.center[o] - sol.size[o] / 2);
+      const oHi = Math.min(hi[o], sol.center[o] + sol.size[o] / 2);
+      const yLo = Math.max(0, sol.center[1] - sol.size[1] / 2);
+      const yHi = Math.min(hi[1], sol.center[1] + sol.size[1] / 2);
+      if (oHi - oLo < 50 || yHi - yLo < 50) continue;
+      const c1: Vec3 = [0, yLo, 0];
+      const c2: Vec3 = [0, yHi, 0];
+      c1[k] = face;
+      c2[k] = face;
+      c1[o] = oLo;
+      c2[o] = oHi;
+      walls.push({ c1, c2, thickness: sol.size[k] });
+      points.push(c1, c2);
+    }
     const minX = Math.min(...points.map((p) => p[0]));
     const minZ = Math.min(...points.map((p) => p[2]));
     const xs = linesOf(points.map((p) => p[0] - minX));
@@ -215,6 +244,10 @@ export function designFromLayout(layout: unknown): { design: Design; notes: stri
       });
     });
     design.plates = designPlates;
+    const designWalls: DesignWall[] = walls
+      .map((w, i) => ({ id: `w${i + 1}`, a: node(w.c1), b: node(w.c2), thickness: Math.max(50, Math.min(1000, Math.round(w.thickness))) }))
+      .filter((w) => !wallError(w.a, w.b));
+    if (designWalls.length) design.walls = designWalls;
     return { design, origin: [minX, 0, minZ] };
   };
 
@@ -254,7 +287,9 @@ export function designFromLayout(layout: unknown): { design: Design; notes: stri
     parts.set(label, (parts.get(label) ?? 0) + 1);
   }
   if (parts.size > 0) notes.push(`פרזול שלא עבר (להוסיף בכתב הכמויות): ${[...parts].map(([l, n]) => (n > 1 ? `${l} ${n}` : l)).join(', ')}`);
-  if (scene.solids.length > 0) notes.push('בטון, קירות וריצוף מההדמיה לא עברו');
+  const others = scene.solids.length - (design.walls?.length ?? 0);
+  if (design.walls?.length) notes.push(design.walls.length === 1 ? 'הקיר מההדמיה עבר: חלקים שמגיעים אליו מעוגנים אליו בבדיקת החוזק' : `${design.walls.length} קירות מההדמיה עברו`);
+  if (others > 0) notes.push('בטון וריצוף מההדמיה לא עברו');
 
   // Through the same checks as a saved design, so the builder can open it
   const read = readDesign(JSON.parse(JSON.stringify(design)));

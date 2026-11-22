@@ -1,31 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  addBay,
-  addBlock,
-  addInfill,
-  addPlate,
-  addMember,
-  allGuessed,
-  allGuesses,
-  compileDesign,
-  elementOf,
-  fitSlope,
-  guessCount,
-  guesses,
-  insertGridLine,
-  memberCutLengths,
-  newDesign,
-  parseSize,
-  plateError,
-  plateReport,
-  readDesign,
-  removeLastBay,
-  setSpacing,
-  sizeFromFields,
-  updateMember,
-  updatePlate,
-} from './design.ts';
+import { addBay, addBlock, addInfill, addPlate, addMember, allGuessed, allGuesses, compileDesign, elementOf, fitSlope, guessCount, guesses, insertGridLine, memberCutLengths, newDesign, parseSize, plateError, plateReport, readDesign, removeLastBay, setSpacing, sizeFromFields, updateMember, updatePlate, addWall, removeWall } from './design.ts';
 import type { Design } from './design.ts';
 import { cutList, plateCorners, prepareScene } from './scene.ts';
 
@@ -384,4 +359,24 @@ test('a sloped roof lies on its rafters: found by itself when placed, kept when 
   assert.equal(readDesign(JSON.parse(JSON.stringify(wall)))?.plates[0].slope, undefined);
   // The sheet's span is measured down the slope: rafters only at the edges, 2,090 apart, too far for corrugated
   assert.match(plateReport(low.design, low.id as string).warn ?? '', /מרישים/);
+});
+
+test('an existing wall: drawn as a solid behind its face, away from the work, never cut or priced', () => {
+  let d: Design = { ...newDesign(), grid: { x: [4000], y: [2500], z: [3000] } };
+  d = addMember(d, [0, 1, 0], [0, 1, 1], { profile: 'rect_tube', size: [80, 40, 2] }).design;
+  assert.equal(addWall(d, [0, 0, 0], [1, 0, 0]).id, null);
+  assert.equal(addWall(d, [0, 0, 0], [1, 1, 1]).id, null);
+  const w = addWall(d, [0, 0, 0], [1, 1, 0]);
+  assert.ok(w.id);
+  const layout = compileDesign(w.design, 'גגון') as { solids?: { center: number[]; size: number[]; kind: string }[] };
+  // The work is towards +Z, so the wall's 200 go back to -Z from its face on Z = 0
+  assert.deepEqual(layout.solids, [{ kind: 'plaster', center: [2000, 1250, -100], size: [4000, 2500, 200], label: 'קיר קיים' }]);
+  // Read back, kept through a new grid line, and gone with its line
+  assert.deepEqual(readDesign(JSON.parse(JSON.stringify(w.design)))?.walls, w.design.walls);
+  const wider = insertGridLine(w.design, 'z', -500).design;
+  assert.deepEqual(wider.walls?.[0].a, [0, 0, 1]);
+  assert.equal(removeWall(w.design, w.id as string).walls, undefined);
+  // Not in the cut list
+  const cut = cutList(prepareScene(JSON.parse(JSON.stringify(layout))).scene);
+  assert.equal(cut.pieces.length, 1);
 });

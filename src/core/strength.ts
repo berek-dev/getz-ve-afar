@@ -25,9 +25,14 @@ export interface StrengthSettings {
   wind: number;
   /** Posts at the ground: fixed (a base plate on four anchors, or set in concrete) or a hinge */
   base: 'fixed' | 'pinned';
+  /**
+   * Pieces that end on a wall: a hinge (a beam bolted on through a plate or along a ledger) or fixed (a plate with
+   * anchors top and bottom, holding a canopy that hangs on the wall with nothing under it)
+   */
+  wall: 'fixed' | 'pinned';
 }
 
-export const DEFAULT_STRENGTH: StrengthSettings = { roofLoad: 0.4, wind: 0.8, base: 'fixed' };
+export const DEFAULT_STRENGTH: StrengthSettings = { roofLoad: 0.4, wind: 0.8, base: 'fixed', wall: 'pinned' };
 
 export type Verdict = 'ok' | 'close' | 'fail';
 export type Governs = 'stress' | 'buckling' | 'deflection' | 'sway';
@@ -72,6 +77,8 @@ export interface StrengthReport {
   leavesMissing: number;
   /** Plates with no members under them to carry them */
   unsupported: string[];
+  /** Points held by a wall */
+  wallSupports: number;
   unstableAt: Vec3 | null;
   steelKg: number;
   roofArea: number;
@@ -293,6 +300,8 @@ interface Built {
   groundNodes: Set<number>;
   /** Members lying on the ground along their length (a track): held all along, no sag */
   onGround: Set<number>;
+  /** How many of the supports are on a wall's face */
+  wallSupports: number;
   loose: Set<number>;
   /** Node of each leaf load, or -1 when its post was left out */
   leafNodes: number[];
@@ -449,8 +458,10 @@ function buildFrame(scene: ResolvedScene, settings: StrengthSettings, members: R
 
   // Supports: at the ground, or on concrete and walls
   const fixed = settings.base === 'fixed' ? [true, true, true, true, true, true] : [true, true, true, false, true, false];
+  const onWall = settings.wall === 'fixed' ? [true, true, true, true, true, true] : [true, true, true, false, false, false];
   const supports = new Map<number, boolean[]>();
   const groundNodes = new Set<number>();
+  const wallNodes = new Set<number>();
   const used = new Set(elements.flatMap((e) => [e.a, e.b]));
   nodes.forEach((p, i) => {
     if (!used.has(i)) return;
@@ -463,8 +474,11 @@ function buildFrame(scene: ResolvedScene, settings: StrengthSettings, members: R
     for (const s of boxes) {
       const inside = [0, 1, 2].every((k) => Math.abs(p[k] - s.center[k]) <= s.size[k] / 2 + 15);
       if (!inside) continue;
-      const onTop = p[1] >= s.center[1] + s.size[1] / 2 - 15;
-      supports.set(i, onTop ? fixed : [true, true, true, false, false, false]);
+      // Standing on it (inside its top, not on a face) or fixed to its side (a wall's face)
+      const within = (k: 0 | 2) => Math.abs(p[k] - s.center[k]) < s.size[k] / 2 - 15;
+      const onTop = p[1] >= s.center[1] + s.size[1] / 2 - 15 && within(0) && within(2);
+      supports.set(i, onTop ? fixed : onWall);
+      if (!onTop) wallNodes.add(i);
       groundNodes.add(i);
       return;
     }
@@ -497,6 +511,7 @@ function buildFrame(scene: ResolvedScene, settings: StrengthSettings, members: R
     nodeMembers: usedNodes.map((n) => nodeMembers[n]),
     groundNodes: new Set([...groundNodes].filter((n) => renum.has(n)).map((n) => renum.get(n) as number)),
     onGround,
+    wallSupports: [...wallNodes].filter((n) => renum.has(n)).length,
     loose,
     leafNodes: leafPoints.map((p) => {
       if (!p) return -1;
@@ -748,6 +763,7 @@ export function checkStrength(scene: ResolvedScene, settings: StrengthSettings =
     movers: 0,
     leavesMissing: 0,
     unsupported: [],
+    wallSupports: 0,
     unstableAt: null,
     steelKg: 0,
     roofArea: 0,
@@ -764,7 +780,7 @@ export function checkStrength(scene: ResolvedScene, settings: StrengthSettings =
   const cases = loadCases(b, scene, settings, leaves.loads);
   const base = [cases.G, cases.Q, cases.W['+x'], cases.W['-x'], cases.W['+z'], cases.W['-z'], cases.down, cases.up];
   const solved = solveFrame(b.frame, base);
-  if (!solved.ok) return { ...empty, status: 'unstable', movers, leavesMissing, loose, unstableAt: b.frame.nodes[solved.node], unsupported: cases.unsupported, roofArea: cases.roofArea };
+  if (!solved.ok) return { ...empty, status: 'unstable', wallSupports: b.wallSupports, movers, leavesMissing, loose, unstableAt: b.frame.nodes[solved.node], unsupported: cases.unsupported, roofArea: cases.roofArea };
   const all = combos(cases.roofArea > 0).map((c) => ({ ...c, r: combine(solved.cases, c.f) }));
   const uls = all.filter((c) => c.uls);
   const sls = all.filter((c) => !c.uls);
@@ -983,6 +999,7 @@ export function checkStrength(scene: ResolvedScene, settings: StrengthSettings =
     movers,
     leavesMissing,
     unsupported: cases.unsupported,
+    wallSupports: b.wallSupports,
     unstableAt: null,
     steelKg,
     roofArea: cases.roofArea,

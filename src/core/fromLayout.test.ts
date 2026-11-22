@@ -108,3 +108,23 @@ test('curved pieces, sloped sheets and what has no place in the builder', () => 
   assert.equal(plate.a[1], plate.b[1]);
   assert.equal(designFromLayout({ members: [] }), null);
 });
+
+test('a wall in the AI model becomes a builder wall, its face towards the work', () => {
+  const r = designFromLayout({
+    members: [
+      { id: 'rafter', profile: 'rect_tube', size: [80, 40, 2], from: [0, 2500, 0], to: [0, 2500, 3000], repeat: { count: 3, step: [2000, 0, 0] } },
+      { id: 'beam', profile: 'rect_tube', size: [120, 60, 3], from: [0, 2500, 3000], to: [4000, 2500, 3000] },
+      { id: 'post', profile: 'rect_tube', size: [100, 100, 3], from: [0, 0, 3000], to: [0, 2440, 3000], repeat: { count: 2, step: [4000, 0, 0] } },
+    ],
+    // The house: 250 thick, its face at Z = 0, longer and taller than the canopy
+    solids: [{ kind: 'plaster', center: [2000, 1700, -125], size: [8000, 3400, 250] }],
+  });
+  assert.ok(r);
+  const w = r.design.walls?.[0];
+  assert.ok(w);
+  assert.equal(w.thickness, 250);
+  assert.equal(w.a[2], 0);
+  assert.equal(w.b[2], 0);
+  assert.ok(r.notes.some((n) => /הקיר מההדמיה עבר/.test(n)));
+  assert.ok(!r.notes.some((n) => /בטון/.test(n)));
+});

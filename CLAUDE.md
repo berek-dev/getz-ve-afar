@@ -45,7 +45,10 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   and `tint` (`src/core/sheets.ts`: trapeze and corrugated סנטף, PVC, multiwall and solid polycarbonate; weight per m²,
   sheet widths, purlin spacing, minimum pitch); it is priced per m² from the catalog and left out of the steel weight.
   A level plate can slope (`slope: {up, deg}`, scene and design alike): `fitSlope` lays it on the rafters or beams
-  under it, `plateReport` gives sheets needed and warns about purlins too far apart. Blocks
+  under it, `plateReport` gives sheets needed and warns about purlins too far apart. An existing wall ("קיר קיים",
+  `design.walls`) is placed like a plate in the front or side view: its face on the grid plane, its body `thickness`
+  back away from the work (`wallBox`); it compiles to a scene solid, is never cut or priced, and holds what ends on
+  it in the strength check. An AI model's thin standing solids become walls (`designFromLayout`). Blocks
   (`src/core/blocks.ts`: stairs, platform, railing, ladder, gate, tank) are placed by two grid points plus a few numbers;
   their frame pieces go through the same joint rules (a railing post stops on the beam under it). Levels are
   finished floor: stair tops and platform decks sit at the grid level. The grid pinches and pans
@@ -78,7 +81,8 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   `src/core/strength.ts` turns the scene into a 3D frame (`src/core/frame3d.ts`: 12-DOF Euler–Bernoulli elements,
   banded Cholesky after reverse Cuthill–McKee, a vanishing pivot = mechanism) with welded rigid joints: ends on a
   face join the other's centre line, pieces crossing within touching distance join where they cross, the ground
-  (and concrete, footings, members lying on the ground) holds. Section properties (`sectionProps.ts`) follow the
+  (and concrete, footings, members lying on the ground) holds, and so does a wall's face: on a hinge or fixed
+  (`settings.wall`; a canopy hanging on the wall with no posts needs fixed). Section properties (`sectionProps.ts`) follow the
   layout's f/n axes: element local y = n, so `Iy = In`, `Iz = If`. Loads: own weight; plates and roofing spread onto
   the members under them by tributary width (`spread`); roof load and wind (kN/m², set in the panel, stored in
   `gva:strength`) with open-canopy coefficients; gate leaves are not checked but their weight and wind go to the
