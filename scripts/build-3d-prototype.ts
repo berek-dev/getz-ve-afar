@@ -10,7 +10,7 @@ import { stripTypeScriptTypes } from 'node:module';
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
 // Core modules in dependency order; each becomes an IIFE returning its exports.
-const MODULES = ['steel', 'sections', 'catalog', 'scene', 'drawing', 'layoutPrompt'];
+const MODULES = ['steel', 'sections', 'sheets', 'catalog', 'scene', 'drawing', 'layoutPrompt'];
 let core = '';
 for (const name of MODULES) {
   let js = stripTypeScriptTypes(read(`src/core/${name}.ts`));

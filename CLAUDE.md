@@ -41,7 +41,11 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   `compileDesign` turns it into the normal layout (joints trimmed as a shop builds them: columns run through, beams
   stop at their faces) and keeps the design inside it as `design`; saved with source `builder`. Plates ("פח", `design.plates`) are placed by two
   opposite grid corners in any view and sit on the face of the frame pieces on their edges (its outside size), inside
-  them, or on the grid lines; with nothing around them, on the lines. Blocks
+  them, or on the grid lines; with nothing around them, on the lines. Roofing ("סנטף וקירוי") is a plate with `sheet`
+  and `tint` (`src/core/sheets.ts`: trapeze and corrugated סנטף, PVC, multiwall and solid polycarbonate; weight per m²,
+  sheet widths, purlin spacing, minimum pitch); it is priced per m² from the catalog and left out of the steel weight.
+  A level plate can slope (`slope: {up, deg}`, scene and design alike): `fitSlope` lays it on the rafters or beams
+  under it, `plateReport` gives sheets needed and warns about purlins too far apart. Blocks
   (`src/core/blocks.ts`: stairs, platform, railing, ladder, gate, tank) are placed by two grid points plus a few numbers;
   their frame pieces go through the same joint rules (a railing post stops on the beam under it). Levels are
   finished floor: stair tops and platform decks sit at the grid level. The grid pinches and pans

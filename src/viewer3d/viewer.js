@@ -225,12 +225,32 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
     return out;
   }
 
+  // A roofing sheet (סנטף, polycarbonate): its tint, see-through, no shadow of its own
+  function sheetMaterial(color, opacity) {
+    const key = `sheet|${color}|${opacity}`;
+    if (matCache.has(key)) return matCache.get(key);
+    const m = track(
+      new THREE.MeshStandardMaterial({ color: color || '#dfeef5', transparent: true, opacity: opacity ?? 0.4, roughness: 0.25, metalness: 0, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    matCache.set(key, m);
+    return m;
+  }
+
   function plateMesh(p) {
     const [a, b] = p.size.map((v) => v * MM);
     const t = p.thickness * MM;
     const dimsArr = p.normal === 'z' ? [a, b, t] : p.normal === 'x' ? [t, b, a] : [a, t, b];
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...dimsArr), steelMaterial(p.material, p.color || (p.material === 'black' ? finishColor() : null)));
+    const mat = p.sheet ? sheetMaterial(p.color, p.opacity) : steelMaterial(p.material, p.color || (p.material === 'black' ? finishColor() : null));
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...dimsArr), mat);
     mesh.position.copy(v3(p.center));
+    // A sloped roof: tilted about its centre so it rises toward p.slope.up
+    if (p.normal === 'y' && p.slope) {
+      const t = (p.slope.deg * Math.PI) / 180;
+      if (p.slope.up === '+x') mesh.rotation.z = t;
+      else if (p.slope.up === '-x') mesh.rotation.z = -t;
+      else if (p.slope.up === '+z') mesh.rotation.x = -t;
+      else mesh.rotation.x = t;
+    }
     return mesh;
   }
 
@@ -342,8 +362,11 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
     }
     for (const p of sc.plates) {
       const mesh = plateMesh(p);
-      mesh.castShadow = mesh.receiveShadow = true;
-      mesh.userData.info = { id: p.id ?? null, mark: null, text: `${p.label || 'פח'} ${p.thickness} מ״מ, ${fmt(Math.max(...p.size))}/${fmt(Math.min(...p.size))}` };
+      mesh.castShadow = !p.sheet;
+      mesh.receiveShadow = !p.sheet;
+      const size = `${fmt(Math.max(...p.size))}/${fmt(Math.min(...p.size))}`;
+      const text = p.sheet ? `${p.label || 'סנטף'}, ${size}` : `${p.label || 'פח'} ${p.thickness} מ״מ, ${size}`;
+      mesh.userData.info = { id: p.id ?? null, mark: null, text };
       holder(p.group).add(mesh);
     }
     for (const p of sc.parts) {

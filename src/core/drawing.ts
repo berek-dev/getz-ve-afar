@@ -3,7 +3,7 @@
  * and the cut list, on an A3 sheet. Pure string output (SVG), so it works in the app, on the server and
  * in tests. A fabrication aid, not an engineered drawing.
  */
-import { add, arcPoint, arcThrough, boundsOf, cutList, dimensionName, memberLength, norm, rolledAxes, scale, sectionAxes, sub, workBounds } from './scene.ts';
+import { add, arcPoint, arcThrough, boundsOf, cutList, dimensionName, memberLength, norm, plateCorners, rolledAxes, scale, sectionAxes, sub, workBounds } from './scene.ts';
 import type { CutList, ResolvedMember, ResolvedScene, Vec3 } from './scene.ts';
 import { BEAMS } from './sections.ts';
 
@@ -158,6 +158,12 @@ export function shopDrawingSvg(scene: ResolvedScene, opts: DrawingOptions = {}):
 
   // Plates behind, then members far to near
   for (const p of scene.plates) {
+    if (p.slope) {
+      // A sloped roof seen from the front: its corners, projected
+      const pts = plateCorners(p).map((c) => `${X(c[0])},${Y(c[1])}`).join(' ');
+      out.push(`<polygon points="${pts}" fill="#f2f2f2" stroke="#444" stroke-width="0.2" stroke-linejoin="round"/>`);
+      continue;
+    }
     const [a, c] = p.size;
     const [w, h] = p.normal === 'z' ? [a, c] : p.normal === 'x' ? [p.thickness, c] : [a, p.thickness];
     out.push(

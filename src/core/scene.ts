@@ -11,6 +11,8 @@ import type { SteelShape } from './steel.ts';
 import { BEAMS } from './sections.ts';
 import { INCH, MATERIAL_KEYS, materialInfo } from './catalog.ts';
 import type { MaterialKey } from './catalog.ts';
+import { TINTS, isSheet, sheetInfo, sheetName, sheetTint } from './sheets.ts';
+import type { SheetKey, SheetTint } from './sheets.ts';
 
 export type Vec3 = [number, number, number];
 export type Axis = 'x' | 'y' | 'z';
@@ -60,14 +62,23 @@ export interface Member {
   end_cap?: EndCap;
 }
 
+/** Which way a sloped plate rises: toward +X (right), -X, +Z (the street) or -Z */
+export type SlopeUp = '+x' | '-x' | '+z' | '-z';
+export const SLOPE_UPS: readonly SlopeUp[] = ['+x', '-x', '+z', '-z'];
+
 export interface Plate {
   id?: string;
   center: Vec3;
-  /** In-plane size: normal z → [x, y]; normal x → [z, y]; normal y → [x, z] */
+  /** In-plane size: normal z → [x, y]; normal x → [z, y]; normal y → [x, z]. A sloped plate: its true size */
   size: [number, number];
   normal: Axis;
+  /** A level plate (normal y) tilted about its centre: it rises `deg` degrees toward `up` (a sloped roof) */
+  slope?: { up: SlopeUp; deg: number };
   thickness: number;
   material?: MaterialKey;
+  /** A roofing sheet (סנטף, polycarbonate) instead of steel: thickness, weight and look come from sheets.ts */
+  sheet?: SheetKey;
+  tint?: SheetTint;
   group?: string;
   label?: string;
   color?: string;
@@ -175,7 +186,8 @@ export interface ResolvedMember extends Member {
 }
 export interface ResolvedScene extends Omit<Scene, 'members' | 'plates' | 'parts'> {
   members: ResolvedMember[];
-  plates: (Plate & { id: string; material: MaterialKey })[];
+  /** A see-through sheet has its tint's colour and an opacity below 1 */
+  plates: (Plate & { id: string; material: MaterialKey; opacity?: number })[];
   parts: (Part & { id: string })[];
   solids: Solid[];
   groups: Group[];
@@ -426,7 +438,10 @@ export function prepareScene(raw: unknown): Prepared {
     const where = `plates[${i}]`;
     const center = vec(p?.center);
     const size = Array.isArray(p?.size) && p.size.length === 2 && p.size.every((x) => finite(x) && x > 0) ? p.size : null;
-    if (!center || !size || !isAxis(p.normal) || !(finite(p.thickness) && p.thickness > 0 && p.thickness < 200)) {
+    const sheet = isSheet(p?.sheet) ? p.sheet : undefined;
+    // A sheet's thickness is its profile's depth when none is given
+    const thickness = finite(p?.thickness) ? p.thickness : sheet ? (sheetInfo(sheet)?.depth ?? 0) : NaN;
+    if (!center || !size || !isAxis(p.normal) || !(thickness > 0 && thickness < 200)) {
       warnings.push(`${where}: פח לא תקין`);
       continue;
     }
@@ -436,17 +451,24 @@ export function prepareScene(raw: unknown): Prepared {
       continue;
     }
     const id = text(p.id, 40) ?? `p${i + 1}`;
+    const tint = sheet ? sheetTint(sheet, p.tint) : undefined;
+    const slope =
+      p.normal === 'y' && p.slope && SLOPE_UPS.includes(p.slope.up) && finite(p.slope.deg) && Math.abs(p.slope.deg) > 0.01 && Math.abs(p.slope.deg) <= 75
+        ? { up: p.slope.up, deg: p.slope.deg }
+        : undefined;
+    const color = typeof p.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(p.color) ? p.color : undefined;
     offsets.forEach((o, k) =>
       plates.push({
         id: offsets.length > 1 ? `${id}#${k + 1}` : id,
         center: add(center, o),
         size: [size[0], size[1]],
         normal: p.normal,
-        thickness: p.thickness,
+        ...(slope ? { slope } : {}),
+        thickness,
         material: isMaterial(p.material) ? p.material : defMaterial,
+        ...(sheet && tint ? { sheet, tint, color: color ?? TINTS[tint].color, opacity: TINTS[tint].opacity } : { color }),
         group: groupOk(p.group, where),
         label: text(p.label),
-        color: typeof p.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(p.color) ? p.color : undefined,
       }),
     );
   }
@@ -628,7 +650,8 @@ export interface CutList {
   pieces: CutPiece[];
   /** Totals per section (what to buy) */
   sections: { name: string; totalMm: number; kg: number; pieces: number }[];
-  plates: { name: string; w: number; h: number; count: number; areaM2: number; kg: number }[];
+  /** Steel plates, and roofing sheets (`sheet` set; their weight is not in `totalKg`, which is the steel) */
+  plates: { name: string; w: number; h: number; count: number; areaM2: number; kg: number; sheet?: SheetKey }[];
   parts: { kind: PartKind; label: string; count: number }[];
   totalKg: number;
   markOf: Record<string, string>;
@@ -682,14 +705,14 @@ export function cutList(scene: ResolvedScene): CutList {
 
   const plateRows = new Map<string, CutList['plates'][number]>();
   for (const p of scene.plates) {
-    const suffix = materialInfo(p.material)?.suffix ?? '';
-    const name = `פח ${p.thickness} מ״מ${suffix}`;
+    const name = p.sheet ? sheetName(p.sheet, p.tint) : `פח ${p.thickness} מ״מ${materialInfo(p.material)?.suffix ?? ''}`;
     const [w, h] = [Math.round(Math.max(...p.size)), Math.round(Math.min(...p.size))];
     const key = `${name}|${w}|${h}`;
-    const row = plateRows.get(key) ?? { name, w, h, count: 0, areaM2: 0, kg: 0 };
+    const row = plateRows.get(key) ?? { name, w, h, count: 0, areaM2: 0, kg: 0, ...(p.sheet ? { sheet: p.sheet } : {}) };
     row.count++;
     row.areaM2 = Math.round(((row.count * w * h) / 1e6) * 100) / 100;
-    row.kg = Math.round(row.areaM2 * kgFor('plate', [p.thickness], materialInfo(p.material)?.density ?? 7.85) * 10) / 10;
+    const perM2 = p.sheet ? (sheetInfo(p.sheet)?.kgPerM2 ?? 0) : kgFor('plate', [p.thickness], materialInfo(p.material)?.density ?? 7.85);
+    row.kg = Math.round(row.areaM2 * perM2 * 10) / 10;
     plateRows.set(key, row);
   }
 
@@ -703,7 +726,7 @@ export function cutList(scene: ResolvedScene): CutList {
   }
 
   const plateList = [...plateRows.values()];
-  const totalKg = Math.round((pieces.reduce((s, p) => s + p.kg, 0) + plateList.reduce((s, p) => s + p.kg, 0)) * 10) / 10;
+  const totalKg = Math.round((pieces.reduce((s, p) => s + p.kg, 0) + plateList.reduce((s, p) => s + (p.sheet ? 0 : p.kg), 0)) * 10) / 10;
   return { pieces, sections: [...sections.values()], plates: plateList, parts: [...partRows.values()], totalKg, markOf };
 }
 
@@ -719,7 +742,40 @@ export function workBounds(scene: ResolvedScene): { min: Vec3; max: Vec3 } {
 }
 
 /** Extent of some members (and plates), padded across each member only. */
-export function boundsOf(members: Member[], plates: (Pick<Plate, 'center' | 'size'> & Partial<Pick<Plate, 'normal' | 'thickness'>>)[] = []): { min: Vec3; max: Vec3 } {
+/** The two directions a plate spans, as unit vectors: the first along its size[0], the second along size[1] */
+export function plateAxes(p: Pick<Plate, 'normal'> & Partial<Pick<Plate, 'slope'>>): { u: Vec3; v: Vec3; n: Vec3 } {
+  if (p.normal === 'z') return { u: [1, 0, 0], v: [0, 1, 0], n: [0, 0, 1] };
+  if (p.normal === 'x') return { u: [0, 0, 1], v: [0, 1, 0], n: [1, 0, 0] };
+  if (!p.slope) return { u: [1, 0, 0], v: [0, 0, 1], n: [0, 1, 0] };
+  const t = (p.slope.deg * Math.PI) / 180;
+  const [c, s] = [Math.cos(t), Math.sin(t)];
+  switch (p.slope.up) {
+    case '+x':
+      return { u: [c, s, 0], v: [0, 0, 1], n: [-s, c, 0] };
+    case '-x':
+      return { u: [c, -s, 0], v: [0, 0, 1], n: [s, c, 0] };
+    case '+z':
+      return { u: [1, 0, 0], v: [0, s, c], n: [0, c, -s] };
+    default:
+      return { u: [1, 0, 0], v: [0, -s, c], n: [0, c, s] };
+  }
+}
+
+/** A plate's four corners, on its middle plane */
+export function plateCorners(p: Pick<Plate, 'center' | 'size' | 'normal'> & Partial<Pick<Plate, 'slope'>>): Vec3[] {
+  const { u, v } = plateAxes(p);
+  const [a, b] = [p.size[0] / 2, p.size[1] / 2];
+  return (
+    [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ] as const
+  ).map(([i, j]) => add(add(p.center, scale(u, i * a)), scale(v, j * b)));
+}
+
+export function boundsOf(members: Member[], plates: (Pick<Plate, 'center' | 'size'> & Partial<Pick<Plate, 'normal' | 'thickness' | 'slope'>>)[] = []): { min: Vec3; max: Vec3 } {
   const scene = { members, plates };
   const min: Vec3 = [Infinity, Infinity, Infinity];
   const max: Vec3 = [-Infinity, -Infinity, -Infinity];
@@ -745,6 +801,15 @@ export function boundsOf(members: Member[], plates: (Pick<Plate, 'center' | 'siz
   for (const p of scene.plates) {
     if (!p.normal) {
       grow(p.center, Math.max(...p.size) / 2);
+      continue;
+    }
+    if (p.slope) {
+      const { n } = plateAxes({ normal: p.normal, slope: p.slope });
+      const t = (p.thickness ?? 0) / 2;
+      for (const c of plateCorners({ center: p.center, size: p.size, normal: p.normal, slope: p.slope })) {
+        grow(add(c, scale(n, t)));
+        grow(sub(c, scale(n, t)));
+      }
       continue;
     }
     // Half sizes along X, Y, Z: the plate's thickness across its normal, its size in its plane

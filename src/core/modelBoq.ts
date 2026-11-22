@@ -106,9 +106,10 @@ export function linesFromModel(scene: ResolvedScene, cut: CutList, priceList: Pr
     });
   }
   for (const p of cut.plates) {
-    // Catalog plates are named "פח חלק 2 מ״מ"; match on the key (plate:<material>:<thickness>)
-    const plate = scene.plates.find((s) => `פח ${s.thickness} מ״מ${materialInfo(s.material)?.suffix ?? ''}` === p.name);
-    const el = (plate && byKey.get(`plate:${plate.material}:${plate.thickness}`)) || byName.get(p.name);
+    // Catalog plates are named "פח חלק 2 מ״מ"; match on the key (plate:<material>:<thickness>). Roofing sheets are
+    // priced per m² whatever their tint (sheet:<key>).
+    const plate = p.sheet ? undefined : scene.plates.find((s) => !s.sheet && `פח ${s.thickness} מ״מ${materialInfo(s.material)?.suffix ?? ''}` === p.name);
+    const el = (p.sheet && byKey.get(`sheet:${p.sheet}`)) || (plate && byKey.get(`plate:${plate.material}:${plate.thickness}`)) || byName.get(p.name);
     const priced = el && el.unit === 'm2' ? el : undefined;
     lines.push({
       element_id: priced?.id ?? null,

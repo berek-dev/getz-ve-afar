@@ -8,10 +8,12 @@
  */
 import type { MaterialKey } from './catalog.ts';
 import { beamSizes } from './sections.ts';
-import { PROFILES, add, dot, halfExtent, len, norm, scale, sectionAxes, sub } from './scene.ts';
-import type { Dimension, Member, Part, Plate, Profile, Vec3 } from './scene.ts';
+import { PROFILES, SLOPE_UPS, add, dot, halfExtent, len, norm, scale, sectionAxes, sub } from './scene.ts';
+import type { Dimension, Member, Part, Plate, Profile, SlopeUp, Vec3 } from './scene.ts';
 import { BLOCK_KINDS, buildBlock, newBlock, placementError } from './blocks.ts';
 import type { BlockKind, DesignBlock, Frame, FrameInfill } from './blocks.ts';
+import { isSheet, isTint, purlinGap, sheetCount, sheetInfo, sheetTint } from './sheets.ts';
+import type { SheetKey, SheetTint } from './sheets.ts';
 
 export type GridAxis = 'x' | 'y' | 'z';
 export type DesignNode = [number, number, number];
@@ -67,6 +69,14 @@ export interface DesignPlate {
   /** On the face: which face, along the plane's axis (+1 = up, to the street, to the right) */
   side: 1 | -1;
   label?: string;
+  /** A roofing sheet (סנטף, polycarbonate) instead of steel; then `thickness` is not used */
+  sheet?: SheetKey;
+  tint?: SheetTint;
+  /**
+   * A level plate tilted (a sloped roof): its low edge stays on its grid level, on the side away from `up`, and it rises
+   * `deg` degrees toward `up`, lying on the frame pieces that slope with it
+   */
+  slope?: { up: SlopeUp; deg: number };
 }
 
 export interface Design {
@@ -226,15 +236,21 @@ export function readDesign(raw: unknown): Design | null {
     const q = raw as Partial<DesignPlate> | null;
     const a = nodeOf(q?.a);
     const b = nodeOf(q?.b);
-    if (!q || !a || !b || typeof q.id !== 'string' || !isNum(q.thickness) || q.thickness <= 0 || plateError(a, b)) continue;
+    const sheet = isSheet(q?.sheet) ? q.sheet : undefined;
+    if (!q || !a || !b || typeof q.id !== 'string' || plateError(a, b)) continue;
+    if (!sheet && !(isNum(q.thickness) && q.thickness > 0)) continue;
     plates.push({
       id: q.id,
       a,
       b,
-      thickness: q.thickness,
+      thickness: isNum(q.thickness) && q.thickness > 0 ? q.thickness : 3,
       fit: PLATE_FITS.includes(q.fit as PlateFit) ? (q.fit as PlateFit) : 'face',
       side: q.side === -1 ? -1 : 1,
       ...(typeof q.label === 'string' && q.label ? { label: q.label } : {}),
+      ...(sheet ? { sheet, tint: sheetTint(sheet, isTint(q.tint) ? q.tint : null) } : {}),
+      ...(a[1] === b[1] && q.slope && SLOPE_UPS.includes(q.slope.up) && isNum(q.slope.deg) && q.slope.deg > 0 && q.slope.deg <= 60
+        ? { slope: { up: q.slope.up, deg: q.slope.deg } }
+        : {}),
     });
   }
   const read: Design = { version: 1, grid: { x, y, z }, members, infills, plates, blocks, material: (d.material as MaterialKey) ?? 'black' };
@@ -486,7 +502,9 @@ const unitAlong = (i: number): Vec3 => {
  * lines. Frame pieces lying on the ground sit on it, and so does a plate on them.
  */
 function platePiece(p: DesignPlate, grid: DesignGrid, frames: Frame[]): Plate | null {
-  if (!nodeInGrid(grid, p.a) || !nodeInGrid(grid, p.b) || plateError(p.a, p.b) || !(p.thickness > 0)) return null;
+  const sheet = p.sheet ? sheetInfo(p.sheet) : null;
+  if (!nodeInGrid(grid, p.a) || !nodeInGrid(grid, p.b) || plateError(p.a, p.b) || !(sheet || p.thickness > 0)) return null;
+  if (p.slope && p.a[1] === p.b[1]) return slopedPiece(p, grid, frames);
   const A = nodePosition(grid, p.a);
   const B = nodePosition(grid, p.b);
   const k = ([0, 1, 2] as const).find((x) => p.a[x] === p.b[x]) ?? 2;
@@ -524,7 +542,8 @@ function platePiece(p: DesignPlate, grid: DesignGrid, frames: Frame[]): Plate | 
   if (hi[i] - lo[i] < 1 || hi[j] - lo[j] < 1) return null;
   const all = edges.flatMap(([, , list]) => list);
   const depth = reach(all, unitAlong(k));
-  const t = p.thickness;
+  // A sheet takes the room of its profile (the wave, or the cells)
+  const t = sheet ? sheet.depth : p.thickness;
   let c = w + (k === 1 && near(w, 0) ? depth : 0) + (p.fit === 'face' ? p.side * (depth + t / 2) : 0);
   if (k === 1 && c - t / 2 < 0) c = t / 2;
   const center: Vec3 = [0, 0, 0];
@@ -533,7 +552,204 @@ function platePiece(p: DesignPlate, grid: DesignGrid, frames: Frame[]): Plate | 
   center[k] = c;
   const ext = (x: number) => hi[x] - lo[x];
   const size: [number, number] = k === 2 ? [ext(0), ext(1)] : k === 0 ? [ext(2), ext(1)] : [ext(0), ext(2)];
+  if (sheet && p.sheet) {
+    const tint = sheetTint(p.sheet, p.tint);
+    return { id: p.id, center, size, normal: AXIS_NAMES[k], thickness: t, sheet: p.sheet, tint, label: p.label ?? sheet.short };
+  }
   return { id: p.id, center, size, normal: AXIS_NAMES[k], thickness: t, label: p.label ?? 'פח' };
+}
+
+/** A sloped plate's plane: the axis it rises along, which way, its low edge, and the height of its grid line at u */
+function slopePlane(p: DesignPlate, grid: DesignGrid) {
+  const A = nodePosition(grid, p.a);
+  const B = nodePosition(grid, p.b);
+  const up = p.slope?.up ?? '+z';
+  const s = up[1] === 'x' ? 0 : 2;
+  const c = s === 0 ? 2 : 0;
+  const sg = up[0] === '+' ? 1 : -1;
+  const lo = (x: number) => Math.min(A[x], B[x]);
+  const hi = (x: number) => Math.max(A[x], B[x]);
+  const low = sg > 0 ? lo(s) : hi(s);
+  const tan = Math.tan(((p.slope?.deg ?? 0) * Math.PI) / 180);
+  const height = (u: number) => A[1] + tan * sg * (u - low);
+  // A frame piece lies on the plane when both its ends do (a rafter, or a purlin across it)
+  const onPlane = (f: Frame) => Math.abs(f.from[1] - height(f.from[s])) < 2 && Math.abs(f.to[1] - height(f.to[s])) < 2;
+  return { A, B, s, c, sg, lo, hi, low, tan, height, onPlane };
+}
+
+/**
+ * A sloped plate (a roof): the rectangle between its corners seen from above, grown to the outside of the frame pieces
+ * on its edges (beams across, rafters along the slope) like a level one, then tilted to lie on them.
+ */
+function slopedPiece(p: DesignPlate, grid: DesignGrid, frames: Frame[]): Plate | null {
+  if (!p.slope) return null;
+  const sheet = p.sheet ? sheetInfo(p.sheet) : null;
+  const P = slopePlane(p, grid);
+  const { s, c } = P;
+  const lo: Vec3 = [P.lo(0), P.lo(1), P.lo(2)];
+  const hi: Vec3 = [P.hi(0), P.hi(1), P.hi(2)];
+  const near = (u: number, v: number) => Math.abs(u - v) < 0.5;
+  const along = (fixed: number, value: number, run: number) =>
+    frames.filter((f) => {
+      if (!P.onPlane(f) || !near(f.from[fixed], value) || !near(f.to[fixed], value)) return false;
+      return Math.min(Math.max(f.from[run], f.to[run]), hi[run]) - Math.max(Math.min(f.from[run], f.to[run]), lo[run]) > 1;
+    });
+  const reach = (list: Frame[], dir: Vec3) =>
+    list.reduce((most, f) => {
+      const axes = sectionAxes(norm(sub(f.to, f.from)));
+      return Math.max(most, halfExtent(f, axes.f, axes.n, dir));
+    }, 0);
+  const edges: [number, 'lo' | 'hi', Frame[]][] = [
+    [s, 'lo', along(s, lo[s], c)],
+    [s, 'hi', along(s, hi[s], c)],
+    [c, 'lo', along(c, lo[c], s)],
+    [c, 'hi', along(c, hi[c], s)],
+  ];
+  const grow = p.fit === 'face' ? 1 : p.fit === 'inside' ? -1 : 0;
+  for (const [x, end, list] of edges) {
+    const e = reach(list, unitAlong(x));
+    if (end === 'lo') lo[x] -= grow * e;
+    else hi[x] += grow * e;
+  }
+  if (hi[s] - lo[s] < 1 || hi[c] - lo[c] < 1) return null;
+  // How far the frame's top is above its lines: the beams across the slope, else the rafters
+  const across = [...edges[0][2], ...edges[1][2]];
+  const depth = reach(across.length ? across : edges.flatMap(([, , l]) => l), UP);
+  const t = sheet ? sheet.depth : p.thickness;
+  const cos = Math.cos((p.slope.deg * Math.PI) / 180);
+  const mid: Vec3 = [0, 0, 0];
+  mid[s] = (lo[s] + hi[s]) / 2;
+  mid[c] = (lo[c] + hi[c]) / 2;
+  mid[1] = P.height(mid[s]) + (p.fit === 'face' ? p.side * (depth + t / 2 / cos) : 0);
+  const run = (hi[s] - lo[s]) / cos;
+  const size: [number, number] = s === 0 ? [run, hi[c] - lo[c]] : [hi[c] - lo[c], run];
+  const base = { id: p.id, center: mid, size, normal: 'y' as const, slope: { up: p.slope.up, deg: p.slope.deg }, thickness: t };
+  if (sheet && p.sheet) return { ...base, sheet: p.sheet, tint: sheetTint(p.sheet, p.tint), label: p.label ?? sheet.short };
+  return { ...base, label: p.label ?? 'פח' };
+}
+
+/**
+ * Where the frame holds a sheet: the positions, across each of the plate's two in-plane axes, of the frame pieces in
+ * its plane that run the other way through its rectangle. A sheet spans between them one way or the other. On a
+ * sloped plate, positions down the slope are measured along it.
+ */
+function supportsUnder(p: DesignPlate, grid: DesignGrid, frames: Frame[]): [number[], number[]] {
+  const A = nodePosition(grid, p.a);
+  const B = nodePosition(grid, p.b);
+  const k = ([0, 1, 2] as const).find((x) => p.a[x] === p.b[x]) ?? 2;
+  const [i, j] = ([0, 1, 2] as const).filter((x) => x !== k);
+  const lo = (x: number) => Math.min(A[x], B[x]);
+  const hi = (x: number) => Math.max(A[x], B[x]);
+  const near = (u: number, v: number) => Math.abs(u - v) < 0.5;
+  const sloped = p.slope && k === 1 ? slopePlane(p, grid) : null;
+  const inPlane = (f: Frame) => (sloped ? sloped.onPlane(f) : near(f.from[k], A[k]) && near(f.to[k], A[k]));
+  const along = (across: number, at: number) => (sloped && across === sloped.s ? Math.abs(at - sloped.low) * Math.sqrt(1 + sloped.tan ** 2) : at);
+  const positions = (across: number, run: number) =>
+    frames
+      .filter((f) => inPlane(f) && near(f.from[across], f.to[across]))
+      .filter((f) => f.from[across] > lo(across) - 0.5 && f.from[across] < hi(across) + 0.5)
+      .filter((f) => Math.min(Math.max(f.from[run], f.to[run]), hi(run)) - Math.max(Math.min(f.from[run], f.to[run]), lo(run)) > 1)
+      .map((f) => along(across, f.from[across]));
+  return [positions(i, j), positions(j, i)];
+}
+
+/**
+ * The slope that lays a level plate on the frame around it: rafters from its edge on its level to the opposite edge
+ * (or, failing those, the beam along the opposite edge) give the rise. A plate drawn on the high side moves down to the
+ * low one. `rafters` keeps to rafters only (what placing a plate does by itself). Null when nothing slopes.
+ */
+export function fitSlope(design: Design, id: string, opts: { rafters?: boolean } = {}): Design | null {
+  const plate = design.plates.find((p) => p.id === id);
+  if (!plate || plate.a[1] !== plate.b[1]) return null;
+  const { frames } = collect(design);
+  const A = nodePosition(design.grid, plate.a);
+  const B = nodePosition(design.grid, plate.b);
+  const w = A[1];
+  const near = (u: number, v: number) => Math.abs(u - v) < 0.5;
+  const levels = gridLines(design.grid.y);
+  type Found = { up: SlopeUp; rise: number; run: number; rafter: boolean };
+  const found: Found[] = [];
+  for (const up of SLOPE_UPS) {
+    const s = up[1] === 'x' ? 0 : 2;
+    const c = s === 0 ? 2 : 0;
+    const sg = up[0] === '+' ? 1 : -1;
+    const [lo, hi] = [Math.min(A[s], B[s]), Math.max(A[s], B[s])];
+    const [N, F] = sg > 0 ? [lo, hi] : [hi, lo];
+    const run = Math.abs(F - N);
+    const inSpan = (v: number) => v > Math.min(A[c], B[c]) - 0.5 && v < Math.max(A[c], B[c]) + 0.5;
+    for (const f of frames) {
+      for (const [p, q] of [
+        [f.from, f.to],
+        [f.to, f.from],
+      ] as const) {
+        if (!near(p[s], N) || !near(q[s], F) || !near(p[1], w) || near(q[1], w) || !near(p[c], q[c]) || !inSpan(p[c])) continue;
+        found.push({ up, rise: q[1] - w, run, rafter: true });
+      }
+    }
+    if (opts.rafters) continue;
+    // A beam along the far edge, higher up
+    const beams = frames.filter((f) => near(f.from[s], F) && near(f.to[s], F) && near(f.from[1], f.to[1]) && f.from[1] > w + 0.5 && (inSpan(f.from[c]) || inSpan(f.to[c])));
+    if (beams.length) found.push({ up, rise: Math.min(...beams.map((f) => f.from[1])) - w, run, rafter: false });
+  }
+  const best = found.find((f) => f.rafter && f.rise > 0) ?? found.find((f) => f.rafter) ?? found.find((f) => f.rise > 0);
+  if (!best || !(best.run > 0)) return null;
+  const deg = Math.round(((Math.atan(Math.abs(best.rise) / best.run) * 180) / Math.PI) * 10) / 10;
+  if (!(deg > 0 && deg <= 60)) return null;
+  let a = plate.a;
+  let b = plate.b;
+  let up = best.up;
+  if (best.rise < 0) {
+    // Drawn on the high side: down to the low level, rising back toward where it was
+    const idx = levels.findIndex((y) => near(y, w + best.rise));
+    if (idx < 0) return null;
+    a = [a[0], idx, a[2]];
+    b = [b[0], idx, b[2]];
+    up = `${up[0] === '+' ? '-' : '+'}${up[1]}` as SlopeUp;
+  }
+  return { ...design, plates: design.plates.map((p) => (p.id === id ? { ...p, a, b, slope: { up, deg } } : p)) };
+}
+
+/** What a sheet's editor shows: its size and weight, how many sheets, the maker's spans, and a warning */
+export function plateReport(design: Design, id: string): { info: string[]; warn: string | null } {
+  const plate = design.plates.find((p) => p.id === id);
+  const c = collect(design);
+  const piece = plate ? platePiece(plate, design.grid, c.frames) : null;
+  if (!plate || !piece) return { info: [], warn: null };
+  const [w, h] = [Math.max(...piece.size), Math.min(...piece.size)];
+  const area = (w * h) / 1e6;
+  const fmt = (n: number) => new Intl.NumberFormat('he-IL', { maximumFractionDigits: 1 }).format(n);
+  // A sloped one: how much higher its high edge stands
+  const slopeLine = plate.slope
+    ? (() => {
+        const P = slopePlane(plate, design.grid);
+        const rise = Math.round((P.hi(P.s) - P.lo(P.s)) * P.tan);
+        return `שיפוע ${fmt(plate.slope.deg)} מעלות: הצד הגבוה גבוה ב־${fmt(rise)} מ״מ`;
+      })()
+    : null;
+  if (!plate.sheet) {
+    const info = [`${fmt(Math.round(w))}/${fmt(Math.round(h))} מ״מ, בערך ${fmt(Math.round(area * plate.thickness * 7.85))} ק״ג`];
+    return { info: slopeLine ? [...info, slopeLine] : info, warn: null };
+  }
+  const def = sheetInfo(plate.sheet);
+  if (!def) return { info: [], warn: null };
+  const info = [`${fmt(Math.round(w))}/${fmt(Math.round(h))} מ״מ, ${fmt(Math.round(area * 100) / 100)} מ״ר, בערך ${fmt(Math.round(area * def.kgPerM2))} ק״ג`];
+  if (slopeLine) info.push(slopeLine);
+  const n = sheetCount(plate.sheet, w);
+  if (n && def.width) info.push(`בערך ${n} ${n === 1 ? 'לוח' : 'לוחות'} ברוחב ${fmt(def.width)}, באורך ${fmt(Math.round(h))}`);
+  if (def.purlin) info.push(`מרישים כל ${fmt(def.purlin.mid)} מ״מ לכל היותר, ${fmt(def.purlin.end)} בקצוות`);
+  if (def.minPitch && !plate.slope) info.push(`שיפוע ${def.minPitch} מעלות לפחות, שהמים יתנקזו`);
+  let warn: string | null = null;
+  if (def.minPitch && plate.slope && plate.slope.deg < def.minPitch) warn = `שיפוע ${fmt(plate.slope.deg)} מעלות קטן מדי: ל${def.short} צריך ${def.minPitch} לפחות, שהמים יתנקזו.`;
+  if (def.purlin) {
+    const checks = supportsUnder(plate, design.grid, c.frames)
+      .map((at) => purlinGap(plate.sheet as SheetKey, at))
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    if (!warn && checks.length > 0 && !checks.some((x) => x.ok)) {
+      const best = checks.reduce((a, b) => (a.gap - a.limit <= b.gap - b.limit ? a : b));
+      warn = `יש מרווח של ${fmt(best.gap)} מ״מ בין המרישים, והמותר ל${def.short} הוא ${fmt(best.limit)}. כדאי להוסיף מרישים.`;
+    }
+  }
+  return { info, warn };
 }
 
 /** The layout the rest of the app draws, prices and cuts, with the design inside it */
@@ -672,13 +888,19 @@ export function elementOf(design: Design, pieceId: string): { kind: 'member' | '
 }
 
 /** A plate between two opposite grid corners; on the face of the frame where there is one, else on the lines */
-export function addPlate(design: Design, a: DesignNode, b: DesignNode, thickness = 3): { design: Design; id: string | null } {
+export function addPlate(design: Design, a: DesignNode, b: DesignNode, thickness = 3, sheet?: SheetKey): { design: Design; id: string | null } {
   if (plateError(a, b)) return { design, id: null };
   const id = newId('p', new Set(design.plates.map((p) => p.id)));
-  const plate: DesignPlate = { id, a, b, thickness, fit: 'face', side: 1 };
+  const plate: DesignPlate = { id, a, b, thickness, fit: 'face', side: 1, ...(sheet && isSheet(sheet) ? { sheet, tint: sheetTint(sheet, null) } : {}) };
   // With nothing around it to sit on, a plate stands on its own, on the grid lines
   const alone = platePiece({ ...plate, fit: 'inside' }, design.grid, collect(design).frames);
   const onLines = platePiece({ ...plate, fit: 'center' }, design.grid, []);
+  // On a level with rafters sloping off it (a sloped roof): lie on them
+  if (a[1] === b[1]) {
+    const withPlate = { ...design, plates: [...design.plates, plate] };
+    const sloped = fitSlope(withPlate, id, { rafters: true });
+    if (sloped) return { design: sloped, id };
+  }
   const framed = alone && onLines && (alone.size[0] < onLines.size[0] - 0.5 || alone.size[1] < onLines.size[1] - 0.5);
   return { design: { ...design, plates: [...design.plates, framed ? plate : { ...plate, fit: 'center' }] }, id };
 }

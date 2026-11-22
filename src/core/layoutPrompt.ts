@@ -2,6 +2,7 @@
  * Instructions that turn a description (+ bill of quantities, photo or sketch) into layout JSON
  * (see scene.ts), and the prompt around them. Shared by the app (Gemini) and the prototype (Claude).
  */
+import { SHEETS } from './sheets.ts';
 
 export const LAYOUT_INSTRUCTIONS = `You turn a metalwork job (gate, fence, railing, pergola, stairs, pipe work) into a 3D layout that a viewer draws.
 The input is a description, usually in Hebrew and often dictated, and sometimes a bill of quantities.
@@ -39,6 +40,13 @@ MEMBERS: every piece of profile, tube or bar. "members": [ ... ]
 
 PLATES: sheets, cladding, base plates, closing plates. "plates": [ { "center": [x, y, z], "size": [a, b], "normal": "z", "thickness": 2 } ]
   normal "z": size = [width along x, height along y]. normal "x": [along z, along y]. normal "y": [along x, along z].
+  Roofing of a canopy or pergola (סנטף, פוליקרבונט, פוליגל) is a plate with "sheet" and "tint" instead of steel:
+  "sheet": ${SHEETS.map((s) => `${s.key} (${s.short})`).join(', ')}.
+  "tint": clear | bronze | opal | gray. "thickness" is the profile's depth (${SHEETS.map((s) => `${s.key} ${s.depth}`).join(', ')}).
+  Put it on top of the purlins (normal "y"); purlins under trapeze or corrugated sheets at most 1000 mm apart.
+  A sloped plate (a lean-to or pitched roof) has normal "y" and "slope": { "up": "+x" | "-x" | "+z" | "-z", "deg": 10 }:
+  "up" is the direction it rises towards, "center" is the middle of the sheet, "size" is its true size along the slope
+  (the plan length divided by the cosine of the angle). Trapeze sheets need at least 5 degrees.
 
 PARTS: hardware. "parts": [ { "kind": "hinge", "at": [x, y, z] } ]
   kinds: hinge, wheel, guide_roller, lock, handle, drop_bolt, stopper, footing, motor, cap, finial, scroll.

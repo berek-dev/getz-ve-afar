@@ -25,7 +25,9 @@ import {
   guesses,
   memberCutLengths,
   newDesign,
+  fitSlope,
   plateError,
+  plateReport,
   readDesign,
   removeBlock,
   removeInfill,
@@ -44,10 +46,11 @@ import {
   zLineName,
 } from '../core/design.ts';
 import type { Design, DesignNode, GridAxis, PlateFit, ProfileChoice } from '../core/design.ts';
+import { SHEETS, TINTS, sheetInfo, sheetTint } from '../core/sheets.ts';
 import { BLOCKS, BLOCK_KINDS, blockParam, blockProfile, placementError } from '../core/blocks.ts';
 import type { BlockKind, ParamSpec } from '../core/blocks.ts';
-import { PROFILES, arcPoint, arcThrough, cutList, halfExtent, prepareScene, sectionAxes, sectionName, sub, norm } from '../core/scene.ts';
-import type { Profile, ResolvedMember, ResolvedScene, Vec3 } from '../core/scene.ts';
+import { PROFILES, arcPoint, arcThrough, cutList, halfExtent, plateCorners, prepareScene, sectionAxes, sectionName, sub, norm } from '../core/scene.ts';
+import type { Profile, ResolvedMember, ResolvedScene, SlopeUp, Vec3 } from '../core/scene.ts';
 import { fmtNum } from '../lib/format.ts';
 import { ModelView } from './ModelView.tsx';
 import { ModelDrawing } from './ModelDrawing.tsx';
@@ -70,13 +73,25 @@ interface View {
   line: number;
 }
 type Selected = { kind: 'member' | 'infill' | 'block' | 'plate'; id: string } | null;
-/** What two taps on the grid will place: a block, or a plate */
-type Placing = BlockKind | 'plate';
+/** What two taps on the grid will place: a block, a plate, or roofing sheets (a plate of סנטף) */
+type Placing = BlockKind | 'plate' | 'sheet';
 const PLATE_SPEC = { label: 'פח', about: 'משטח בין קווי הרשת: קיר, רצפה, כיסוי או פאנל.', place: 'גע בשתי פינות נגדיות של המשטח.' };
-const placingSpec = (p: Placing) => (p === 'plate' ? PLATE_SPEC : BLOCKS[p]);
-/** "4 חלקים, 6 פחים": the profile pieces, and the plates when there are some */
-const partsLine = (pieces: number, plates: number) =>
-  [pieces > 0 || plates === 0 ? `${pieces} חלקים` : null, plates === 1 ? 'פח אחד' : plates > 1 ? `${plates} פחים` : null].filter(Boolean).join(', ');
+const SHEET_SPEC = {
+  label: 'סנטף וקירוי',
+  about: 'קירוי לגגון או לפרגולה: סנטף מלבני או גלי, PVC, פוליקרבונט חלול או מלא.',
+  place: 'במבט על, בגובה הקירוי: גע בשתי פינות נגדיות.',
+};
+const placingSpec = (p: Placing) => (p === 'plate' ? PLATE_SPEC : p === 'sheet' ? SHEET_SPEC : BLOCKS[p]);
+const PLATE_LIKE = (p: Placing | null): p is 'plate' | 'sheet' => p === 'plate' || p === 'sheet';
+/** "4 חלקים, 6 פחים, קירוי אחד": the profile pieces, and the plates and roofing sheets when there are some */
+const partsLine = (pieces: number, plates: number, sheets = 0) =>
+  [
+    pieces > 0 || plates + sheets === 0 ? `${pieces} חלקים` : null,
+    plates === 1 ? 'פח אחד' : plates > 1 ? `${plates} פחים` : null,
+    sheets === 1 ? 'קירוי אחד' : sheets > 1 ? `${sheets} משטחי קירוי` : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
 type SheetState = { kind: 'grid' } | { kind: 'profile' } | { kind: 'blocks' } | { kind: 'sketch' } | { kind: 'dim'; axis: GridAxis; index: number } | null;
 
 const AXIS_I: Record<GridAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
@@ -205,10 +220,10 @@ export function DesignBuilder({
     setSelected(null);
     if (!pending) return setPending(n);
     if (pending.join() === n.join()) return setPending(null);
-    if (placing === 'plate') {
+    if (PLATE_LIKE(placing)) {
       const wrong = plateError(pending, n);
       if (wrong) return toast(wrong);
-      const { design: next, id } = addPlate(design, pending, n);
+      const { design: next, id } = addPlate(design, pending, n, 3, placing === 'sheet' ? 'pc_trapeze' : undefined);
       if (!id) return;
       change(next);
       setPlacing(null);
@@ -240,10 +255,10 @@ export function DesignBuilder({
     setPending(null);
     setSelected(null);
     if (r.a.join() === r.b.join()) return;
-    if (placing === 'plate') {
+    if (PLATE_LIKE(placing)) {
       const wrong = plateError(r.a, r.b);
       if (wrong) return toast(wrong);
-      const plate = addPlate(r.design, r.a, r.b);
+      const plate = addPlate(r.design, r.a, r.b, 3, placing === 'sheet' ? 'pc_trapeze' : undefined);
       if (!plate.id) return;
       change(plate.design);
       setPlacing(null);
@@ -330,6 +345,13 @@ export function DesignBuilder({
     setPlacing(kind);
     if (kind === 'plate') {
       if (!FLAT(view.kind)) setView({ kind: 'front', line: 0 });
+    } else if (kind === 'sheet') {
+      // A roof is marked in plan, at its height, and needs depth
+      if (design.grid.z.length === 0) {
+        change(addBay(design, 'z'));
+        toast('נוסף עומק של 1,000 מ״מ. אפשר לשנות אותו במידה.');
+      }
+      if (view.kind !== 'plan') setView({ kind: 'plan', line: design.grid.y.length });
     } else if (kind === 'tank') {
       // A tank is marked in plan, on the level it stands on, and needs depth
       if (design.grid.z.length === 0) {
@@ -548,7 +570,7 @@ export function DesignBuilder({
         <div className="mt-1.5 flex items-start gap-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
           <p className="min-w-0 flex-1">
             <span className="font-semibold">{placingSpec(placing).label}: </span>
-            {pending ? (placing === 'plate' ? 'עכשיו הפינה הנגדית.' : 'עכשיו הנקודה השנייה.') : placingSpec(placing).place}
+            {pending ? (PLATE_LIKE(placing) ? 'עכשיו הפינה הנגדית.' : 'עכשיו הנקודה השנייה.') : placingSpec(placing).place}
           </p>
           <button
             type="button"
@@ -632,7 +654,12 @@ export function DesignBuilder({
       {outdated && <p className="mt-1.5 px-1 text-[0.85rem] text-muted">אורכי החיתוך חושבו מחדש. שמור כדי לעדכן את השרטוט.</p>}
       {cut && (
         <p className="tnum mt-1.5 px-1 text-[0.85rem] text-muted">
-          {partsLine(cut.pieces.reduce((s, p) => s + p.count, 0), cut.plates.reduce((s, p) => s + p.count, 0))}, בערך {fmtNum(Math.round(cut.totalKg))} ק״ג
+          {partsLine(
+            cut.pieces.reduce((s, p) => s + p.count, 0),
+            cut.plates.reduce((s, p) => s + (p.sheet ? 0 : p.count), 0),
+            cut.plates.reduce((s, p) => s + (p.sheet ? p.count : 0), 0),
+          )}
+          , בערך {fmtNum(Math.round(cut.totalKg))} ק״ג
           {guessed > 0 && <span className="text-accent">{guessed === 1 ? ', מידה אחת משוערת' : `, ${guessed} מידות משוערות`}</span>}
         </p>
       )}
@@ -675,7 +702,7 @@ export function DesignBuilder({
           />
         )}
       </Sheet>
-      <Sheet open={selPlate !== undefined} onClose={() => setSelected(null)} title="פח">
+      <Sheet open={selPlate !== undefined} onClose={() => setSelected(null)} title={selPlate?.sheet ? 'קירוי' : 'פח'}>
         {selPlate && (
           <PlateEditor
             key={selPlate.id}
@@ -696,10 +723,12 @@ export function DesignBuilder({
             <span className="font-semibold">מסקיצה או PDF</span>
             <span className="text-[0.85rem] text-muted">צילום של שרטוט ביד: הרשת, המידות והחלקים ממנו. מחליף את מה שמשורטט.</span>
           </button>
-          <button type="button" onClick={() => startBlock('plate')} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
-            <span className="font-semibold">{PLATE_SPEC.label}</span>
-            <span className="text-[0.85rem] text-muted">{PLATE_SPEC.about}</span>
-          </button>
+          {(['plate', 'sheet'] as const).map((k) => (
+            <button key={k} type="button" onClick={() => startBlock(k)} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
+              <span className="font-semibold">{placingSpec(k).label}</span>
+              <span className="text-[0.85rem] text-muted">{placingSpec(k).about}</span>
+            </button>
+          ))}
           {BLOCK_KINDS.map((k) => (
             <button key={k} type="button" onClick={() => startBlock(k)} className="plate flex min-h-14 w-full flex-col items-start rounded-md px-3 py-2 text-start">
               <span className="font-semibold">{BLOCKS[k].label}</span>
@@ -873,9 +902,18 @@ function GridCanvas({
   // Plates of the design, and of blocks placed in another view: face on when they lie on (or by) this plane, as a
   // thin strip when they cross it
   const sheets: { id: string; x: number; y: number; w: number; h: number; face: boolean }[] = [];
+  /** Sloped plates (roofs): their outline as the view sees it */
+  const slopes: { id: string; points: string; face: boolean }[] = [];
   for (const p of scene.plates) {
     const block = blockOf(p.id);
     if (block ? own.has(block) : !design.plates.some((d) => d.id === p.id)) continue;
+    if (p.slope) {
+      const corners = plateCorners(p);
+      const along = corners.map((c) => c[pi]);
+      if (plane < Math.min(...along) - 150 || plane > Math.max(...along) + 150) continue;
+      slopes.push({ id: p.id, points: corners.map((c) => `${sx(c[ui])},${sy(c[vi])}`).join(' '), face: AXIS_I[p.normal] === pi });
+      continue;
+    }
     const h: Vec3 = p.normal === 'y' ? [p.size[0] / 2, p.thickness / 2, p.size[1] / 2] : p.normal === 'x' ? [p.thickness / 2, p.size[1] / 2, p.size[0] / 2] : [p.size[0] / 2, p.size[1] / 2, p.thickness / 2];
     const face = AXIS_I[p.normal] === pi;
     if (face ? Math.abs(p.center[pi] - plane) > 150 : plane < p.center[pi] - h[pi] - 150 || plane > p.center[pi] + h[pi] + 150) continue;
@@ -926,6 +964,17 @@ function GridCanvas({
       ))}
 
       {/* plates */}
+      {slopes.map((p) => (
+        <polygon
+          key={p.id}
+          points={p.points}
+          onClick={() => onPick(pickOf(p.id))}
+          className={`cursor-pointer ${isSelected(p.id) ? 'fill-accent stroke-accent' : p.face ? 'fill-muted stroke-muted' : 'fill-ink stroke-ink'}`}
+          fillOpacity={p.face ? 0.16 : 0.7}
+          strokeWidth={p.face ? z : 4 * z}
+          strokeLinejoin="round"
+        />
+      ))}
       {sheets.map((p) => (
         <rect
           key={p.id}
@@ -1370,6 +1419,13 @@ const THICKNESSES = [1.5, 2, 3, 4, 5, 6, 8, 10];
 const FIT_LABELS: Record<PlateFit, string> = { face: 'על המסגרת', inside: 'בתוך המסגרת', center: 'על קווי הרשת' };
 /** The two faces of a plate's frame, by the plane it lies in: +1 first */
 const SIDE_LABELS: Record<GridAxis, [string, string]> = { z: ['מלפנים', 'מאחור'], x: ['מימין', 'משמאל'], y: ['מלמעלה', 'מלמטה'] };
+/** Which way a level plate can rise (+Z faces the street, X runs left to right as seen from it) */
+const SLOPE_CHOICES: [SlopeUp, string][] = [
+  ['-z', 'עולה לאחור'],
+  ['+z', 'עולה לפנים'],
+  ['-x', 'עולה שמאלה'],
+  ['+x', 'עולה ימינה'],
+];
 
 function PlateEditor({
   design,
@@ -1387,35 +1443,130 @@ function PlateEditor({
 }) {
   const plate = design.plates.find((p) => p.id === id);
   const [label, setLabel] = useState(plate?.label ?? '');
+  const report = useMemo(() => plateReport(design, id), [design, id]);
   if (!plate) return null;
   const axis = (['x', 'y', 'z'] as GridAxis[]).find((a) => plate.a[AXIS_I[a]] === plate.b[AXIS_I[a]]) ?? 'z';
   const set = (patch: Parameters<typeof updatePlate>[2]) => onChange(updatePlate(design, id, patch));
-  const [w, h] = piece ? [Math.max(...piece.size), Math.min(...piece.size)] : [0, 0];
   const choice = (active: boolean) => `min-h-10 rounded-md border px-3 text-[0.9rem] font-semibold ${active ? 'border-ink bg-ink text-white' : 'border-line-strong bg-card'}`;
+  const sheet = plate.sheet ? sheetInfo(plate.sheet) : null;
+  const tint = plate.sheet ? sheetTint(plate.sheet, plate.tint) : null;
+  const slope = plate.slope;
 
   return (
     <div className="space-y-4">
-      {piece && (
-        <p className="tnum text-[0.95rem]">
-          {fmtNum(Math.round(w))}/{fmtNum(Math.round(h))} מ״מ, בערך {fmtNum(Math.round((w * h * piece.thickness * 7.85) / 1e6))} ק״ג
-        </p>
-      )}
-      <div>
-        <span className="mb-1 block text-[0.85rem] text-muted">עובי, מ״מ</span>
-        <div className="flex flex-wrap gap-1.5">
-          {THICKNESSES.map((t) => (
-            <button key={t} type="button" onClick={() => set({ thickness: t })} aria-pressed={plate.thickness === t} className={`tnum ${choice(plate.thickness === t)}`}>
-              {t}
-            </button>
+      {piece && report.info.length > 0 && (
+        <div className="tnum space-y-0.5">
+          <p className="text-[0.95rem]">{report.info[0]}</p>
+          {report.info.slice(1).map((line) => (
+            <p key={line} className="text-[0.85rem] text-muted">
+              {line}
+            </p>
           ))}
         </div>
+      )}
+      {report.warn && <p className="rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">{report.warn}</p>}
+      <div>
+        <span className="mb-1 block text-[0.85rem] text-muted">חומר</span>
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => set({ sheet: undefined, tint: undefined })} aria-pressed={!sheet} className={choice(!sheet)}>
+            פח
+          </button>
+          <button
+            type="button"
+            onClick={() => !sheet && set({ sheet: 'pc_trapeze', tint: sheetTint('pc_trapeze', null) })}
+            aria-pressed={Boolean(sheet)}
+            className={choice(Boolean(sheet))}
+          >
+            סנטף וקירוי
+          </button>
+        </div>
       </div>
-      <ParamRow
-        key={`t-${plate.thickness}`}
-        spec={{ key: 'thickness', label: 'עובי אחר', def: 3, min: 0.5, max: 50 }}
-        value={plate.thickness}
-        onChange={(t) => set({ thickness: t })}
-      />
+      {sheet && plate.sheet ? (
+        <>
+          <div>
+            <span className="mb-1 block text-[0.85rem] text-muted">סוג</span>
+            <div className="grid gap-1.5">
+              {SHEETS.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => set({ sheet: s.key, tint: sheetTint(s.key, plate.tint) })}
+                  aria-pressed={plate.sheet === s.key}
+                  className={`min-h-11 rounded-md border px-3 py-1.5 text-start text-[0.9rem] ${plate.sheet === s.key ? 'border-ink bg-ink font-semibold text-white' : 'border-line-strong bg-card'}`}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span className="mb-1 block text-[0.85rem] text-muted">גוון</span>
+            <div className="flex flex-wrap gap-1.5">
+              {sheet.tints.map((t) => (
+                <button key={t} type="button" onClick={() => set({ tint: t })} aria-pressed={tint === t} className={choice(tint === t)}>
+                  {TINTS[t].name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <span className="mb-1 block text-[0.85rem] text-muted">עובי, מ״מ</span>
+            <div className="flex flex-wrap gap-1.5">
+              {THICKNESSES.map((t) => (
+                <button key={t} type="button" onClick={() => set({ thickness: t })} aria-pressed={plate.thickness === t} className={`tnum ${choice(plate.thickness === t)}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ParamRow
+            key={`t-${plate.thickness}`}
+            spec={{ key: 'thickness', label: 'עובי אחר', def: 3, min: 0.5, max: 50 }}
+            value={plate.thickness}
+            onChange={(t) => set({ thickness: t })}
+          />
+        </>
+      )}
+      {axis === 'y' && (
+        <div>
+          <span className="mb-1 block text-[0.85rem] text-muted">שיפוע (גג משופע)</span>
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" onClick={() => set({ slope: undefined })} aria-pressed={!plate.slope} className={choice(!plate.slope)}>
+              בלי
+            </button>
+            {SLOPE_CHOICES.map(([up, text]) => (
+              <button
+                key={up}
+                type="button"
+                onClick={() => set({ slope: { up, deg: plate.slope?.deg ?? 10 } })}
+                aria-pressed={plate.slope?.up === up}
+                className={choice(plate.slope?.up === up)}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
+          {slope && (
+            <ParamRow key={`deg-${slope.deg}`} spec={{ key: 'deg', label: 'זווית, מעלות', def: 10, min: 0.5, max: 60 }} value={slope.deg} onChange={(deg) => set({ slope: { up: slope.up, deg } })} />
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              const next = fitSlope(design, id);
+              if (!next) return toast('לא מצאתי קורות משופעות או קורה גבוהה יותר בצד השני. מציבים את המשטח בגובה הצד הנמוך.');
+              onChange(next);
+              const fitted = next.plates.find((p) => p.id === id)?.slope;
+              if (fitted) toast(`הונח על השלד, בשיפוע ${fmtNum(fitted.deg)} מעלות`);
+            }}
+            className="btn-secondary mt-2 w-full text-[0.9rem]"
+          >
+            להניח על השלד
+          </button>
+        </div>
+      )}
       <div>
         <span className="mb-1 block text-[0.85rem] text-muted">איפה הוא יושב</span>
         <div className="flex flex-wrap gap-1.5">
@@ -1457,7 +1608,7 @@ function PlateEditor({
         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-danger font-semibold text-danger"
       >
         <Icon name="trash" size={18} />
-        מחק פח
+        {sheet ? 'מחק קירוי' : 'מחק פח'}
       </button>
     </div>
   );

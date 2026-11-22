@@ -10,6 +10,7 @@ import {
   allGuesses,
   compileDesign,
   elementOf,
+  fitSlope,
   guessCount,
   guesses,
   insertGridLine,
@@ -17,6 +18,7 @@ import {
   newDesign,
   parseSize,
   plateError,
+  plateReport,
   readDesign,
   removeLastBay,
   setSpacing,
@@ -25,7 +27,7 @@ import {
   updatePlate,
 } from './design.ts';
 import type { Design } from './design.ts';
-import { cutList, prepareScene } from './scene.ts';
+import { cutList, plateCorners, prepareScene } from './scene.ts';
 
 const col = { profile: 'rect_tube' as const, size: [100, 100, 4] };
 const beam = { profile: 'rect_tube' as const, size: [100, 50, 3] };
@@ -286,4 +288,100 @@ test('a piece picked in 3D leads back to what the design holds: member, base pla
   assert.deepEqual(elementOf(deep.design, `${deep.id}/front`), { kind: 'block', id: deep.id });
   assert.equal(elementOf(d, 'b9/front'), null);
   assert.equal(elementOf(d, 'nothing'), null);
+});
+
+test('roofing sheets (סנטף) as plates: placed like one, drawn see-through, weighed per m², checked against purlins', () => {
+  const sq = { profile: 'rect_tube' as const, size: [100, 50, 3] };
+  // A pergola top 3,000 by 2,400 at 2,500: four beams round it
+  let d: Design = { ...newDesign(), grid: { x: [900, 1200, 900], y: [2500], z: [2400] } };
+  for (const [a, b] of [
+    [[0, 1, 0], [3, 1, 0]],
+    [[0, 1, 1], [3, 1, 1]],
+    [[0, 1, 0], [0, 1, 1]],
+    [[3, 1, 0], [3, 1, 1]],
+  ] as [Design['members'][number]['a'], Design['members'][number]['a']][])
+    d = addMember(d, a, b, sq).design;
+  const placed = addPlate(d, [0, 1, 0], [3, 1, 1], 3, 'pc_trapeze');
+  assert.ok(placed.id);
+  const layout = JSON.parse(JSON.stringify(compileDesign(placed.design, 'פרגולה')));
+  const plate = layout.plates[0];
+  assert.deepEqual([plate.sheet, plate.tint, plate.thickness, plate.label], ['pc_trapeze', 'clear', 16, 'סנטף מלבני']);
+  // On top of the beams (100 high, laid upright), the 16 mm wave
+  assert.equal(plate.center[1], 2500 + 50 + 8);
+  const { scene } = prepareScene(layout);
+  assert.ok((scene.plates[0].opacity ?? 1) < 1);
+  const cut = cutList(scene);
+  assert.equal(cut.plates[0].sheet, 'pc_trapeze');
+  assert.match(cut.plates[0].name, /^סנטף מלבני .*, שקוף$/);
+  assert.ok(Math.abs(cut.plates[0].kg - cut.plates[0].areaM2 * 1.1) < 0.2);
+  // The steel weight leaves the sheets out
+  assert.equal(cut.totalKg, Math.round(cut.pieces.reduce((s, p) => s + p.kg, 0) * 10) / 10);
+
+  // Beams only round the edge: 2,400 and 3,000 open, more than the 900 a trapeze sheet takes at its ends
+  const id = placed.id as string;
+  const bare = plateReport(placed.design, id);
+  assert.match(bare.warn ?? '', /כדאי להוסיף מרישים/);
+  assert.ok(bare.info.some((l) => /לוחות ברוחב 1,260/.test(l)));
+  // Purlins across at every grid line (900, 1,200, 900 apart): enough one way
+  let withPurlins = placed.design;
+  for (const x of [1, 2] as const) withPurlins = addMember(withPurlins, [x, 1, 0], [x, 1, 1], sq).design;
+  assert.equal(plateReport(withPurlins, id).warn, null);
+
+  // Reads back, tint and all; a sheet needs no thickness; turning it to steel drops it
+  const tinted = updatePlate(withPurlins, id, { tint: 'bronze' });
+  const back = readDesign(JSON.parse(JSON.stringify(tinted)));
+  assert.deepEqual([back?.plates[0].sheet, back?.plates[0].tint], ['pc_trapeze', 'bronze']);
+  const noThickness = readDesign(JSON.parse(JSON.stringify({ ...tinted, plates: [{ ...tinted.plates[0], thickness: undefined }] })));
+  assert.equal(noThickness?.plates.length, 1);
+  const steel = updatePlate(tinted, id, { sheet: undefined, tint: undefined });
+  const steelPlate = JSON.parse(JSON.stringify(compileDesign(steel, 't'))).plates[0];
+  assert.deepEqual([steelPlate.sheet, steelPlate.thickness, steelPlate.label], [undefined, 3, 'פח']);
+});
+
+test('a sloped roof lies on its rafters: found by itself when placed, kept when read back, tilted in the layout', () => {
+  const sq = { profile: 'rect_tube' as const, size: [100, 50, 3] };
+  // A lean-to: the front beam at 2,400 (+Z, toward the street), the back one against the house at 2,800, rafters between
+  let d: Design = { ...newDesign(), grid: { x: [3000], y: [2400, 400], z: [2000] } };
+  for (const [a, b] of [
+    [[0, 1, 1], [1, 1, 1]],
+    [[0, 2, 0], [1, 2, 0]],
+    [[0, 1, 1], [0, 2, 0]],
+    [[1, 1, 1], [1, 2, 0]],
+  ] as [Design['members'][number]['a'], Design['members'][number]['a']][])
+    d = addMember(d, a, b, sq).design;
+  // Placed in plan at the front beam's level: it rises 400 over 2,000 toward the back
+  const low = addPlate(d, [0, 1, 0], [1, 1, 1], 3, 'pc_corrugated');
+  const plate = low.design.plates[0];
+  assert.deepEqual(plate.slope, { up: '-z', deg: 11.3 });
+  const layoutPlate = JSON.parse(JSON.stringify(compileDesign(low.design, 't'))).plates[0];
+  assert.deepEqual(layoutPlate.slope, { up: '-z', deg: 11.3 });
+  // Its true length runs down the slope, past the beams on both edges
+  assert.equal(layoutPlate.size[0], 3050);
+  assert.ok(Math.abs(layoutPlate.size[1] - 2050 / Math.cos((11.3 * Math.PI) / 180)) < 0.5);
+  const { scene } = prepareScene(layoutPlate ? { plates: [layoutPlate] } : {});
+  const corners = plateCorners(scene.plates[0]);
+  const ys = corners.map((c) => c[1]);
+  // The back edge (−Z) is the high one, 2,050 × tan 11.3° ≈ 410 higher
+  const back = corners.filter((c) => c[2] < 1000).map((c) => c[1]);
+  const front = corners.filter((c) => c[2] > 1000).map((c) => c[1]);
+  assert.ok(Math.abs(back[0] - front[0] - 2050 * Math.tan((11.3 * Math.PI) / 180)) < 1);
+  assert.ok(Math.min(...ys) > 2400 && Math.max(...ys) > 2800);
+
+  // Placed on the high level instead: it moves down to the low one and rises back
+  const high = addPlate(d, [0, 2, 0], [1, 2, 1], 3);
+  assert.deepEqual([high.design.plates[0].a[1], high.design.plates[0].slope], [1, { up: '-z', deg: 11.3 }]);
+  // Without rafters nothing slopes by itself; the beam on the far edge still sets it on request
+  const beamsOnly = { ...d, members: d.members.slice(0, 2) };
+  const flat = addPlate(beamsOnly, [0, 1, 0], [1, 1, 1], 3);
+  assert.equal(flat.design.plates[0].slope, undefined);
+  const fitted = fitSlope(flat.design, flat.id as string);
+  assert.deepEqual(fitted?.plates[0].slope, { up: '-z', deg: 11.3 });
+  assert.equal(fitSlope(beamsOnly, 'nope'), null);
+  // Any angle can be typed; it reads back; a slope on a wall is dropped
+  const typed = updatePlate(low.design, low.id as string, { slope: { up: '-z', deg: 15 } });
+  assert.deepEqual(readDesign(JSON.parse(JSON.stringify(typed)))?.plates[0].slope, { up: '-z', deg: 15 });
+  const wall = { ...typed, plates: [{ ...typed.plates[0], a: [0, 0, 0], b: [1, 1, 0] }] };
+  assert.equal(readDesign(JSON.parse(JSON.stringify(wall)))?.plates[0].slope, undefined);
+  // The sheet's span is measured down the slope: rafters only at the edges, 2,090 apart, too far for corrugated
+  assert.match(plateReport(low.design, low.id as string).warn ?? '', /מרישים/);
 });

@@ -9,6 +9,7 @@ import { kgFor } from './steel.ts';
 import { BEAMS, beamSizes } from './sections.ts';
 import type { SteelShape } from './steel.ts';
 import type { ElementCategory, Unit } from './types.ts';
+import { SHEETS } from './sheets.ts';
 
 export type MaterialKey = 'black' | 'galv' | 'stainless' | 'aluminum';
 
@@ -70,6 +71,7 @@ export const FAMILIES: FamilyDef[] = [
   { category: 'pipe', family: 'צינור פלדה לקווי מים', shape: 'round_tube', base: 'צינור פלדה', unit: 'm', stock: 12000 },
   { category: 'plate', family: 'פח חלק', shape: 'plate', base: 'פח', unit: 'm2', stock: null },
   { category: 'plate', family: 'פח מרוג (דריכה)', shape: null, base: 'פח מרוג', unit: 'm2', stock: null },
+  { category: 'plate', family: 'קירוי: סנטף ופוליקרבונט', shape: null, base: '', unit: 'm2', stock: null },
   { category: 'fitting', family: 'קשתות', shape: null, base: 'קשת', unit: 'unit', stock: null },
   { category: 'fitting', family: 'הסתעפויות ומעברים', shape: null, base: '', unit: 'unit', stock: null },
   { category: 'fitting', family: 'אוגנים ואטמים', shape: null, base: 'אוגן', unit: 'unit', stock: null },
@@ -264,6 +266,10 @@ export function catalogItems(): CatalogItem[] {
   }
   for (const t of TREAD_PLATE) {
     steel(out, 'פח מרוג (דריכה)', 'black', 'tread', `${t} מ״מ`, keyDims(t), Math.round((t * 7.85 + 2) * 1000) / 1000);
+  }
+  // Roofing sheets (סנטף), priced per m² whatever the tint; the layout's plates find them by key (sheet:<key>)
+  for (const sh of SHEETS) {
+    out.push({ key: `sheet:${sh.key}`, category: 'plate', family: 'קירוי: סנטף ופוליקרבונט', name: sh.name, size: sh.short, unit: 'm2', material: null, weight: sh.kgPerM2, stock: null, by_kg: 0 });
   }
 
   // --- Pipe fittings for welding (price per piece, set by the user)

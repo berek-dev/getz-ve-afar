@@ -44,7 +44,7 @@ export type ElementCategory =
 
 export const ELEMENT_CATEGORY_LABELS: Record<ElementCategory, string> = {
   profile: 'פרופילים',
-  plate: 'פחים',
+  plate: 'פחים וקירוי',
   pipe: 'צינורות',
   fitting: 'אביזרי צנרת',
   hardware: 'פרזול',
