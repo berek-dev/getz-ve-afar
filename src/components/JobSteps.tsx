@@ -392,6 +392,7 @@ function SiteNotes({ ctx }: { ctx: JobCtx }) {
 export function EditJobSheet({ ctx, open, onClose }: { ctx: JobCtx; open: boolean; onClose: () => void }) {
   const { job } = ctx;
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [copying, setCopying] = useState(false);
   return (
     <Sheet
       open={open}
@@ -420,6 +421,27 @@ export function EditJobSheet({ ctx, open, onClose }: { ctx: JobCtx; open: boolea
               toast('פרטי העבודה עודכנו');
             }}
           />
+          <button
+            type="button"
+            disabled={copying}
+            onClick={async () => {
+              setCopying(true);
+              try {
+                const { id } = await api.copyJob(job.id);
+                toast('נוצר עותק של העבודה');
+                onClose();
+                window.location.hash = `#/jobs/${id}`;
+              } catch (e) {
+                toast(errorMessage(e));
+              } finally {
+                setCopying(false);
+              }
+            }}
+            className="btn-secondary min-h-12 w-full disabled:opacity-50"
+          >
+            <Icon name="copy" size={20} />
+            {copying ? 'משכפל...' : 'שכפל עבודה'}
+          </button>
           <button
             type="button"
             onClick={async () => {

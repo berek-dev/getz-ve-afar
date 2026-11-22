@@ -14,6 +14,7 @@ import { deleteJobPhotos, registerPhotos } from './routes/photos.ts';
 import { registerTemplates, templateLines } from './routes/templates.ts';
 import { registerAi } from './routes/ai.ts';
 import { registerModel } from './routes/model.ts';
+import { registerJobCopy } from './routes/jobCopy.ts';
 import { ITEM_SELECT, JOB_SELECT, insertItems, touchJob, withQuoteStatus } from './sql.ts';
 import {
   SESSION_COOKIE,
@@ -399,3 +400,4 @@ registerPhotos(app);
 registerTemplates(app);
 registerAi(app);
 registerModel(app);
+registerJobCopy(app);

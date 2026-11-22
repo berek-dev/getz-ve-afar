@@ -136,6 +136,7 @@ export const api = {
   job: (id: number) => request<JobDetail>(`/jobs/${id}`),
   updateJob: (id: number, job: NewJob) => request<Job>(`/jobs/${id}`, { method: 'PATCH', body: JSON.stringify(job) }),
   deleteJob: (id: number) => request<{ ok: true }>(`/jobs/${id}`, { method: 'DELETE' }),
+  copyJob: (id: number) => request<{ id: number }>(`/jobs/${id}/copy`, { method: 'POST' }),
   createElement: (el: ElementDraft) => request<Element>('/elements', { method: 'POST', body: JSON.stringify(el) }),
   updateElement: (id: number, el: ElementDraft) =>
     request<Element>(`/elements/${id}`, { method: 'PATCH', body: JSON.stringify(el) }),
