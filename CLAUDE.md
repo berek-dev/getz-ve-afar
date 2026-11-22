@@ -67,6 +67,11 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   the centre line, members keep `roll`), evenly spaced bars between two rails become an infill when the builder puts
   them where the AI did, a plate under a post's foot becomes its base plate. Curved pieces, hardware and concrete are
   left out and listed; posts in the ground start at ground level. Saving makes a builder version.
+  Moving and turning (`src/core/move.ts`, "הזזה וסיבוב" on a piece's sheet): one finger drags the piece, snapping an
+  end onto a grid line when near one, or the arrows step it line to line; it keeps its size, and a grid line is added
+  where an end lands between lines (`insertGridLine`). "סובב 90 מעלות" turns it clockwise on screen about its first
+  point (the other way if that leaves the grid); blocks always turn in plan. A member's section turns about its own
+  axis with `roll` ("לסובב את החתך").
 - The shop drawing (`src/core/drawing.ts`, an A3 sheet) is shared as a PDF on A4 or A3 or as a PNG: the browser draws
   the SVG into a canvas (so Hebrew text is right) and `src/core/pdf.ts` wraps the deflated gray pixels in a one-page PDF.
 - Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).

@@ -61,6 +61,7 @@ import { SketchReader } from './SketchReader.tsx';
 import { PAD_W, SketchPad } from './SketchPad.tsx';
 import { SKETCH_PAGE_MM, sketchToDesign } from '../core/sketch.ts';
 import { designFromLayout } from '../core/fromLayout.ts';
+import { elementPoints, moveElement, rollMatters, rollMember, rotateElement, snapDelta, stepDelta } from '../core/move.ts';
 import type { SketchLine } from '../core/sketch.ts';
 import { classifyStroke, penSegment, scribbleTarget } from '../core/pen.ts';
 import type { P2 } from '../core/pen.ts';
@@ -162,6 +163,8 @@ export function DesignBuilder({
   const [sheet, setSheet] = useState<SheetState>(null);
   const [current, setCurrent] = useState<ProfileChoice>(() => loadJson<ProfileChoice>(profileKey) ?? DEFAULT_PROFILE);
   const [placing, setPlacing] = useState<Placing | null>(null);
+  // A piece being moved: dragged on the grid or stepped with the arrows, until "סיום"
+  const [moving, setMoving] = useState<Selected>(null);
   // What the AI said about a sketch it read: things it guessed, and how many pieces it left out
   const [fromSketch, setFromSketch] = useState<{ notes: string[]; missed: number; from?: 'ai' } | null>(() =>
     fromAi && !draftAtStart && fromAi.notes.length > 0 ? { notes: fromAi.notes, missed: 0, from: 'ai' } : null,
@@ -342,6 +345,7 @@ export function DesignBuilder({
   const planeLines = axes ? design.grid[axes.p].length + 1 : 1;
   const line = Math.min(view.line, planeLines - 1);
   const setKind = (kind: ViewKind) => {
+    if (!FLAT(kind)) setMoving(null);
     setView({ kind, line: 0 });
     setPending(null);
   };
@@ -390,6 +394,53 @@ export function DesignBuilder({
     setSketch(null);
     setView({ kind: 'front', line: 0 });
     toast('השרטוט מוכן. כותבים מידה אחת שנמדדה, וכל השאר מתכוונן לפיה.');
+  };
+  /** The flat view that shows a piece best: the plane it lies in, or the plan at its first point */
+  const viewOf = (s: NonNullable<Selected>): View => {
+    const pts = elementPoints(design, s);
+    const same = (k: 0 | 1 | 2) => pts.every((q) => Math.abs(q[k] - pts[0][k]) < 0.5);
+    const lineAt = (axis: GridAxis, k: 0 | 1 | 2) => Math.max(0, gridLines(design.grid[axis]).findIndex((l) => Math.abs(l - (pts[0]?.[k] ?? 0)) < 0.5));
+    if (same(2)) return { kind: 'front', line: lineAt('z', 2) };
+    if (same(0)) return { kind: 'side', line: lineAt('x', 0) };
+    return { kind: 'plan', line: lineAt('y', 1) };
+  };
+  const startMove = (s: NonNullable<Selected>) => {
+    setSelected(null);
+    setPending(null);
+    setPlacing(null);
+    if (draw !== 'off') setDraw('off');
+    // Stay in the view if the piece lies in it, otherwise go to the one it lies in
+    const here = FLAT(view.kind) ? VIEW_AXES[view.kind] : null;
+    const plane = here ? (gridLines(design.grid[here.p]).at(view.line) ?? 0) : 0;
+    const shown = here && elementPoints(design, s).every((q) => Math.abs(q[AXIS_I[here.p]] - plane) < 0.5);
+    if (!shown) setView(viewOf(s));
+    setMoving(s);
+  };
+  const moveBy = (delta: Vec3) => {
+    if (!moving) return;
+    const r = moveElement(design, moving, delta);
+    if ('error' in r) toast(r.error);
+    else change(r.design);
+  };
+  /** One grid line along the view's across (u) or second (v) axis */
+  const stepMove = (axis: GridAxis, sign: 1 | -1) => {
+    if (!moving) return;
+    const d = stepDelta(design, moving, axis, sign);
+    if (d === null) return toast('אין עוד קו לכיוון הזה. גוררים את החלק כדי להזיז רחוק יותר.');
+    const delta: Vec3 = [0, 0, 0];
+    delta[AXIS_I[axis]] = d;
+    moveBy(delta);
+  };
+  /**
+   * Turns a piece 90 degrees clockwise on screen in the view (in plan from the 3D view). Blocks stand on a level, so
+   * they always turn in plan: stairs or a gate facing another way.
+   */
+  const rotate = (s: NonNullable<Selected>) => {
+    const kind = s.kind === 'block' || !FLAT(view.kind) ? 'plan' : view.kind;
+    const r = rotateElement(design, s, VIEW_AXES[kind]);
+    if ('error' in r) return toast(r.error);
+    change(r.design);
+    toast(`סובב 90 מעלות ב${VIEW_LABELS[kind]}`);
   };
   const guessed = guessCount(design);
 
@@ -561,12 +612,20 @@ export function DesignBuilder({
             axes={axes}
             line={line}
             pending={pending}
-            selected={selected}
-            onNode={tapNode}
+            selected={moving ?? selected}
+            onNode={(n) => !moving && tapNode(n)}
             onPick={(s) => {
+              if (moving) return;
               setPending(null);
               setPlacing(null);
               setSelected(s);
+            }}
+            moving={moving}
+            onDrag={(du, dv) => {
+              const delta: Vec3 = [0, 0, 0];
+              delta[AXIS_I[axes.u]] = du;
+              delta[AXIS_I[axes.v]] = dv;
+              moveBy(delta);
             }}
             onDim={(axis, index) => setSheet({ kind: 'dim', axis, index })}
             draw={draw}
@@ -577,7 +636,44 @@ export function DesignBuilder({
         ) : null}
       </div>
 
-      {placing ? (
+      {moving && axes ? (
+        <div className="mt-1.5 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
+          <p>
+            <span className="font-semibold">הזזה: </span>
+            גוררים את החלק באצבע, או בחצים קו אחד בכל פעם.
+          </p>
+          <div className="mt-2 flex items-center gap-1.5" dir="ltr">
+            {(
+              [
+                ['←', 'שמאלה', axes.u, -1],
+                ['→', 'ימינה', axes.u, 1],
+                ['↑', 'למעלה', axes.v, axes.v === 'y' ? 1 : -1],
+                ['↓', 'למטה', axes.v, axes.v === 'y' ? -1 : 1],
+              ] as const
+            ).map(([glyph, label, axis, sign]) => (
+              <button
+                key={label}
+                type="button"
+                aria-label={label}
+                onClick={() => stepMove(axis, sign)}
+                className="grid h-11 w-11 place-items-center rounded-md border border-line-strong bg-card text-[1.2rem] font-semibold"
+              >
+                {glyph}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button type="button" onClick={() => rotate(moving)} className="btn-secondary min-h-11 flex-1 px-3 text-[0.9rem]">
+              <Icon name="rotate" size={18} />
+              סובב 90 מעלות
+            </button>
+            <button type="button" onClick={() => setMoving(null)} className="btn-primary min-h-11 flex-1 px-4">
+              <Icon name="check" size={18} />
+              סיום
+            </button>
+          </div>
+        </div>
+      ) : placing ? (
         <div className="mt-1.5 flex items-start gap-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
           <p className="min-w-0 flex-1">
             <span className="font-semibold">{placingSpec(placing).label}: </span>
@@ -681,6 +777,13 @@ export function DesignBuilder({
 
       <Sheet open={selMember !== undefined} onClose={() => setSelected(null)} title={selMember ? sectionName(selMember.profile, selMember.size, design.material) : ''}>
         {selMember && (
+          <MoveRow
+            onMove={() => startMove({ kind: 'member', id: selMember.id })}
+            onRoll={rollMatters(selMember.profile, selMember.size) ? () => change(rollMember(design, selMember.id)) : undefined}
+            roll={selMember.roll ?? 0}
+          />
+        )}
+        {selMember && (
           <MemberEditor
             key={selMember.id}
             design={design}
@@ -693,6 +796,11 @@ export function DesignBuilder({
       </Sheet>
       <Sheet open={selInfill !== undefined} onClose={() => setSelected(null)} title="מילוי">
         {selInfill && (
+          <MoveRow
+            onMove={() => startMove({ kind: 'infill', id: selInfill.id })}
+          />
+        )}
+        {selInfill && (
           <InfillEditor
             key={selInfill.id}
             design={design}
@@ -704,6 +812,11 @@ export function DesignBuilder({
       </Sheet>
       <Sheet open={selBlock !== undefined} onClose={() => setSelected(null)} title={selBlock ? BLOCKS[selBlock.kind].label : ''}>
         {selBlock && (
+          <MoveRow
+            onMove={() => startMove({ kind: 'block', id: selBlock.id })}
+          />
+        )}
+        {selBlock && (
           <BlockEditor
             key={selBlock.id}
             design={design}
@@ -714,6 +827,11 @@ export function DesignBuilder({
         )}
       </Sheet>
       <Sheet open={selPlate !== undefined} onClose={() => setSelected(null)} title={selPlate?.sheet ? 'קירוי' : 'פח'}>
+        {selPlate && (
+          <MoveRow
+            onMove={() => startMove({ kind: 'plate', id: selPlate.id })}
+          />
+        )}
         {selPlate && (
           <PlateEditor
             key={selPlate.id}
@@ -796,6 +914,8 @@ function GridCanvas({
   onPenSeen,
   onPenLine,
   onErase,
+  moving,
+  onDrag,
 }: {
   design: Design;
   scene: ResolvedScene;
@@ -811,6 +931,9 @@ function GridCanvas({
   /** A pen line, its ends in mm along the view's across and up axes; `tol` is how near a grid line counts as on it */
   onPenLine: (from: { u: number; v: number }, to: { u: number; v: number }, tol: number) => void;
   onErase: (s: Selected) => void;
+  /** A piece being moved: one finger drags it (snapping onto grid lines), and `onDrag` gets the move in mm */
+  moving: Selected;
+  onDrag: (du: number, dv: number) => void;
 }) {
   const { grid } = design;
   const U = gridLines(grid[axes.u]);
@@ -843,7 +966,29 @@ function GridCanvas({
       else toast('כדי למחוק, מקשקשים על החלק עצמו.');
     } else if (stroke.kind === 'other') toast('לא זוהה קו ישר. מותחים קו ישר, או מקשקשים על חלק כדי למחוק.');
   };
-  const gestures = useCanvasGestures(svgRef, W, H, draw !== 'off' ? { onMove: setInk, onEnd: onStroke, fingers: finger } : null, onPenSeen);
+  // Dragging a piece: the move so far, snapped, in mm along the view's axes
+  const [drag, setDrag] = useState<{ u: number; v: number } | null>(null);
+  const dragOf = (points: P2[]) => {
+    if (!moving || points.length === 0) return null;
+    const a = points[0];
+    const b = points[points.length - 1];
+    const tol = 18 / zoomNow() / k;
+    const rawU = (b.x - a.x) / k;
+    const rawV = (up ? a.y - b.y : b.y - a.y) / k;
+    return { u: snapDelta(design, moving, axes.u, rawU, tol), v: snapDelta(design, moving, axes.v, rawV, tol) };
+  };
+  const dragging = moving
+    ? {
+        onMove: (points: P2[]) => setDrag(dragOf(points)),
+        onEnd: (points: P2[]) => {
+          const d = dragOf(points);
+          setDrag(null);
+          if (d && (d.u !== 0 || d.v !== 0)) onDrag(d.u, d.v);
+        },
+        fingers: true,
+      }
+    : null;
+  const gestures = useCanvasGestures(svgRef, W, H, dragging ?? (draw !== 'off' ? { onMove: setInk, onEnd: onStroke, fingers: finger } : null), onPenSeen);
   const zoomNow = () => gestures.view.zoom;
   // Points, labels and measurement pills keep their size on screen at any zoom
   const z = 1 / gestures.view.zoom;
@@ -940,7 +1085,12 @@ function GridCanvas({
   }
 
   const pickOf = (id: string): Selected => elementOf(design, id);
-  const isSelected = (id: string) => selected !== null && (id.split('#')[0] === selected.id || blockOf(id) === selected.id);
+  // An infill shows with the two members it hangs on
+  const rails: string[] = selected?.kind === 'infill' ? (design.infills.find((f) => f.id === selected.id)?.between ?? []) : [];
+  const isSelected = (id: string) => selected !== null && (id.split('#')[0] === selected.id || blockOf(id) === selected.id || rails.includes(id.split('#')[0]));
+  // While dragging, the piece is drawn where it would go
+  const shift = drag ? `translate(${drag.u * k} ${up ? -drag.v * k : drag.v * k})` : undefined;
+  const moved = (id: string) => (isSelected(id) ? shift : undefined);
 
   const uChainY = M.top + vMax * k + 24;
   const guessU = guesses(design, axes.u);
@@ -948,7 +1098,7 @@ function GridCanvas({
   const vChainX = 22;
 
   // Set on the wrapper too: Safari on the iPhone does not apply touch-action to an SVG element
-  const touchAction = finger || gestures.zoomed ? 'none' : 'pan-y';
+  const touchAction = finger || moving || gestures.zoomed ? 'none' : 'pan-y';
 
   return (
     <div className="relative" style={{ touchAction }}>
@@ -979,6 +1129,7 @@ function GridCanvas({
         <polygon
           key={p.id}
           points={p.points}
+          transform={moved(p.id)}
           onClick={() => onPick(pickOf(p.id))}
           className={`cursor-pointer ${isSelected(p.id) ? 'fill-accent stroke-accent' : p.face ? 'fill-muted stroke-muted' : 'fill-ink stroke-ink'}`}
           fillOpacity={p.face ? 0.16 : 0.7}
@@ -993,6 +1144,7 @@ function GridCanvas({
           y={p.y}
           width={p.w}
           height={p.h}
+          transform={moved(p.id)}
           onClick={() => onPick(pickOf(p.id))}
           className={`cursor-pointer ${isSelected(p.id) ? 'fill-accent stroke-accent' : p.face ? 'fill-muted stroke-muted' : 'fill-ink stroke-ink'}`}
           fillOpacity={p.face ? 0.16 : 0.7}
@@ -1002,7 +1154,7 @@ function GridCanvas({
 
       {/* members */}
       {inPlane.map(({ m, x1, y1, x2, y2, w }) => (
-        <g key={m.id} onClick={() => onPick(pickOf(m.id))} className="cursor-pointer">
+        <g key={m.id} transform={moved(m.id)} onClick={() => onPick(pickOf(m.id))} className="cursor-pointer">
           <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={Math.max(w, 18 * z)} />
           <line
             x1={x1}
@@ -1023,19 +1175,20 @@ function GridCanvas({
           y={p.y}
           width={Math.max(1.5, p.w)}
           height={p.h}
+          transform={moved(p.id)}
           onClick={() => onPick(pickOf(p.id))}
           className={`cursor-pointer ${isSelected(p.id) ? 'fill-accent' : 'fill-muted'}`}
           fillOpacity="0.5"
         />
       ))}
       {seen.map(({ m, points, w }) => (
-        <g key={m.id} onClick={() => onPick(pickOf(m.id))} className="cursor-pointer">
+        <g key={m.id} transform={moved(m.id)} onClick={() => onPick(pickOf(m.id))} className="cursor-pointer">
           <polyline points={points} fill="none" stroke="transparent" strokeWidth={Math.max(w, 16 * z)} />
           <polyline points={points} fill="none" strokeWidth={w} className={isSelected(m.id) ? 'stroke-accent' : 'stroke-ink'} strokeOpacity={isSelected(m.id) ? 1 : 0.7} />
         </g>
       ))}
       {seenEnds.map(({ m, x, y, w, h }) => (
-        <rect key={m.id} x={x - w / 2} y={y - h / 2} width={w} height={h} onClick={() => onPick(pickOf(m.id))} className={`cursor-pointer ${isSelected(m.id) ? 'fill-accent' : 'fill-ink'}`} fillOpacity="0.7" />
+        <rect key={m.id} x={x - w / 2} y={y - h / 2} width={w} height={h} transform={moved(m.id)} onClick={() => onPick(pickOf(m.id))} className={`cursor-pointer ${isSelected(m.id) ? 'fill-accent' : 'fill-ink'}`} fillOpacity="0.7" />
       ))}
       {crossing.map(({ m, x, y, w, h }) => (
         <rect
@@ -1044,6 +1197,7 @@ function GridCanvas({
           y={y - h / 2}
           width={w}
           height={h}
+          transform={moved(m.id)}
           onClick={() => onPick(pickOf(m.id))}
           className={`cursor-pointer ${isSelected(m.id) ? 'fill-accent' : 'fill-ink'}`}
         />
@@ -1084,6 +1238,16 @@ function GridCanvas({
         <DimPill key={`dv${j}`} x={vChainX} y={(sy(V[j]) + sy(V[j + 1])) / 2} x1={sy(V[j])} x2={sy(V[j + 1])} value={s} guess={guessV[j]} onTap={() => onDim(axes.v, j)} z={z} />
       ))}
     </svg>
+    {drag && (drag.u !== 0 || drag.v !== 0) && (
+      <p className="tnum pointer-events-none absolute start-2 top-2 rounded-md bg-ink px-2.5 py-1 text-[0.85rem] font-semibold text-white">
+        {[
+          drag.u !== 0 ? `${fmtNum(Math.abs(drag.u))} ${drag.u > 0 ? 'ימינה' : 'שמאלה'}` : '',
+          drag.v !== 0 ? `${fmtNum(Math.abs(drag.v))} ${(drag.v > 0) === up ? 'למעלה' : 'למטה'}` : '',
+        ]
+          .filter(Boolean)
+          .join(', ')}
+      </p>
+    )}
     {gestures.zoomed && (
       <button
         type="button"
@@ -1300,6 +1464,24 @@ export function ProfilePicker({ value, onChange }: { value: ProfileChoice; onCha
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** On top of a piece's sheet: move or turn it on the grid, and turn a member's section about its own axis */
+function MoveRow({ onMove, onRoll, roll = 0 }: { onMove: () => void; onRoll?: () => void; roll?: number }) {
+  return (
+    <div className="mb-4 flex flex-wrap gap-2">
+      <button type="button" onClick={onMove} className="btn-secondary min-h-11 flex-1 px-3 text-[0.9rem]">
+        <Icon name="expand" size={18} />
+        הזזה וסיבוב
+      </button>
+      {onRoll && (
+        <button type="button" onClick={onRoll} className="btn-secondary min-h-11 flex-1 px-3 text-[0.9rem]">
+          <Icon name="rotate" size={18} />
+          {roll ? `חתך מסובב ${roll} מעלות` : 'לסובב את החתך'}
+        </button>
+      )}
     </div>
   );
 }
