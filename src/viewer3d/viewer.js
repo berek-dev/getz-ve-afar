@@ -104,6 +104,25 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
   const rubber = track(new THREE.MeshStandardMaterial({ color: '#c7951a', roughness: 0.7 }));
   const motorMat = track(new THREE.MeshStandardMaterial({ color: '#2d3236', roughness: 0.6 }));
   const highlight = track(new THREE.MeshStandardMaterial({ color: '#f3b61f', emissive: '#a5740a', emissiveIntensity: 0.6, metalness: 0.3, roughness: 0.4 }));
+  // The strength check's colours (the app's ok, accent and danger)
+  const TINTS = {
+    ok: track(new THREE.MeshStandardMaterial({ color: '#1f7a47', roughness: 0.55 })),
+    close: track(new THREE.MeshStandardMaterial({ color: '#c2410c', roughness: 0.55 })),
+    fail: track(new THREE.MeshStandardMaterial({ color: '#b42318', emissive: '#5a0d08', emissiveIntensity: 0.5, roughness: 0.5 })),
+  };
+  let tints = null;
+  function applyTints() {
+    if (!model) return;
+    model.traverse((o) => {
+      if (!o.isMesh || !o.userData.info) return;
+      if (!o.userData.base) o.userData.base = o === picked ? o.userData.mat : o.material;
+      const v = tints && o.userData.info.id ? tints[o.userData.info.id] : null;
+      const mat = v && TINTS[v] ? TINTS[v] : o.userData.base;
+      if (o === picked) o.userData.mat = mat;
+      else o.material = mat;
+    });
+    needsRender = true;
+  }
   const dimLineMat = track(new THREE.LineBasicMaterial({ color: '#1b2025' }));
   const finishColor = () => {
     const c = current?.prepared.scene.finish?.color;
@@ -387,6 +406,7 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
     scene.add(model);
     setOpen(0);
     buildDims();
+    if (tints) applyTints();
   }
 
   // --- dimensions -----------------------------------------------------------------------------------
@@ -544,6 +564,10 @@ export function createViewer(container, { core: C, onPick, onOpenChange } = {}) 
   }
 
   return {
+    setTints(map) {
+      tints = map || null;
+      applyTints();
+    },
     show(prepared, cut, { keepCamera = false } = {}) {
       select(null);
       current = { prepared, cut };

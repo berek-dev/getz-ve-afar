@@ -22,6 +22,7 @@ export function ModelView({
   showGround = true,
   onEdit,
   onDelete,
+  tints = null,
 }: {
   prepared: Prepared;
   cut: CutList;
@@ -35,6 +36,8 @@ export function ModelView({
   /** A picked piece can be edited or deleted where it came from (the hand builder); false when it can't */
   onEdit?: (id: string) => boolean;
   onDelete?: (id: string) => boolean;
+  /** Pieces coloured by the strength check */
+  tints?: Record<string, 'ok' | 'close' | 'fail'> | null;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const viewer = useRef<Viewer | null>(null);
@@ -72,6 +75,10 @@ export function ModelView({
     shownKey.current = designKey;
     setMovers(v.hasMovers);
   }, [state, prepared, cut, designKey]);
+
+  useEffect(() => {
+    if (state === 'ok') viewer.current?.setTints(tints);
+  }, [state, tints, prepared]);
 
   useEffect(() => {
     // Reframe once the layer has its new size (portrait full screen needs the camera further back)

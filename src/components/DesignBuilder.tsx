@@ -61,6 +61,9 @@ import { SketchReader } from './SketchReader.tsx';
 import { PAD_W, SketchPad } from './SketchPad.tsx';
 import { SKETCH_PAGE_MM, sketchToDesign } from '../core/sketch.ts';
 import { designFromLayout } from '../core/fromLayout.ts';
+import { DEFAULT_STRENGTH, checkStrength } from '../core/strength.ts';
+import type { StrengthSettings } from '../core/strength.ts';
+import { StrengthPanel } from './StrengthPanel.tsx';
 import { elementPoints, moveElement, rollMatters, rollMember, rotateElement, snapDelta, stepDelta } from '../core/move.ts';
 import type { SketchLine } from '../core/sketch.ts';
 import { classifyStroke, penSegment, scribbleTarget } from '../core/pen.ts';
@@ -112,6 +115,7 @@ const profileKey = 'gva:builder-profile';
 /** A pen has drawn here (a tablet): drawing mode means the pen, and fingers only pan */
 const penKey = 'gva:builder-pen';
 const drawKey = 'gva:builder-draw';
+const strengthKey = 'gva:strength';
 const sketchKey = (jobId: number) => `gva:sketch-draft:${jobId}`;
 
 /** Drawing on the grid: off (taps on grid points), with a pen (fingers pan), or with a finger (two fingers pan) */
@@ -165,6 +169,14 @@ export function DesignBuilder({
   const [placing, setPlacing] = useState<Placing | null>(null);
   // A piece being moved: dragged on the grid or stepped with the arrows, until "סיום"
   const [moving, setMoving] = useState<Selected>(null);
+  // The strength check: its sheet, colours in the 3D view, and the loads it assumes (kept for every job)
+  const [checking, setChecking] = useState(false);
+  const [tinted, setTinted] = useState(false);
+  const [strength, setStrengthState] = useState<StrengthSettings>(() => ({ ...DEFAULT_STRENGTH, ...(loadJson<Partial<StrengthSettings>>(strengthKey) ?? {}) }));
+  const setStrength = (next: StrengthSettings) => {
+    setStrengthState(next);
+    saveJson(strengthKey, next);
+  };
   // What the AI said about a sketch it read: things it guessed, and how many pieces it left out
   const [fromSketch, setFromSketch] = useState<{ notes: string[]; missed: number; from?: 'ai' } | null>(() =>
     fromAi && !draftAtStart && fromAi.notes.length > 0 ? { notes: fromAi.notes, missed: 0, from: 'ai' } : null,
@@ -210,6 +222,7 @@ export function DesignBuilder({
   const usable = prepared.errors.length === 0 && prepared.scene.members.length + prepared.scene.plates.length > 0;
   const cut = useMemo(() => (usable ? cutList(prepared.scene) : null), [usable, prepared]);
   const lengths = useMemo(() => memberCutLengths(design), [design]);
+  const report = useMemo(() => ((checking || tinted) && usable ? checkStrength(prepared.scene, strength) : null), [checking, tinted, usable, prepared, strength]);
 
   /** Every change goes through here, so one tap of "undo" takes it back */
   const change = (next: Design) => {
@@ -574,11 +587,32 @@ export function DesignBuilder({
         {!FLAT(view.kind) && !(usable && cut) ? (
           <p className="plate rounded-md p-5 text-center text-muted">עוד אין חלקים. בחזית, גע בשתי נקודות ברשת.</p>
         ) : view.kind === '3d' && cut ? (
+          <>
+          {tinted && report && (
+            <div className="mb-1.5 flex items-center gap-3 rounded-md bg-sunken px-3 py-1.5 text-[0.85rem]">
+              {(
+                [
+                  ['bg-ok', 'עומד'],
+                  ['bg-accent', 'קרוב לגבול'],
+                  ['bg-danger', 'חלש מדי'],
+                ] as const
+              ).map(([bg, label]) => (
+                <span key={label} className="flex items-center gap-1.5">
+                  <span className={`h-2.5 w-2.5 rounded-full ${bg}`} />
+                  {label}
+                </span>
+              ))}
+              <button type="button" onClick={() => setTinted(false)} className="ms-auto min-h-9 px-1 font-semibold text-muted underline underline-offset-4">
+                הסתר
+              </button>
+            </div>
+          )}
           <ModelView
             prepared={prepared}
             cut={cut}
             designKey="builder"
             title={job.title}
+            tints={tinted && report ? report.verdicts : null}
             onEdit={(id) => {
               const s = elementOf(design, id);
               if (!s) return false;
@@ -594,6 +628,7 @@ export function DesignBuilder({
               return true;
             }}
           />
+          </>
         ) : view.kind === 'sheet' && cut ? (
           <ModelDrawing scene={prepared.scene} cut={cut} businessName={businessName} />
         ) : axes && axes.u === 'z' && design.grid.z.length === 0 ? (
@@ -770,6 +805,12 @@ export function DesignBuilder({
           {guessed > 0 && <span className="text-accent">{guessed === 1 ? ', מידה אחת משוערת' : `, ${guessed} מידות משוערות`}</span>}
         </p>
       )}
+      {usable && (
+        <button type="button" onClick={() => setChecking(true)} className="btn-secondary mt-2 min-h-11 w-full text-[0.9rem]">
+          <Icon name="gauge" size={18} />
+          בדיקת חוזק
+        </button>
+      )}
 
       {after}
         </>
@@ -840,6 +881,38 @@ export function DesignBuilder({
             piece={prepared.scene.plates.find((p) => p.id === selPlate.id) ?? null}
             onChange={change}
             onClose={() => setSelected(null)}
+          />
+        )}
+      </Sheet>
+      <Sheet open={checking} onClose={() => setChecking(false)} title="בדיקת חוזק">
+        {checking && report && (
+          <StrengthPanel
+            report={report}
+            settings={strength}
+            onSettings={setStrength}
+            title={job.title}
+            businessName={businessName}
+            tinted={tinted}
+            onTint={(on) => {
+              setTinted(on);
+              if (!on) return;
+              setChecking(false);
+              setMoving(null);
+              setView({ kind: '3d', line: 0 });
+            }}
+            onPick={(id) => {
+              const s = elementOf(design, id);
+              if (!s) return toast('את החלק הזה לא אפשר לפתוח מכאן.');
+              setChecking(false);
+              setSelected(s);
+            }}
+            onApply={(id, size) => {
+              const s = elementOf(design, id);
+              if (s?.kind === 'member') change(updateMember(design, s.id, { size }));
+              else if (s?.kind === 'infill') change(updateInfill(design, s.id, { size }));
+              else return false;
+              return true;
+            }}
           />
         )}
       </Sheet>

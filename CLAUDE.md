@@ -72,6 +72,18 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   where an end lands between lines (`insertGridLine`). "סובב 90 מעלות" turns it clockwise on screen about its first
   point (the other way if that leaves the grid); blocks always turn in plan. A member's section turns about its own
   axis with `roll` ("לסובב את החתך").
+- Strength check ("בדיקת חוזק" under the builder's grid; an estimate to pick profiles, never an approval):
+  `src/core/strength.ts` turns the scene into a 3D frame (`src/core/frame3d.ts`: 12-DOF Euler–Bernoulli elements,
+  banded Cholesky after reverse Cuthill–McKee, a vanishing pivot = mechanism) with welded rigid joints: ends on a
+  face join the other's centre line, pieces crossing within touching distance join where they cross, the ground
+  (and concrete, footings, members lying on the ground) holds. Section properties (`sectionProps.ts`) follow the
+  layout's f/n axes: element local y = n, so `Iy = In`, `Iz = If`. Loads: own weight; plates and roofing spread onto
+  the members under them by tributary width (`spread`); roof load and wind (kN/m², set in the panel, stored in
+  `gva:strength`) with open-canopy coefficients; gate leaves are not checked but their weight and wind go to the
+  hinge post (or half the wind to the guide rollers of a sliding leaf). EN-style factors (1.35/1.5), checks: elastic
+  stress, buckling (curve c, posts on the ground K = 2), sag span/200, sway height/150; failing pieces get the
+  lightest standard size that holds (`standardSizes` in the catalog). The 3D view colours pieces (`setTints`), and
+  `strengthSheet.ts` draws a landscape A4 summary for the engineer (loads, pieces, what each footing holds).
 - The shop drawing (`src/core/drawing.ts`, an A3 sheet) is shared as a PDF on A4 or A3 or as a PNG: the browser draws
   the SVG into a canvas (so Hebrew text is right) and `src/core/pdf.ts` wraps the deflated gray pixels in a one-page PDF.
 - Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).

@@ -22,6 +22,8 @@ export interface Viewer {
   /** The layout has a leaf that swings or slides */
   readonly hasMovers: boolean;
   setDims(on: boolean): void;
+  /** Colours pieces by the strength check (layout member id → verdict); null puts their own colours back */
+  setTints(tints: Record<string, 'ok' | 'close' | 'fail'> | null): void;
   setUnderground(on: boolean): void;
   frame(kind?: '3d' | 'front'): void;
   clearSelection(): void;

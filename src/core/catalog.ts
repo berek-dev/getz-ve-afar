@@ -10,6 +10,7 @@ import { BEAMS, beamSizes } from './sections.ts';
 import type { SteelShape } from './steel.ts';
 import type { ElementCategory, Unit } from './types.ts';
 import { SHEETS } from './sheets.ts';
+import type { Profile } from './scene.ts';
 
 export type MaterialKey = 'black' | 'galv' | 'stainless' | 'aluminum';
 
@@ -134,6 +135,33 @@ const FLAT_ALU: [number, number][] = [[20, 3], [30, 3], [40, 4], [50, 5]];
 const ROUND_BAR = [6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 50];
 const ROUND_BAR_STAINLESS = [6, 8, 10, 12, 16, 20];
 const SQUARE_BAR = [10, 12, 14, 16, 20, 25];
+
+/** The standard sizes of a profile in a material, as layout sizes (for suggesting a stronger one) */
+export function standardSizes(profile: Profile, material: MaterialKey): number[][] {
+  const st = material === 'stainless';
+  const al = material === 'aluminum';
+  switch (profile) {
+    case 'rect_tube':
+      return [
+        ...(st ? SQUARE_STAINLESS : al ? SQUARE_ALU : SQUARE).flatMap(([a, ts]) => ts.map((t) => [a, a, t])),
+        ...(st ? RECT_STAINLESS : al ? RECT_ALU : RECT).flatMap(([a, b, ts]) => ts.map((t) => [a, b, t])),
+      ];
+    case 'angle':
+      return (st ? ANGLE_STAINLESS : al ? ANGLE_ALU : ANGLE).map(([a, t]) => [a, a, t]);
+    case 'flat':
+      return (st ? FLAT_STAINLESS : al ? FLAT_ALU : FLAT).map(([w, t]) => [w, t]);
+    case 'round_bar':
+      return (st ? ROUND_BAR_STAINLESS : ROUND_BAR).map((d) => [d]);
+    case 'square_bar':
+      return SQUARE_BAR.map((a) => [a]);
+    case 'round_tube':
+      return (st ? ROUND_TUBE_STAINLESS : ROUND_TUBE).map(([d, t]) => [d, t]);
+    case 'upn':
+    case 'ipe':
+    case 'hea':
+      return beamSizes(profile).map((h) => [h]);
+  }
+}
 
 /** Outside diameter → nominal size in inches (צול) */
 export const INCH: Record<string, string> = {
