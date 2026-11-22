@@ -4,11 +4,11 @@
  * so a piece keeps its size wherever it goes. Turning is by 90 degrees in the plane of the view, about the piece's
  * first point; a member can also be turned about its own axis (`roll`: a 60/40 tube laid on its side).
  */
-import { gridLines, insertGridLine, nodePosition, plateError } from './design.ts';
+import { elementOf, gridLines, insertGridLine, nodePosition, plateError } from './design.ts';
 import type { Design, DesignNode, GridAxis } from './design.ts';
 import { placementError } from './blocks.ts';
-import { SLOPE_UPS } from './scene.ts';
-import type { Profile, SlopeUp, Vec3 } from './scene.ts';
+import { SLOPE_UPS, halfExtent, norm, plateAxes, plateCorners, sectionAxes, sub } from './scene.ts';
+import type { Profile, ResolvedScene, SlopeUp, Vec3 } from './scene.ts';
 
 export type Element = { kind: 'member' | 'infill' | 'block' | 'plate'; id: string };
 type End = { list: 'members' | 'blocks' | 'plates'; id: string; end: 'a' | 'b' };
@@ -207,4 +207,74 @@ export function rollMember(design: Design, id: string): Design {
       return next === 0 ? rest : { ...rest, roll: next };
     }),
   };
+}
+
+const sameElement = (a: Element, b: Element) => a.kind === b.kind && a.id === b.id;
+
+/**
+ * Where an element's steel reaches along an axis (0 x, 1 y, 2 z), outside faces included: from the compiled scene's
+ * pieces that belong to it (base plates left out, so a post is measured by its tube). Null when nothing is drawn.
+ */
+export function extentAlong(design: Design, scene: ResolvedScene, el: Element, k: 0 | 1 | 2): [number, number] | null {
+  let lo = Infinity;
+  let hi = -Infinity;
+  const along: Vec3 = [0, 0, 0];
+  along[k] = 1;
+  for (const m of scene.members) {
+    const of = elementOf(design, m.id);
+    if (!of || !sameElement(of, el)) continue;
+    const { f, n } = sectionAxes(norm(sub(m.to, m.from)));
+    const half = halfExtent(m, f, n, along);
+    lo = Math.min(lo, m.from[k] - half, m.to[k] - half);
+    hi = Math.max(hi, m.from[k] + half, m.to[k] + half);
+  }
+  for (const p of scene.plates) {
+    if (p.id.endsWith('-base')) continue;
+    const of = elementOf(design, p.id);
+    if (!of || !sameElement(of, el)) continue;
+    const half = (Math.abs(plateAxes(p).n[k]) * p.thickness) / 2;
+    for (const c of plateCorners(p)) {
+      lo = Math.min(lo, c[k] - half);
+      hi = Math.max(hi, c[k] + half);
+    }
+  }
+  return lo <= hi ? [lo, hi] : null;
+}
+
+export interface Centred {
+  design: Design;
+  axis: GridAxis;
+  /** Clear space left on each side, mm (negative when it doesn't fit) */
+  gap: number;
+}
+
+/**
+ * Moves an element to the middle of the clear space between two others, along whichever of the view's two axes
+ * they stand apart on (face to face; centre to centre when they overlap on both).
+ */
+export function centerBetween(design: Design, scene: ResolvedScene, el: Element, a: Element, b: Element, axes: { u: GridAxis; v: GridAxis }): Centred | { error: string } {
+  if (sameElement(a, b) || sameElement(a, el) || sameElement(b, el)) return { error: 'בוחרים שני חלקים אחרים, שונים זה מזה.' };
+  type Side = { axis: GridAxis; k: 0 | 1 | 2; ea: [number, number]; eb: [number, number]; gap: number; apart: number };
+  const sides: Side[] = [];
+  for (const axis of [axes.u, axes.v]) {
+    const k = IDX[axis];
+    const ea = extentAlong(design, scene, a, k);
+    const eb = extentAlong(design, scene, b, k);
+    if (!ea || !eb) return { error: 'החלק לא נמצא.' };
+    // The clear space between them (negative when they overlap), and how far their middles are apart
+    sides.push({ axis, k, ea, eb, gap: Math.max(eb[0] - ea[1], ea[0] - eb[1]), apart: Math.abs(ea[0] + ea[1] - eb[0] - eb[1]) / 2 });
+  }
+  // Face to face along the axis with the most clear space; centre to centre when they overlap on both
+  const open = sides.filter((x) => x.gap > 0).sort((x, y) => y.gap - x.gap)[0];
+  const side = open ?? sides.sort((x, y) => y.apart - x.apart)[0];
+  if (!side || (!open && side.apart < 1)) return { error: 'שני החלקים באותו מקום: אין בין מה למרכז.' };
+  const { axis, k, ea, eb } = side;
+  const target = open ? (eb[0] >= ea[1] ? (ea[1] + eb[0]) / 2 : (eb[1] + ea[0]) / 2) : (ea[0] + ea[1] + eb[0] + eb[1]) / 4;
+  const own = extentAlong(design, scene, el, k);
+  if (!own) return { error: 'החלק לא נמצא.' };
+  const delta: Vec3 = [0, 0, 0];
+  delta[k] = Math.round(target - (own[0] + own[1]) / 2);
+  const r = delta[k] === 0 ? { design } : moveElement(design, el, delta);
+  if ('error' in r) return r;
+  return { design: r.design, axis, gap: open ? (open.gap - (own[1] - own[0])) / 2 : 0 };
 }

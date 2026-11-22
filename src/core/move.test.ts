@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addBlock, addInfill, addMember, addPlate, compileDesign, gridLines, newDesign, nodePosition } from './design.ts';
 import type { Design } from './design.ts';
-import { elementPoints, moveElement, rollMatters, rollMember, rotateElement, snapDelta, stepDelta } from './move.ts';
+import { centerBetween, elementPoints, extentAlong, moveElement, rollMatters, rollMember, rotateElement, snapDelta, stepDelta } from './move.ts';
 import { cutList, prepareScene } from './scene.ts';
 
 const rect = (...size: number[]) => ({ profile: 'rect_tube' as const, size });
@@ -145,4 +145,37 @@ test('a member turns about its own axis: two ways for a rectangular tube, four f
   // The cut layout carries it
   const layout = compileDesign(once, 'x') as { members: { id: string; roll?: number }[] };
   assert.equal(layout.members.find((m) => m.id === beam)?.roll, 90);
+});
+
+test('a piece goes to the middle of the clear space between two others, face to face', () => {
+  // Posts of different widths at 0 and 4,000, a thinner one to centre between them
+  let d: Design = { ...newDesign(), grid: { x: [1000, 3000], y: [2000], z: [] } };
+  const a = addMember(d, [0, 0, 0], [0, 1, 0], rect(100, 100, 3));
+  const m = addMember(a.design, [1, 0, 0], [1, 1, 0], rect(80, 80, 2));
+  const b = addMember(m.design, [2, 0, 0], [2, 1, 0], rect(150, 150, 4));
+  d = b.design;
+  const el = { kind: 'member', id: m.id as string } as const;
+  const scene = () => prepareScene(JSON.parse(JSON.stringify(compileDesign(d, 'x')))).scene;
+  assert.deepEqual(extentAlong(d, scene(), { kind: 'member', id: b.id as string }, 0), [3925, 4075]);
+  const r = centerBetween(d, scene(), el, { kind: 'member', id: a.id as string }, { kind: 'member', id: b.id as string }, FRONT);
+  if ('error' in r) assert.fail(r.error);
+  // Clear space 50 to 3,925: the middle is 1,987.5 (whole mm), with 1,897.5 left each side of the 80 post
+  assert.equal(r.axis, 'x');
+  assert.equal(elementPoints(r.design, el)[0][0], 1988);
+  assert.equal(r.gap, 1897.5);
+
+  assert.ok('error' in centerBetween(d, scene(), el, el, { kind: 'member', id: b.id as string }, FRONT));
+});
+
+test('centring picks the axis the two stand apart on: a purlin between two beams in plan', () => {
+  let d: Design = { ...newDesign(), grid: { x: [4000], y: [2400], z: [500, 2500] } };
+  const front = addMember(d, [0, 1, 0], [1, 1, 0], rect(120, 60, 3));
+  const back = addMember(front.design, [0, 1, 2], [1, 1, 2], rect(120, 60, 3));
+  const purlin = addMember(back.design, [0, 1, 1], [1, 1, 1], rect(60, 40, 2));
+  d = purlin.design;
+  const scene = prepareScene(JSON.parse(JSON.stringify(compileDesign(d, 'x')))).scene;
+  const r = centerBetween(d, scene, { kind: 'member', id: purlin.id as string }, { kind: 'member', id: front.id as string }, { kind: 'member', id: back.id as string }, PLAN);
+  if ('error' in r) assert.fail(r.error);
+  assert.equal(r.axis, 'z');
+  assert.equal(elementPoints(r.design, { kind: 'member', id: purlin.id as string })[0][2], 1500);
 });

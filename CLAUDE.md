@@ -70,8 +70,10 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   Moving and turning (`src/core/move.ts`, "הזזה וסיבוב" on a piece's sheet): one finger drags the piece, snapping an
   end onto a grid line when near one, or the arrows step it line to line; it keeps its size, and a grid line is added
   where an end lands between lines (`insertGridLine`). "סובב 90 מעלות" turns it clockwise on screen about its first
-  point (the other way if that leaves the grid); blocks always turn in plan. A member's section turns about its own
-  axis with `roll` ("לסובב את החתך").
+  point (the other way if that leaves the grid); blocks always turn in plan. "מרכז בין שניים" then two taps on other
+  pieces centres it in the clear space between them, face to face (`centerBetween`, by the scene pieces' outside
+  faces, base plates left out), along whichever of the view's axes they stand apart on. A member's section turns
+  about its own axis with `roll` ("לסובב את החתך").
 - Strength check ("בדיקת חוזק" under the builder's grid; an estimate to pick profiles, never an approval):
   `src/core/strength.ts` turns the scene into a 3D frame (`src/core/frame3d.ts`: 12-DOF Euler–Bernoulli elements,
   banded Cholesky after reverse Cuthill–McKee, a vanishing pivot = mechanism) with welded rigid joints: ends on a

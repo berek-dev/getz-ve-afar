@@ -64,7 +64,7 @@ import { designFromLayout } from '../core/fromLayout.ts';
 import { DEFAULT_STRENGTH, checkStrength } from '../core/strength.ts';
 import type { StrengthSettings } from '../core/strength.ts';
 import { StrengthPanel } from './StrengthPanel.tsx';
-import { elementPoints, moveElement, rollMatters, rollMember, rotateElement, snapDelta, stepDelta } from '../core/move.ts';
+import { centerBetween, elementPoints, moveElement, rollMatters, rollMember, rotateElement, snapDelta, stepDelta } from '../core/move.ts';
 import type { SketchLine } from '../core/sketch.ts';
 import { classifyStroke, penSegment, scribbleTarget } from '../core/pen.ts';
 import type { P2 } from '../core/pen.ts';
@@ -168,7 +168,13 @@ export function DesignBuilder({
   const [current, setCurrent] = useState<ProfileChoice>(() => loadJson<ProfileChoice>(profileKey) ?? DEFAULT_PROFILE);
   const [placing, setPlacing] = useState<Placing | null>(null);
   // A piece being moved: dragged on the grid or stepped with the arrows, until "סיום"
-  const [moving, setMoving] = useState<Selected>(null);
+  const [moving, setMovingState] = useState<Selected>(null);
+  // Centring the moving piece between two others: null when not picking, then the first one picked
+  const [centring, setCentring] = useState<{ first: Selected } | null>(null);
+  const setMoving = (s: Selected) => {
+    setMovingState(s);
+    setCentring(null);
+  };
   // The strength check: its sheet, colours in the 3D view, and the loads it assumes (kept for every job)
   const [checking, setChecking] = useState(false);
   const [tinted, setTinted] = useState(false);
@@ -435,6 +441,19 @@ export function DesignBuilder({
     if ('error' in r) toast(r.error);
     else change(r.design);
   };
+  /** A piece in a few words, to say which one was picked */
+  const nameOf = (s: NonNullable<Selected>): string => {
+    if (s.kind === 'member') {
+      const m = design.members.find((x) => x.id === s.id);
+      return m ? (m.label ?? sectionName(m.profile, m.size, design.material)) : 'החלק';
+    }
+    if (s.kind === 'block') {
+      const k = design.blocks.find((x) => x.id === s.id);
+      return k ? BLOCKS[k.kind].label : 'הבלוק';
+    }
+    if (s.kind === 'plate') return design.plates.find((x) => x.id === s.id)?.sheet ? 'הקירוי' : 'הפח';
+    return 'המילוי';
+  };
   /** One grid line along the view's across (u) or second (v) axis */
   const stepMove = (axis: GridAxis, sign: 1 | -1) => {
     if (!moving) return;
@@ -650,7 +669,16 @@ export function DesignBuilder({
             selected={moving ?? selected}
             onNode={(n) => !moving && tapNode(n)}
             onPick={(s) => {
-              if (moving) return;
+              if (moving) {
+                if (!centring || !s) return;
+                if (!centring.first) return setCentring({ first: s });
+                const r = centerBetween(design, prepared.scene, moving, centring.first, s, axes);
+                setCentring(null);
+                if ('error' in r) return toast(r.error);
+                change(r.design);
+                toast(r.gap >= 0.5 ? `באמצע: ${fmtNum(Math.round(r.gap))} מ״מ מכל צד` : r.gap <= -0.5 ? `באמצע, אבל לא נכנס: חסרים ${fmtNum(Math.round(-2 * r.gap))} מ״מ` : 'באמצע');
+                return;
+              }
               setPending(null);
               setPlacing(null);
               setSelected(s);
@@ -671,7 +699,17 @@ export function DesignBuilder({
         ) : null}
       </div>
 
-      {moving && axes ? (
+      {moving && axes && centring ? (
+        <div className="mt-1.5 flex items-start gap-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
+          <p className="min-w-0 flex-1">
+            <span className="font-semibold">מרכוז: </span>
+            {centring.first ? `נבחר ${nameOf(centring.first)}. עכשיו גע בחלק השני.` : 'גע בשני החלקים שביניהם יעמוד החלק, אחד אחרי השני.'}
+          </p>
+          <button type="button" onClick={() => setCentring(null)} className="min-h-10 shrink-0 px-1 font-semibold text-muted underline underline-offset-4">
+            ביטול
+          </button>
+        </div>
+      ) : moving && axes ? (
         <div className="mt-1.5 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
           <p>
             <span className="font-semibold">הזזה: </span>
@@ -696,15 +734,19 @@ export function DesignBuilder({
                 {glyph}
               </button>
             ))}
+            <button type="button" onClick={() => setMoving(null)} className="btn-primary ms-auto min-h-11 px-4">
+              <Icon name="check" size={18} />
+              סיום
+            </button>
           </div>
           <div className="mt-2 flex gap-2">
-            <button type="button" onClick={() => rotate(moving)} className="btn-secondary min-h-11 flex-1 px-3 text-[0.9rem]">
+            <button type="button" onClick={() => rotate(moving)} className="btn-secondary min-h-11 flex-1 px-2 text-[0.9rem]">
               <Icon name="rotate" size={18} />
               סובב 90 מעלות
             </button>
-            <button type="button" onClick={() => setMoving(null)} className="btn-primary min-h-11 flex-1 px-4">
-              <Icon name="check" size={18} />
-              סיום
+            <button type="button" onClick={() => setCentring({ first: null })} className="btn-secondary min-h-11 flex-1 px-2 text-[0.9rem]">
+              <Icon name="ruler" size={18} />
+              מרכז בין שניים
             </button>
           </div>
         </div>
