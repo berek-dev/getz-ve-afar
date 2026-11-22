@@ -62,6 +62,11 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   (`src/core/designPrompt.ts`, `POST /jobs/:id/model/sketch`, streamed) and opens as an unsaved draft; the same
   instructions can go to Yaal's own AI app. The builder's "גיליון" view shows the shop drawing while planning;
   in its 3D view a picked piece can be edited or deleted (`elementOf` maps a layout piece back to the design).
+  A model made by AI or pasted opens in the builder too (`designFromLayout`, `src/core/fromLayout.ts`), as the
+  unsaved starting point: straight pieces become members on a grid of the coordinates they use (ends on a face move to
+  the centre line, members keep `roll`), evenly spaced bars between two rails become an infill when the builder puts
+  them where the AI did, a plate under a post's foot becomes its base plate. Curved pieces, hardware and concrete are
+  left out and listed; posts in the ground start at ground level. Saving makes a builder version.
 - The shop drawing (`src/core/drawing.ts`, an A3 sheet) is shared as a PDF on A4 or A3 or as a PNG: the browser draws
   the SVG into a canvas (so Hebrew text is right) and `src/core/pdf.ts` wraps the deflated gray pixels in a one-page PDF.
 - Axes: mm, Y up, ground y = 0, X along the opening, +Z towards the street. Members are cut lengths (butt joints).

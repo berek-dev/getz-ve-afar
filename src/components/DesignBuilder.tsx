@@ -60,6 +60,7 @@ import { useCanvasGestures } from './canvasGestures.ts';
 import { SketchReader } from './SketchReader.tsx';
 import { PAD_W, SketchPad } from './SketchPad.tsx';
 import { SKETCH_PAGE_MM, sketchToDesign } from '../core/sketch.ts';
+import { designFromLayout } from '../core/fromLayout.ts';
 import type { SketchLine } from '../core/sketch.ts';
 import { classifyStroke, penSegment, scribbleTarget } from '../core/pen.ts';
 import type { P2 } from '../core/pen.ts';
@@ -149,7 +150,11 @@ export function DesignBuilder({
   after?: ReactNode;
 }) {
   const savedDesign = useMemo(() => readDesign((model.layout as { design?: unknown } | null)?.design), [model.layout]);
-  const [design, setDesign] = useState<Design>(() => readDesign(loadJson(draftKey(job.id))) ?? savedDesign ?? newDesign());
+  // A model made by AI (or pasted) opens here as a design, so a small fix doesn't need the AI again
+  const fromAi = useMemo(() => (savedDesign || !model.layout ? null : designFromLayout(model.layout)), [savedDesign, model.layout]);
+  const baseline = savedDesign ?? fromAi?.design ?? null;
+  const [draftAtStart] = useState(() => readDesign(loadJson(draftKey(job.id))));
+  const [design, setDesign] = useState<Design>(() => draftAtStart ?? baseline ?? newDesign());
   const [history, setHistory] = useState<Design[]>([]);
   const [view, setView] = useState<View>({ kind: 'front', line: 0 });
   const [pending, setPending] = useState<DesignNode | null>(null);
@@ -158,7 +163,9 @@ export function DesignBuilder({
   const [current, setCurrent] = useState<ProfileChoice>(() => loadJson<ProfileChoice>(profileKey) ?? DEFAULT_PROFILE);
   const [placing, setPlacing] = useState<Placing | null>(null);
   // What the AI said about a sketch it read: things it guessed, and how many pieces it left out
-  const [fromSketch, setFromSketch] = useState<{ notes: string[]; missed: number } | null>(null);
+  const [fromSketch, setFromSketch] = useState<{ notes: string[]; missed: number; from?: 'ai' } | null>(() =>
+    fromAi && !draftAtStart && fromAi.notes.length > 0 ? { notes: fromAi.notes, missed: 0, from: 'ai' } : null,
+  );
   // Drawing by hand on the grid: a finger on the phone, or a pen on a tablet, where it turns on by itself the first
   // time a pen touches the grid
   const [draw, setDrawMode] = useState<DrawMode>(() => {
@@ -185,7 +192,7 @@ export function DesignBuilder({
   };
   const [saving, setSaving] = useState(false);
 
-  const savedText = useMemo(() => (savedDesign ? JSON.stringify(savedDesign) : ''), [savedDesign]);
+  const savedText = useMemo(() => (baseline ? JSON.stringify(baseline) : ''), [baseline]);
   const edited = JSON.stringify(design) !== savedText;
   useEffect(() => saveJson(draftKey(job.id), edited ? design : null), [design, edited, job.id]);
 
@@ -312,7 +319,7 @@ export function DesignBuilder({
     if (!usable) return toast('צריך לפחות חלק אחד כדי לשמור');
     setSaving(true);
     try {
-      const m = await api.saveModel(job.id, layout, { source: 'builder', mode: savedDesign ? 'edit' : 'new' });
+      const m = await api.saveModel(job.id, layout, { source: 'builder', mode: baseline ? 'edit' : 'new' });
       saveJson(draftKey(job.id), null);
       onSaved(m);
       toast('נשמר');
@@ -326,7 +333,7 @@ export function DesignBuilder({
   const discard = () => {
     saveJson(draftKey(job.id), null);
     setHistory((h) => [...h, design]);
-    setDesign(savedDesign ?? newDesign());
+    setDesign(baseline ?? newDesign());
     setSelected(null);
     setPending(null);
   };
@@ -446,7 +453,11 @@ export function DesignBuilder({
       ) : (
         <>
       {model.layout != null && !savedDesign && (
-        <p className="mb-3 rounded-md bg-accent-soft px-3 py-2.5 text-[0.9rem]">ההדמיה הנוכחית נבנתה בלי רשת. שמירה כאן תיצור גרסה חדשה במקומה, ואפשר לבטל.</p>
+        <p className="mb-3 rounded-md bg-accent-soft px-3 py-2.5 text-[0.9rem]">
+          {fromAi
+            ? 'ההדמיה של ה־AI פתוחה כאן לעריכה. שמירה תיצור גרסה חדשה, והקודמת נשארת בגרסאות.'
+            : 'את ההדמיה הנוכחית אי אפשר לפתוח כאן. שמירה כאן תיצור גרסה חדשה במקומה, ואפשר לבטל.'}
+        </p>
       )}
 
       <div className="grid grid-cols-5 rounded-md border border-line-strong bg-card p-0.5" role="tablist" aria-label="תצוגה">
@@ -494,7 +505,7 @@ export function DesignBuilder({
       {fromSketch && (fromSketch.notes.length > 0 || fromSketch.missed > 0) && (
         <div className="mt-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
           <div className="flex items-start justify-between gap-2">
-            <p className="font-semibold">מהסקיצה, לבדוק:</p>
+            <p className="font-semibold">{fromSketch.from === 'ai' ? 'מההדמיה של ה־AI, לבדוק:' : 'מהסקיצה, לבדוק:'}</p>
             <button type="button" onClick={() => setFromSketch(null)} aria-label="סגור" className="shrink-0 text-muted">
               <Icon name="close" size={18} />
             </button>
@@ -645,7 +656,7 @@ export function DesignBuilder({
           <Icon name="check" />
           {saving ? 'שומר...' : dirty ? 'שמור' : 'נשמר'}
         </button>
-        {edited && savedDesign && (
+        {edited && baseline && (
           <button type="button" onClick={discard} className="min-h-11 shrink-0 px-2 text-[0.9rem] text-muted underline underline-offset-4">
             בטל שינויים
           </button>

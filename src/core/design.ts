@@ -40,6 +40,8 @@ export interface DesignMember {
   label?: string;
   /** A plate under the member's lower end, when that end is on the ground */
   base?: BasePlate | null;
+  /** Degrees about its own axis, as in the layout (a 60/40 tube turned on its side); from a converted AI model */
+  roll?: number;
 }
 
 export interface DesignInfill {
@@ -208,7 +210,8 @@ export function readDesign(raw: unknown): Design | null {
     const a = nodeOf(m?.a);
     const b = nodeOf(m?.b);
     if (!a || !b || typeof m.id !== 'string' || !Array.isArray(m.size)) continue;
-    members.push({ ...m, a, b });
+    const { roll, ...rest } = m;
+    members.push({ ...rest, a, b, ...(isNum(roll) && roll % 360 !== 0 ? { roll } : {}) });
   }
   const ids = new Set(members.map((m) => m.id));
   const infills = (Array.isArray(d.infills) ? d.infills : []).filter(
@@ -345,7 +348,7 @@ function collect(design: Design): Collected {
   const { grid } = design;
   const frames: Frame[] = design.members
     .filter((m) => nodeInGrid(grid, m.a) && nodeInGrid(grid, m.b) && !sameNode(m.a, m.b))
-    .map((m) => ({ id: m.id, profile: m.profile, size: m.size, from: nodePosition(grid, m.a), to: nodePosition(grid, m.b), label: m.label, base: m.base ?? null }));
+    .map((m) => ({ id: m.id, profile: m.profile, size: m.size, from: nodePosition(grid, m.a), to: nodePosition(grid, m.b), label: m.label, base: m.base ?? null, ...(m.roll ? { roll: m.roll } : {}) }));
   const out: Collected = { frames, members: [], plates: [], parts: [], infills: [...design.infills], notes: [], reports: new Map() };
   // Platforms first, so a railing placed on one knows it
   const order = [...design.blocks].sort((a, b) => Number(b.kind === 'platform') - Number(a.kind === 'platform'));
