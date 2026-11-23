@@ -166,11 +166,24 @@ export function DesignBuilder({
   onSaved: (m: JobModel) => void;
   after?: ReactNode;
 }) {
-  const savedDesign = useMemo(() => readDesign((model.layout as { design?: unknown } | null)?.design), [model.layout]);
-  // A model made by AI (or pasted) opens here as a design, so a small fix doesn't need the AI again
+  // The newest version is what this opens: its own design when it was built here, else the AI's (or pasted) model
+  // turned into one, so a small fix doesn't need the AI again
+  const latest = model.history[0] ?? null;
+  const savedDesign = useMemo(
+    () => (latest?.source === 'builder' ? readDesign((model.layout as { design?: unknown } | null)?.design) : null),
+    [model.layout, latest?.source],
+  );
   const fromAi = useMemo(() => (savedDesign || !model.layout ? null : designFromLayout(model.layout)), [savedDesign, model.layout]);
   const baseline = savedDesign ?? fromAi?.design ?? null;
-  const [draftAtStart] = useState(() => readDesign(loadJson(draftKey(job.id))));
+  // Unsaved changes on this phone count only on top of the version they were made on: a newer version (from AI,
+  // or approved since) wins, so this tab always shows the model as it is now
+  const [stored] = useState(() => loadJson<{ base?: unknown; design?: unknown }>(draftKey(job.id)));
+  const [draftAtStart] = useState(() => (stored && stored.base === (latest?.id ?? null) ? readDesign(stored.design) : null));
+  useEffect(() => {
+    if (stored && !draftAtStart && model.layout != null) toast('השרטוט עודכן לגרסה החדשה של ההדמיה. שינויים שלא נשמרו בה נמחקו.');
+    // once, when the tab opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [design, setDesign] = useState<Design>(() => draftAtStart ?? baseline ?? newDesign());
   const [history, setHistory] = useState<Design[]>([]);
   const [view, setView] = useState<View>({ kind: 'front', line: 0 });
@@ -227,7 +240,7 @@ export function DesignBuilder({
 
   const savedText = useMemo(() => (baseline ? JSON.stringify(baseline) : ''), [baseline]);
   const edited = JSON.stringify(design) !== savedText;
-  useEffect(() => saveJson(draftKey(job.id), edited ? design : null), [design, edited, job.id]);
+  useEffect(() => saveJson(draftKey(job.id), edited ? { base: latest?.id ?? null, design } : null), [design, edited, job.id, latest?.id]);
 
   const layout = useMemo(() => compileDesign(design, job.title), [design, job.title]);
   // Saved before the joint rules changed: the same design now cuts differently, so offer to save it again

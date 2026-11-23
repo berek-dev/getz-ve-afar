@@ -862,6 +862,16 @@ export function gapLine(members: ResolvedMember[], a: string, b: string): { from
  * facing sides of two members (along its direction) becomes { between: [those members] }, so it follows them
  * when the layout changes. Anything else is left as it is. Works on the raw layout and returns a new one.
  */
+/**
+ * A layout made or changed outside the builder (AI, pasted): without the builder's `design` inside it, which would
+ * describe the model before the change; and with its measurements tied to their parts (`anchorDimensions`).
+ */
+export function outsideLayout(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const { design: _design, ...rest } = raw as Record<string, unknown>;
+  return anchorDimensions(rest);
+}
+
 export function anchorDimensions(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object' || !Array.isArray((raw as Scene).dimensions)) return raw;
   const prepared = prepareScene(raw);

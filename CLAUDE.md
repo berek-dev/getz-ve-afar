@@ -69,7 +69,10 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   unsaved starting point: straight pieces become members on a grid of the coordinates they use (ends on a face move to
   the centre line, members keep `roll`), evenly spaced bars between two rails become an infill when the builder puts
   them where the AI did, a plate under a post's foot becomes its base plate. Curved pieces, hardware and concrete are
-  left out and listed; posts in the ground start at ground level. Saving makes a builder version.
+  left out and listed; posts in the ground start at ground level. Saving makes a builder version. The builder always
+  opens the newest version: its `design` only when that version came from the builder (AI and pasted versions are
+  stored without one, `outsideLayout`, and the AI never sees it), and an unsaved draft on the phone only when it was
+  made on that same version (`{ base, design }` in `gva:design-draft:<job>`).
   Moving and turning (`src/core/move.ts`, "הזזה וסיבוב" on a piece's sheet): one finger drags the piece, snapping an
   end onto a grid line when near one, or the arrows step it line to line; it keeps its size, and a grid line is added
   where an end lands between lines (`insertGridLine`). "סובב 90 מעלות" turns it clockwise on screen about its first

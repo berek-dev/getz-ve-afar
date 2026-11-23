@@ -11,7 +11,7 @@ import type { ReadDesign } from '../../src/core/designPrompt.ts';
 import type { PromptBoqLine } from '../../src/core/layoutPrompt.ts';
 import { MODEL_GROUP, keepTypedPrices, linesFromModel } from '../../src/core/modelBoq.ts';
 import type { PriceListItem } from '../../src/core/modelBoq.ts';
-import { anchorDimensions, cutList, prepareScene } from '../../src/core/scene.ts';
+import { cutList, outsideLayout, prepareScene } from '../../src/core/scene.ts';
 import { isCutLine } from '../../src/core/quantities.ts';
 import { aiErrorCode, geminiHedged } from '../gemini.ts';
 import type { GeminiAttempt, GeminiTurn } from '../gemini.ts';
@@ -116,7 +116,7 @@ async function saveVersion(
       .prepare('INSERT INTO job_models (job_id, layout_json, request, mode, source) VALUES (?, ?, ?, ?, ?) RETURNING id')
       // Measurements that sit on two parts are tied to them, so they follow the parts in later changes
       // (a builder layout makes its own measurements from the grid every time)
-      .bind(jobId, JSON.stringify(v.source === 'builder' ? layout : anchorDimensions(layout)), v.request, v.mode, v.source),
+      .bind(jobId, JSON.stringify(v.source === 'builder' ? layout : outsideLayout(layout)), v.request, v.mode, v.source),
     db
       .prepare('DELETE FROM job_models WHERE job_id = ? AND id NOT IN (SELECT id FROM job_models WHERE job_id = ? ORDER BY id DESC LIMIT ?)')
       .bind(jobId, jobId, MAX_VERSIONS),
@@ -209,7 +209,7 @@ export function registerModel(app: App): void {
       job: { title: job.title, kind: job.kind, description: job.description },
       boq: items,
       // Older layouts kept measurements as fixed points: tie them to their parts before Gemini edits around them
-      current: mode === 'edit' ? anchorDimensions(state.layout) : undefined,
+      current: mode === 'edit' ? outsideLayout(state.layout) : undefined,
       requests: mode === 'edit' ? designRequests(state.history) : [],
       request,
       hasImage: Boolean(image),

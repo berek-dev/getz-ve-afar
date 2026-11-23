@@ -234,3 +234,16 @@ test('when Google keeps failing, the sketch reading says why', async () => {
     globalThis.fetch = real;
   }
 });
+
+test('a model saved from AI or a paste keeps no builder design inside it, so the builder opens the new model', async () => {
+  const { api } = setup();
+  const design = warehouse();
+  const built = compileDesign(design, 'במה');
+  assert.equal((await api.call('POST', '/jobs/1/model', { layout: built, source: 'builder', mode: 'new' })).status, 201);
+  // The AI changed the model and sent it back with the old design still in it
+  const changed = { ...built, members: (built.members as unknown[]).slice(1) };
+  assert.equal((await api.call('POST', '/jobs/1/model', { layout: changed, source: 'paste', mode: 'edit' })).status, 201);
+  const back = await json(await api.call('GET', '/jobs/1/model'));
+  assert.equal((back.layout as { design?: unknown }).design, undefined);
+  assert.equal(((back.layout as { members: unknown[] }).members).length, (built.members as unknown[]).length - 1);
+});
