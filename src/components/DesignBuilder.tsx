@@ -69,7 +69,7 @@ import { designFromLayout } from '../core/fromLayout.ts';
 import { DEFAULT_STRENGTH, checkStrength } from '../core/strength.ts';
 import type { StrengthSettings } from '../core/strength.ts';
 import { StrengthPanel } from './StrengthPanel.tsx';
-import { centerBetween, elementPoints, moveElement, rollMatters, rollMember, rotateElement, snapDelta, stepDelta } from '../core/move.ts';
+import { centerBetween, elementPoints, moveElement, rollMatters, rollMember, rotateElement, snapDelta, snapTo, stepDelta } from '../core/move.ts';
 import type { SketchLine } from '../core/sketch.ts';
 import { classifyStroke, penSegment, scribbleTarget } from '../core/pen.ts';
 import type { P2 } from '../core/pen.ts';
@@ -181,11 +181,11 @@ export function DesignBuilder({
   const [placing, setPlacing] = useState<Placing | null>(null);
   // A piece being moved: dragged on the grid or stepped with the arrows, until "סיום"
   const [moving, setMovingState] = useState<Selected>(null);
-  // Centring the moving piece between two others: null when not picking, then the first one picked
-  const [centring, setCentring] = useState<{ first: Selected } | null>(null);
+  // While moving, a tap picks a piece to snap to, or the two to centre between (the first one kept meanwhile)
+  const [picking, setPicking] = useState<{ mode: 'snap' } | { mode: 'center'; first: Selected } | null>(null);
   const setMoving = (s: Selected) => {
     setMovingState(s);
-    setCentring(null);
+    setPicking(null);
   };
   // The strength check: its sheet, colours in the 3D view, and the loads it assumes (kept for every job)
   const [checking, setChecking] = useState(false);
@@ -709,10 +709,18 @@ export function DesignBuilder({
             onNode={(n) => !moving && tapNode(n)}
             onPick={(s) => {
               if (moving) {
-                if (!centring || !s) return;
-                if (!centring.first) return setCentring({ first: s });
-                const r = centerBetween(design, prepared.scene, moving, centring.first, s, axes);
-                setCentring(null);
+                if (!picking || !s) return;
+                if (picking.mode === 'snap') {
+                  const r = snapTo(design, prepared.scene, moving, s, axes);
+                  setPicking(null);
+                  if ('error' in r) return toast(r.error);
+                  change(r.design);
+                  const mm = fmtNum(Math.round(r.mm));
+                  return toast(r.how === 'stretch' ? `${r.grew ? 'הוארך' : 'קוצר'} ב־${mm} מ״מ, עד ${nameOf(s)}` : `הוזז ${mm} מ״מ, עד ${nameOf(s)}`);
+                }
+                if (!picking.first) return setPicking({ mode: 'center', first: s });
+                const r = centerBetween(design, prepared.scene, moving, picking.first, s, axes);
+                setPicking(null);
                 if ('error' in r) return toast(r.error);
                 change(r.design);
                 toast(r.gap >= 0.5 ? `באמצע: ${fmtNum(Math.round(r.gap))} מ״מ מכל צד` : r.gap <= -0.5 ? `באמצע, אבל לא נכנס: חסרים ${fmtNum(Math.round(-2 * r.gap))} מ״מ` : 'באמצע');
@@ -738,13 +746,17 @@ export function DesignBuilder({
         ) : null}
       </div>
 
-      {moving && axes && centring ? (
+      {moving && axes && picking ? (
         <div className="mt-1.5 flex items-start gap-2 rounded-md bg-accent-soft px-3 py-2 text-[0.9rem]">
           <p className="min-w-0 flex-1">
-            <span className="font-semibold">מרכוז: </span>
-            {centring.first ? `נבחר ${nameOf(centring.first)}. עכשיו גע בחלק השני.` : 'גע בשני החלקים שביניהם יעמוד החלק, אחד אחרי השני.'}
+            <span className="font-semibold">{picking.mode === 'snap' ? 'הצמדה: ' : 'מרכוז: '}</span>
+            {picking.mode === 'snap'
+              ? 'גע בחלק שאליו להצמיד. החלק לא מסתובב: מתארך עד אליו, או זז עד שהוא נוגע בו.'
+              : picking.first
+                ? `נבחר ${nameOf(picking.first)}. עכשיו גע בחלק השני.`
+                : 'גע בשני החלקים שביניהם יעמוד החלק, אחד אחרי השני.'}
           </p>
-          <button type="button" onClick={() => setCentring(null)} className="min-h-10 shrink-0 px-1 font-semibold text-muted underline underline-offset-4">
+          <button type="button" onClick={() => setPicking(null)} className="min-h-10 shrink-0 px-1 font-semibold text-muted underline underline-offset-4">
             ביטול
           </button>
         </div>
@@ -779,13 +791,17 @@ export function DesignBuilder({
             </button>
           </div>
           <div className="mt-2 flex gap-2">
-            <button type="button" onClick={() => rotate(moving)} className="btn-secondary min-h-11 flex-1 px-2 text-[0.9rem]">
-              <Icon name="rotate" size={18} />
-              סובב 90 מעלות
+            <button type="button" onClick={() => setPicking({ mode: 'snap' })} className="btn-secondary min-h-11 flex-1 px-2 text-[0.9rem]">
+              <Icon name="link" size={18} />
+              הצמד
             </button>
-            <button type="button" onClick={() => setCentring({ first: null })} className="btn-secondary min-h-11 flex-1 px-2 text-[0.9rem]">
+            <button type="button" onClick={() => setPicking({ mode: 'center', first: null })} className="btn-secondary min-h-11 flex-1 px-2 text-[0.9rem]">
               <Icon name="ruler" size={18} />
-              מרכז בין שניים
+              מרכז
+            </button>
+            <button type="button" onClick={() => rotate(moving)} aria-label="סובב 90 מעלות" className="btn-secondary min-h-11 flex-1 px-2 text-[0.9rem]">
+              <Icon name="rotate" size={18} />
+              סובב
             </button>
           </div>
         </div>
@@ -1131,7 +1147,7 @@ function GridCanvas({
     if (!moving || points.length === 0) return null;
     const a = points[0];
     const b = points[points.length - 1];
-    const tol = 18 / zoomNow() / k;
+    const tol = 26 / zoomNow() / k;
     const rawU = (b.x - a.x) / k;
     const rawV = (up ? a.y - b.y : b.y - a.y) / k;
     return { u: snapDelta(design, moving, axes.u, rawU, tol), v: snapDelta(design, moving, axes.v, rawV, tol) };

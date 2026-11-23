@@ -7,7 +7,7 @@
 import { elementOf, gridLines, insertGridLine, nodePosition, plateError, wallBox, wallError } from './design.ts';
 import type { Design, DesignNode, GridAxis } from './design.ts';
 import { placementError } from './blocks.ts';
-import { SLOPE_UPS, halfExtent, norm, plateAxes, plateCorners, sectionAxes, sub } from './scene.ts';
+import { SLOPE_UPS, add, dot, halfExtent, len, norm, plateAxes, plateCorners, scale, sectionAxes, sub } from './scene.ts';
 import type { Profile, ResolvedScene, SlopeUp, Vec3 } from './scene.ts';
 
 export type Element = { kind: 'member' | 'infill' | 'block' | 'plate' | 'wall'; id: string };
@@ -290,4 +290,110 @@ export function centerBetween(design: Design, scene: ResolvedScene, el: Element,
   const r = delta[k] === 0 ? { design } : moveElement(design, el, delta);
   if ('error' in r) return r;
   return { design: r.design, axis, gap: open ? (open.gap - (own[1] - own[0])) / 2 : 0 };
+}
+
+export interface Snapped {
+  design: Design;
+  /** Stretched (or shortened) along its own line, or slid without turning */
+  how: 'stretch' | 'move';
+  /** How far it went, mm */
+  mm: number;
+  /** Stretched longer (false: shortened) */
+  grew?: boolean;
+}
+
+/** A target's centre line (a member) or face (a wall, a plate): what a member's end can reach along its own line */
+function reachTarget(design: Design, target: Element): { line: [Vec3, Vec3] } | { plane: { at: Vec3; n: Vec3; corners: Vec3[] } } | null {
+  if (target.kind === 'member') {
+    const m = design.members.find((x) => x.id === target.id);
+    return m ? { line: [nodePosition(design.grid, m.a), nodePosition(design.grid, m.b)] } : null;
+  }
+  if (target.kind === 'wall' || target.kind === 'plate') {
+    const item = target.kind === 'wall' ? design.walls?.find((w) => w.id === target.id) : design.plates.find((p) => p.id === target.id);
+    if (!item) return null;
+    const pa = nodePosition(design.grid, item.a);
+    const pb = nodePosition(design.grid, item.b);
+    const k = ([0, 1, 2] as const).find((i) => item.a[i] === item.b[i]);
+    if (k === undefined) return null;
+    const n: Vec3 = [0, 0, 0];
+    n[k] = 1;
+    const corners = [pa, pb];
+    return { plane: { at: pa, n, corners } };
+  }
+  return null;
+}
+
+/**
+ * Brings a piece up against another without turning it. A member whose line meets the target (another member's
+ * centre line, a wall's or plate's face) is stretched or shortened at its nearer end to reach it, the other end staying
+ * put; anything else slides the shortest way, along the view's axes, until its outside touches the target's.
+ */
+export function snapTo(design: Design, scene: ResolvedScene, el: Element, target: Element, axes: { u: GridAxis; v: GridAxis }): Snapped | { error: string } {
+  if (sameElement(el, target)) return { error: 'בוחרים חלק אחר להצמיד אליו.' };
+  if (el.kind === 'member') {
+    const m = design.members.find((x) => x.id === el.id);
+    const t = reachTarget(design, target);
+    if (m && t) {
+      const P0 = nodePosition(design.grid, m.a);
+      const P1 = nodePosition(design.grid, m.b);
+      const L = len(sub(P1, P0));
+      const d = norm(sub(P1, P0));
+      // Where the member's own line reaches the target (distance from P0 along d), if it does
+      let s: number | null = null;
+      if ('line' in t) {
+        const [Q0, Q1] = t.line;
+        const LT = len(sub(Q1, Q0));
+        const e = norm(sub(Q1, Q0));
+        const w0 = sub(P0, Q0);
+        const b = dot(d, e);
+        const den = 1 - b * b;
+        if (den > 1e-6) {
+          const sp = (b * dot(e, w0) - dot(d, w0)) / den;
+          const tq = (dot(e, w0) - b * dot(d, w0)) / den;
+          const gap = len(sub(add(P0, scale(d, sp)), add(Q0, scale(e, tq))));
+          if (gap < 5 && tq > -5 && tq < LT + 5) s = sp;
+        }
+      } else {
+        const { at, n, corners } = t.plane;
+        const dn = dot(d, n);
+        if (Math.abs(dn) > 1e-6) {
+          const sp = dot(sub(at, P0), n) / dn;
+          const X = add(P0, scale(d, sp));
+          const inside = [0, 1, 2].every((k) => X[k] >= Math.min(corners[0][k], corners[1][k]) - 5 && X[k] <= Math.max(corners[0][k], corners[1][k]) + 5);
+          if (inside) s = sp;
+        }
+      }
+      if (s !== null) {
+        // The nearer end goes there; the member keeps its direction and some length
+        const moveB = Math.abs(s - L) < Math.abs(s);
+        const fixedAt = moveB ? 0 : L;
+        const newLen = Math.abs(s - fixedAt);
+        const sameWay = moveB ? s > 0 : s < L;
+        if (newLen >= 50 && sameWay) {
+          const mm = Math.abs(s - (moveB ? L : 0));
+          if (mm < 0.5) return { error: 'החלק כבר צמוד.' };
+          const X = add(P0, scale(d, s));
+          const ends = endsOf(design, el);
+          const r = place(design, el, ends, moveB ? [P0, X] : [X, P1]);
+          if ('error' in r) return r;
+          return { design: r.design, how: 'stretch', mm, grew: newLen > L };
+        }
+      }
+    }
+  }
+  // Slide: close the gap between the outsides on each of the view's axes where there is one
+  const delta: Vec3 = [0, 0, 0];
+  for (const axis of [axes.u, axes.v]) {
+    const k = IDX[axis];
+    const a = extentAlong(design, scene, el, k);
+    const b = extentAlong(design, scene, target, k);
+    if (!a || !b) return { error: 'החלק לא נמצא.' };
+    if (a[1] <= b[0]) delta[k] = b[0] - a[1];
+    else if (a[0] >= b[1]) delta[k] = b[1] - a[0];
+  }
+  const mm = len(delta);
+  if (mm < 0.5) return { error: 'החלק כבר צמוד.' };
+  const r = moveElement(design, el, delta.map(Math.round) as Vec3);
+  if ('error' in r) return r;
+  return { design: r.design, how: 'move', mm };
 }

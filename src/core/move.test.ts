@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addBlock, addInfill, addMember, addPlate, compileDesign, gridLines, newDesign, nodePosition } from './design.ts';
+import { addBlock, addInfill, addMember, addPlate, addWall, compileDesign, gridLines, newDesign, nodePosition } from './design.ts';
 import type { Design } from './design.ts';
-import { centerBetween, elementPoints, extentAlong, moveElement, rollMatters, rollMember, rotateElement, snapDelta, stepDelta } from './move.ts';
+import { centerBetween, elementPoints, extentAlong, moveElement, rollMatters, rollMember, rotateElement, snapDelta, snapTo, stepDelta } from './move.ts';
 import { cutList, prepareScene } from './scene.ts';
 
 const rect = (...size: number[]) => ({ profile: 'rect_tube' as const, size });
@@ -178,4 +178,60 @@ test('centring picks the axis the two stand apart on: a purlin between two beams
   if ('error' in r) assert.fail(r.error);
   assert.equal(r.axis, 'z');
   assert.equal(elementPoints(r.design, { kind: 'member', id: purlin.id as string })[0][2], 1500);
+});
+
+const memberEl = (id: string | null) => ({ kind: 'member' as const, id: id as string });
+const sceneOfDesign = (d: Design) => prepareScene(JSON.parse(JSON.stringify(compileDesign(d, 'x')))).scene;
+
+test('snapping stretches a piece along its own line to the one it should reach, the other end staying put', () => {
+  // A beam that stops 30 short of the post's centre line
+  let d: Design = { ...newDesign(), grid: { x: [1970, 30], y: [2000], z: [] } };
+  const post = addMember(d, [2, 0, 0], [2, 1, 0], rect(100, 100, 3));
+  const beam = addMember(post.design, [0, 1, 0], [1, 1, 0], rect(80, 40, 2));
+  d = beam.design;
+  const r = snapTo(d, sceneOfDesign(d), memberEl(beam.id), memberEl(post.id), FRONT);
+  if ('error' in r) assert.fail(r.error);
+  assert.equal(r.how, 'stretch');
+  assert.equal(r.mm, 30);
+  assert.deepEqual(elementPoints(r.design, memberEl(beam.id)), [
+    [0, 2000, 0],
+    [2000, 2000, 0],
+  ]);
+  // Done once, it is already there
+  assert.deepEqual(snapTo(r.design, sceneOfDesign(r.design), memberEl(beam.id), memberEl(post.id), FRONT), { error: 'החלק כבר צמוד.' });
+
+  // A post 50 short of the beam above it grows up to it; its foot stays on the ground
+  let p: Design = { ...newDesign(), grid: { x: [1000, 1000], y: [2350, 50], z: [] } };
+  const top = addMember(p, [0, 2, 0], [2, 2, 0], rect(120, 60, 3));
+  const short = addMember(top.design, [1, 0, 0], [1, 1, 0], rect(80, 80, 3));
+  p = short.design;
+  const grown = snapTo(p, sceneOfDesign(p), memberEl(short.id), memberEl(top.id), FRONT);
+  if ('error' in grown) assert.fail(grown.error);
+  assert.deepEqual(elementPoints(grown.design, memberEl(short.id)), [
+    [1000, 0, 0],
+    [1000, 2400, 0],
+  ]);
+});
+
+test('a rafter that stops short of the wall reaches its face', () => {
+  let d: Design = { ...newDesign(), grid: { x: [4000], y: [2500], z: [40, 2960] } };
+  const rafter = addMember(d, [0, 1, 1], [0, 1, 2], rect(80, 40, 2));
+  d = addWall(rafter.design, [0, 0, 0], [1, 1, 0]).design;
+  const wall = { kind: 'wall' as const, id: (d.walls ?? [])[0].id };
+  const r = snapTo(d, sceneOfDesign(d), memberEl(rafter.id), wall, { u: 'z', v: 'y' });
+  if ('error' in r) assert.fail(r.error);
+  assert.deepEqual([r.how, r.mm], ['stretch', 40]);
+  assert.deepEqual(elementPoints(r.design, memberEl(rafter.id))[0], [0, 2500, 0]);
+});
+
+test('pieces that run side by side slide until their faces touch', () => {
+  let d: Design = { ...newDesign(), grid: { x: [1000], y: [2000], z: [] } };
+  const a = addMember(d, [0, 0, 0], [0, 1, 0], rect(100, 100, 3));
+  const b = addMember(a.design, [1, 0, 0], [1, 1, 0], rect(100, 100, 3));
+  d = b.design;
+  const r = snapTo(d, sceneOfDesign(d), memberEl(b.id), memberEl(a.id), FRONT);
+  if ('error' in r) assert.fail(r.error);
+  assert.deepEqual([r.how, r.mm], ['move', 900]);
+  assert.equal(elementPoints(r.design, memberEl(b.id))[0][0], 100);
+  assert.ok('error' in snapTo(d, sceneOfDesign(d), memberEl(b.id), memberEl(b.id), FRONT));
 });
