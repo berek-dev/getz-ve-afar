@@ -1,0 +1,3435 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>גץ ועפר: הדמיה ושרטוט</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;600;700&family=Karantina:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --steel-950: #1b2025; --steel-900: #23292f; --steel-800: #2e363e; --steel-700: #3b444d; --steel-500: #6b7682;
+    --steel-300: #a9b2bb; --soap: #edeae3; --hivis: #f3b61f; --hivis-press: #d99e0b; --primer: #b4492c; --primer-light: #f2a48f;
+    --heat-7: #5b8fd1;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--steel-900); color: var(--soap); font-family: 'IBM Plex Sans Hebrew', system-ui, sans-serif; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+  body.no-scroll { overflow: hidden; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  textarea, input { font-size: 16px; }
+  :focus-visible { outline: 2px solid var(--hivis); outline-offset: 2px; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px 48px; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  header.top { background: var(--steel-950); padding-top: env(safe-area-inset-top); }
+  header.top .bar { max-width: 980px; margin: 0 auto; display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; }
+  .brand { font-family: Karantina, sans-serif; font-size: 2.3rem; line-height: 1; letter-spacing: .02em; }
+  .tag { color: var(--steel-300); }
+  .weld { height: 5px; background-image: repeating-linear-gradient(90deg, rgb(255 255 255 / .22) 0 2px, transparent 2px 7px), linear-gradient(90deg, #e9c46a, #d4a04a, #b87333, #9a4f3c, #7b4f96, #3f63a8, #5b8fd1); }
+  h1 { font-family: Karantina, sans-serif; font-size: 2.6rem; line-height: 1; margin: 18px 0 4px; font-weight: 700; }
+  h2 { font-size: 1.15rem; margin: 0 0 8px; }
+  p { line-height: 1.6; }
+  .muted { color: var(--steel-300); }
+  .small { font-size: .875rem; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 14px 0 4px; scrollbar-width: none; }
+  .chip { flex: none; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--steel-700); background: none; color: var(--steel-300); font-weight: 600; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--hivis); border-color: var(--hivis); color: var(--steel-950); }
+
+  .stage { position: relative; margin-top: 12px; border-radius: 12px; overflow: hidden; background: #d9dee2; border: 1px solid var(--steel-700); }
+  .stage .view { position: relative; height: min(62vh, 560px); min-height: 320px; touch-action: none; }
+  .stage canvas { display: block; width: 100%; height: 100%; }
+  .labels { position: absolute; inset: 0; pointer-events: none; direction: ltr; }
+  .labels .dim { top: 0; left: 0; }
+  .dim { background: rgb(27 32 37 / .82); color: #fff; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 6px; white-space: nowrap; direction: rtl; }
+  .stage.is-full { position: fixed; inset: 0; z-index: 50; margin: 0; border-radius: 0; border: 0; }
+  .stage.is-full .view { height: calc(100dvh - 64px - env(safe-area-inset-bottom)); }
+  .placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: var(--steel-700); font-weight: 600; }
+  .tools { display: flex; gap: 4px; padding: 8px; background: var(--steel-950); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .tool { flex: 1; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: none; border: 0; border-radius: 8px; color: var(--steel-300); font-size: .75rem; font-weight: 600; cursor: pointer; }
+  .tool svg { width: 22px; height: 22px; }
+  .tool[aria-pressed="true"] { color: var(--hivis); }
+  .tool:disabled { opacity: .35; }
+  .open-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--steel-950); border-top: 1px solid var(--steel-800); }
+  .open-row input[type=range] { flex: 1; accent-color: var(--hivis); height: 32px; }
+  .btn { min-height: 48px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--steel-500); background: none; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-primary { background: var(--hivis); border-color: var(--hivis); color: var(--steel-950); }
+  .btn-primary:active { background: var(--hivis-press); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn-small { min-height: 40px; padding: 0 12px; font-size: .9rem; border-radius: 10px; }
+  .info { position: absolute; top: 10px; inset-inline: 10px; display: flex; gap: 8px; align-items: center; background: rgb(27 32 37 / .92); border-radius: 10px; padding: 8px 12px; font-size: .95rem; }
+  .info b { color: var(--hivis); }
+  .info button { margin-inline-start: auto; background: none; border: 0; color: var(--steel-300); min-width: 36px; min-height: 36px; cursor: pointer; }
+  .busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(27 32 37 / .55); }
+  .busy div { background: var(--steel-950); padding: 14px 18px; border-radius: 12px; font-weight: 600; text-align: center; }
+
+  .plate { background: var(--steel-800); border: 1px solid var(--steel-700); border-radius: 12px; box-shadow: inset 0 1px 0 rgb(255 255 255 / .05); }
+  .card { padding: 16px; margin-top: 16px; }
+  .field { width: 100%; border-radius: 10px; border: 1px solid var(--steel-700); background: var(--steel-950); padding: 12px; color: var(--soap); }
+  .field:focus { border-color: var(--hivis); outline: none; }
+  textarea.field { min-height: 110px; resize: vertical; line-height: 1.5; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .grow { flex: 1; }
+  .history { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .history span { background: var(--steel-950); border: 1px solid var(--steel-700); border-radius: 8px; padding: 4px 10px; font-size: .85rem; color: var(--steel-300); }
+  .warn { color: var(--hivis); font-size: .9rem; }
+  .err { color: var(--primer-light); }
+
+  .tabs { display: flex; gap: 6px; margin-top: 20px; border-bottom: 1px solid var(--steel-700); }
+  .tab { min-height: 48px; padding: 0 14px; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--steel-300); font-weight: 700; cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--soap); border-color: var(--hivis); }
+  .panel { padding-top: 14px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: start; padding: 9px 8px; border-bottom: 1px solid var(--steel-700); vertical-align: top; }
+  th { color: var(--steel-300); font-size: .85rem; font-weight: 600; }
+  td.mark { font-weight: 700; color: var(--hivis); width: 3em; }
+  td.num { text-align: end; white-space: nowrap; }
+  .drawing { background: #fff; border-radius: 10px; overflow: hidden; }
+  .drawing svg { display: block; width: 100%; height: auto; }
+  .notes li { margin: 4px 0; color: var(--steel-300); }
+  details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+  pre.instructions { white-space: pre-wrap; direction: ltr; text-align: left; font-size: .8rem; line-height: 1.5; background: var(--steel-950); padding: 12px; border-radius: 10px; color: var(--steel-300); max-height: 360px; overflow: auto; }
+  ol.steps { padding-inline-start: 22px; line-height: 1.7; }
+  .source a { color: var(--steel-300); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .toast { position: fixed; bottom: calc(20px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); background: var(--soap); color: var(--steel-950); padding: 10px 16px; border-radius: 10px; font-weight: 600; z-index: 80; box-shadow: 0 6px 24px rgb(0 0 0 / .35); }
+  @media (prefers-reduced-motion: no-preference) { .toast { animation: up .2s ease-out; } @keyframes up { from { transform: translate(-50%, 8px); opacity: 0; } } }
+</style>
+</head>
+<body>
+<header class="top"><div class="bar"><span class="brand">גץ ועפר</span><span class="tag">הדמיה ושרטוט ייצור</span></div><div class="weld" aria-hidden="true"></div></header>
+
+<main class="wrap">
+  <nav class="chips" id="examples" aria-label="דוגמאות"></nav>
+
+  <section class="stage" id="stage" aria-label="מודל תלת־ממד">
+    <div class="view" id="view">
+      <div class="placeholder" id="placeholder">טוען תלת־ממד...</div>
+      <div class="info" id="info" hidden><span id="info-text"></span><button type="button" id="info-close" aria-label="סגור">✕</button></div>
+      <div class="busy" id="busy" hidden><div><div id="busy-text">חושב...</div><button type="button" class="btn btn-small" id="stop" style="margin-top:10px">עצור</button></div></div>
+    </div>
+    <div class="open-row" id="open-row" hidden>
+      <span class="small muted">סגור</span>
+      <input type="range" id="open" min="0" max="100" value="0" aria-label="פתיחת השער">
+      <span class="small muted">פתוח</span>
+      <button type="button" class="btn btn-small" id="open-btn">פתח</button>
+    </div>
+    <div class="tools" role="toolbar" aria-label="תצוגה">
+      <button type="button" class="tool" id="t-dims" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18M3 4v6M21 4v6M7 17h10M7 14v6M17 14v6"/></svg><span>מידות</span></button>
+      <button type="button" class="tool" id="t-front"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M8 4v16M12 4v16M16 4v16"/></svg><span>חזית</span></button>
+      <button type="button" class="tool" id="t-reset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span>איפוס</span></button>
+      <button type="button" class="tool" id="t-under" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h20"/><path d="M7 12v7h4v-7M15 12v7"/><path d="M5 4l3 3M12 3v4M19 4l-3 3"/></svg><span>יסודות</span></button>
+      <button type="button" class="tool" id="t-shot" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg><span>תמונה</span></button>
+      <button type="button" class="tool" id="t-full"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg><span id="t-full-label">מסך מלא</span></button>
+    </div>
+  </section>
+
+  <h1 id="title"></h1>
+  <p class="muted small" id="summary"></p>
+  <ul class="notes small" id="notes"></ul>
+  <p class="warn" id="warnings" hidden></p>
+  <p class="source small" id="source"></p>
+
+  <section class="plate card" id="chat" aria-labelledby="chat-title">
+    <h2 id="chat-title">ספר על העבודה, או בקש שינוי</h2>
+    <p class="muted small" id="chat-hint">הצ׳אט נטען...</p>
+    <div id="chat-body" hidden>
+      <label class="sr-only" for="ask">בקשה</label>
+      <textarea class="field" id="ask"></textarea>
+      <p class="small muted" id="image-name" hidden></p>
+      <div class="row">
+        <button type="button" class="btn btn-primary grow" id="send">צור הדמיה</button>
+        <button type="button" class="btn" id="mic" hidden aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg><span id="mic-label">הכתבה</span></button>
+        <label class="btn" id="photo-label" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg><span>תמונה או סקיצה</span><input type="file" id="photo" accept="image/*" class="sr-only"></label>
+      </div>
+      <div class="row">
+        <button type="button" class="btn btn-small" id="undo" hidden>בטל שינוי אחרון</button>
+        <button type="button" class="btn btn-small" id="new">עבודה חדשה</button>
+      </div>
+      <div class="history" id="history"></div>
+      <p class="err small" id="chat-error" role="alert" hidden></p>
+    </div>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab" role="tab" id="tab-cut" aria-selected="true" aria-controls="panel-cut">רשימת חיתוך</button>
+    <button type="button" class="tab" role="tab" id="tab-draw" aria-selected="false" aria-controls="panel-draw">שרטוט</button>
+    <button type="button" class="tab" role="tab" id="tab-json" aria-selected="false" aria-controls="panel-json">פריסה (JSON)</button>
+  </div>
+  <section class="panel" role="tabpanel" id="panel-cut" aria-labelledby="tab-cut"></section>
+  <section class="panel" role="tabpanel" id="panel-draw" aria-labelledby="tab-draw" hidden>
+    <div class="row" style="margin-top:0;margin-bottom:12px">
+      <button type="button" class="btn btn-primary" id="dl-svg" hidden>הורד שרטוט (SVG)</button>
+      <button type="button" class="btn" id="dl-csv" hidden>הורד רשימת חיתוך (CSV)</button>
+    </div>
+    <div class="drawing" id="drawing"></div>
+    <p class="small muted">שרטוט ייצור אוטומטי מהמודל: חזית, מידות כלליות, סימון חלקים ורשימת חיתוך. לבדוק לפני חיתוך; זה לא שרטוט הנדסי.</p>
+  </section>
+  <section class="panel" role="tabpanel" id="panel-json" aria-labelledby="tab-json" hidden>
+    <p class="small muted">הפריסה היא הנתונים שהמודל, השרטוט ורשימת החיתוך נבנים מהם. אפשר להדביק כאן תשובה מ־Gemini או מ־Claude אחר.</p>
+    <label class="sr-only" for="json">פריסה</label>
+    <textarea class="field" id="json" style="min-height:260px;direction:ltr;text-align:left;font-family:ui-monospace,monospace;font-size:13px"></textarea>
+    <div class="row">
+      <button type="button" class="btn btn-primary" id="json-apply">הצג את הפריסה</button>
+      <button type="button" class="btn" id="json-copy">העתק</button>
+    </div>
+    <p class="err small" id="json-error" role="alert" hidden></p>
+  </section>
+
+  <section class="plate card" aria-labelledby="gem-title">
+    <h2 id="gem-title">לעבוד עם Gemini או עם Claude אחר</h2>
+    <ol class="steps">
+      <li>מעתיקים את ההנחיות.</li>
+      <li>ב־Gemini: יוצרים Gem חדש ומדביקים אותן בהוראות. ב־Claude: יוצרים Project ומדביקים אותן בהוראות הפרויקט.</li>
+      <li>כותבים שם את תיאור העבודה (ואם יש, כתב כמויות). התשובה היא JSON.</li>
+      <li>מעתיקים את התשובה, ובלשונית ״פריסה״ כאן לוחצים ״הצג״. כדי לתקן: מבקשים שם שינוי ומדביקים שוב.</li>
+    </ol>
+    <button type="button" class="btn btn-primary" id="copy-instructions">העתק הנחיות</button>
+    <details style="margin-top:8px"><summary>להציג את ההנחיות</summary><pre class="instructions" id="instructions"></pre></details>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+const __steel = (() => {
+/**
+ * Steel weights from section dimensions (mm). Density 7.85 kg/dm³:
+ * a cross-section of 1 mm² weighs 0.00785 kg per metre.
+ */
+const KG_PER_MM2_PER_M = 0.00785;
+
+                                                                                                              
+
+                            
+                
+                                                                  
+                 
+                                                              
+                   
+                                
+                              
+ 
+
+const r3 = (n        ) => Math.round(n * 1000) / 1000;
+const fmt = (d          ) => d.map((x) => String(x)).join('/');
+
+const SHAPES                                = {
+  rect_tube: {
+    label: 'פרופיל מלבני / מרובע',
+    dims: ['רוחב', 'גובה', 'עובי דופן'],
+    unit: 'm',
+    name: (d) => `פרופיל ${fmt(d)}`,
+    kg: ([b = 0, h = 0, t = 0]) => r3((2 * t * (b + h) - 4 * t * t) * KG_PER_MM2_PER_M),
+  },
+  round_tube: {
+    label: 'צינור עגול',
+    dims: ['קוטר חיצוני', 'עובי דופן'],
+    unit: 'm',
+    name: ([od = 0, t = 0]) => `צינור ${od}/${t}`,
+    kg: ([od = 0, t = 0]) => r3(Math.PI * (od - t) * t * KG_PER_MM2_PER_M),
+  },
+  angle: {
+    label: 'זווית',
+    dims: ['צלע א', 'צלע ב', 'עובי'],
+    unit: 'm',
+    name: (d) => `זווית ${fmt(d)}`,
+    kg: ([a = 0, b = 0, t = 0]) => r3((a + b - t) * t * KG_PER_MM2_PER_M),
+  },
+  flat: {
+    label: 'פלח',
+    dims: ['רוחב', 'עובי'],
+    unit: 'm',
+    name: (d) => `פלח ${fmt(d)}`,
+    kg: ([w = 0, t = 0]) => r3(w * t * KG_PER_MM2_PER_M),
+  },
+  square_bar: {
+    label: 'מוט מרובע',
+    dims: ['צלע'],
+    unit: 'm',
+    name: ([a = 0]) => `מוט מרובע ${a}`,
+    kg: ([a = 0]) => r3(a * a * KG_PER_MM2_PER_M),
+  },
+  round_bar: {
+    label: 'מוט עגול',
+    dims: ['קוטר'],
+    unit: 'm',
+    name: ([d = 0]) => `מוט עגול ${d}`,
+    kg: ([d = 0]) => r3(((Math.PI * d * d) / 4) * KG_PER_MM2_PER_M),
+  },
+  plate: {
+    label: 'פח',
+    dims: ['עובי'],
+    unit: 'm2',
+    name: ([t = 0]) => `פח ${t} מ״מ`,
+    // 1 m² × t mm = t dm³
+    kg: ([t = 0]) => r3(t * 7.85),
+  },
+};
+
+/** Steel density the shape formulas assume (kg/dm³). */
+const STEEL_DENSITY = 7.85;
+
+/** Weight per metre (or m²) for another metal: scale the steel formula by density. */
+function kgFor(shape            , dims          , density         = STEEL_DENSITY)         {
+  return r3((SHAPES[shape].kg(dims) * density) / STEEL_DENSITY);
+}
+
+return { SHAPES, STEEL_DENSITY, kgFor };
+})();
+const __sections = (() => {
+/**
+ * Standard rolled sections (EN tables, rounded): height h, flange width b, web tw, flange tf (mm), kg per metre.
+ * Shared by the catalog (weights) and the 3D layout (shapes).
+ */
+                              
+            
+            
+             
+             
+             
+ 
+
+                                             
+
+const BEAMS                                                = {
+  upn: {
+    50: { h: 50, b: 38, tw: 5, tf: 7, kg: 5.59 },
+    65: { h: 65, b: 42, tw: 5.5, tf: 7.5, kg: 7.09 },
+    80: { h: 80, b: 45, tw: 6, tf: 8, kg: 8.64 },
+    100: { h: 100, b: 50, tw: 6, tf: 8.5, kg: 10.6 },
+    120: { h: 120, b: 55, tw: 7, tf: 9, kg: 13.4 },
+    140: { h: 140, b: 60, tw: 7, tf: 10, kg: 16.0 },
+    160: { h: 160, b: 65, tw: 7.5, tf: 10.5, kg: 18.8 },
+    180: { h: 180, b: 70, tw: 8, tf: 11, kg: 22.0 },
+    200: { h: 200, b: 75, tw: 8.5, tf: 11.5, kg: 25.3 },
+  },
+  ipe: {
+    80: { h: 80, b: 46, tw: 3.8, tf: 5.2, kg: 6.0 },
+    100: { h: 100, b: 55, tw: 4.1, tf: 5.7, kg: 8.1 },
+    120: { h: 120, b: 64, tw: 4.4, tf: 6.3, kg: 10.4 },
+    140: { h: 140, b: 73, tw: 4.7, tf: 6.9, kg: 12.9 },
+    160: { h: 160, b: 82, tw: 5, tf: 7.4, kg: 15.8 },
+    180: { h: 180, b: 91, tw: 5.3, tf: 8, kg: 18.8 },
+    200: { h: 200, b: 100, tw: 5.6, tf: 8.5, kg: 22.4 },
+    220: { h: 220, b: 110, tw: 5.9, tf: 9.2, kg: 26.2 },
+    240: { h: 240, b: 120, tw: 6.2, tf: 9.8, kg: 30.7 },
+    270: { h: 270, b: 135, tw: 6.6, tf: 10.2, kg: 36.1 },
+    300: { h: 300, b: 150, tw: 7.1, tf: 10.7, kg: 42.2 },
+  },
+  hea: {
+    100: { h: 96, b: 100, tw: 5, tf: 8, kg: 16.7 },
+    120: { h: 114, b: 120, tw: 5, tf: 8, kg: 19.9 },
+    140: { h: 133, b: 140, tw: 5.5, tf: 8.5, kg: 24.7 },
+    160: { h: 152, b: 160, tw: 6, tf: 9, kg: 30.4 },
+    180: { h: 171, b: 180, tw: 6, tf: 9.5, kg: 35.5 },
+    200: { h: 190, b: 200, tw: 6.5, tf: 10, kg: 42.3 },
+    220: { h: 210, b: 220, tw: 7, tf: 11, kg: 50.5 },
+    240: { h: 230, b: 240, tw: 7.5, tf: 12, kg: 60.3 },
+  },
+};
+
+const beamSizes = (type          ) => Object.keys(BEAMS[type]).map(Number);
+
+return { BEAMS, beamSizes };
+})();
+const __sheets = (() => {
+/**
+ * Roofing and cladding sheets for canopies and pergolas ("סנטף" in the trade): corrugated and trapezoid
+ * polycarbonate, corrugated PVC, multiwall and solid polycarbonate. A plate in a design or layout can be one of these
+ * instead of steel: it keeps its rectangle, takes its thickness, weight and look from here, and is priced per m².
+ *
+ * Figures are the makers' published ones (Palram SUNTUF / PALRUF, Polygal) where given; the spans between purlins are
+ * for about 1 kPa of load and are a reminder, not a design check. Keys must stay stable once released (catalog keys,
+ * saved designs).
+ */
+
+                      
+                
+                   
+                    
+                    
+                    
+                     
+                     
+                
+                 
+
+                                                             
+
+                           
+                
+                                                   
+               
+                                                   
+                
+                            
+                    
+                                                                                       
+                
+                  
+                                                                                                  
+                 
+                 
+                                                                                                        
+                                        
+                                  
+                    
+                     
+ 
+
+const SHEETS             = [
+  {
+    key: 'pc_trapeze',
+    name: 'סנטף מלבני (טרפז 76/16), פוליקרבונט 0.8 מ״מ',
+    short: 'סנטף מלבני',
+    thickness: 0.8,
+    depth: 16,
+    kgPerM2: 1.1,
+    width: 1260,
+    cover: 1216,
+    purlin: { mid: 1200, end: 900 },
+    minPitch: 5,
+    tints: ['clear', 'bronze', 'opal', 'gray'],
+  },
+  {
+    key: 'pc_corrugated',
+    name: 'סנטף גלי (איסכורית 76/18), פוליקרבונט 1 מ״מ',
+    short: 'סנטף גלי',
+    thickness: 1,
+    depth: 18,
+    kgPerM2: 1.4,
+    width: 1063,
+    purlin: { mid: 1000, end: 800 },
+    minPitch: 5,
+    tints: ['clear', 'bronze', 'opal', 'gray'],
+  },
+  {
+    key: 'pvc_corrugated',
+    name: 'פלרוף PVC גלי 1 מ״מ',
+    short: 'PVC גלי',
+    thickness: 1,
+    depth: 18,
+    kgPerM2: 1.6,
+    minPitch: 5,
+    tints: ['clear', 'opal', 'gray'],
+  },
+  ...([6, 8, 10, 16]         ).map(
+    (t)           => ({
+      key: `pc_multiwall_${t}`,
+      name: `פוליקרבונט חלול (פוליגל) ${t} מ״מ`,
+      short: `חלול ${t}`,
+      thickness: t,
+      depth: t,
+      kgPerM2: { 6: 1.3, 8: 1.5, 10: 1.7, 16: 2.7 }[t],
+      width: 2100,
+      tints: ['clear', 'bronze', 'opal'],
+    }),
+  ),
+  ...([3, 5]         ).map(
+    (t)           => ({
+      key: `pc_solid_${t}`,
+      name: `פוליקרבונט מלא ${t} מ״מ`,
+      short: `מלא ${t}`,
+      thickness: t,
+      depth: t,
+      // Polycarbonate weighs 1.2 g/cm³
+      kgPerM2: Math.round(1.2 * t * 10) / 10,
+      tints: ['clear', 'bronze', 'opal'],
+    }),
+  ),
+];
+
+const SHEET_KEYS = SHEETS.map((s) => s.key);
+
+/** Tints: their name, and how the 3D view shows them */
+const TINTS                                                                      = {
+  clear: { name: 'שקוף', color: '#dfeef5', opacity: 0.38 },
+  bronze: { name: 'ברונזה', color: '#8a6a45', opacity: 0.62 },
+  opal: { name: 'לבן אופל', color: '#f2f1ec', opacity: 0.82 },
+  gray: { name: 'אפור', color: '#7d8489', opacity: 0.6 },
+};
+
+const isSheet = (key         )                  => typeof key === 'string' && (SHEET_KEYS            ).includes(key);
+const isTint = (key         )                   => typeof key === 'string' && key in TINTS;
+const sheetInfo = (key                           )                  => SHEETS.find((s) => s.key === key) ?? null;
+
+/** The tint a sheet is shown in: the one asked for when it comes in it, else its first */
+function sheetTint(key          , tint                           )            {
+  const def = sheetInfo(key);
+  return def && isTint(tint) && def.tints.includes(tint) ? tint : (def?.tints[0] ?? 'clear');
+}
+
+/** "סנטף מלבני (טרפז 76/16), פוליקרבונט 0.8 מ״מ, שקוף" */
+function sheetName(key          , tint                )         {
+  const def = sheetInfo(key);
+  if (!def) return 'סנטף';
+  return `${def.name}, ${TINTS[sheetTint(key, tint)].name}`;
+}
+
+/**
+ * How many sheets, laid side by side, cover `across` mm: each overlaps the one before it, so it adds its covered width,
+ * and the last one its whole width. Null when the maker gives no width.
+ */
+function sheetCount(key          , across        )                {
+  const def = sheetInfo(key);
+  if (!def?.width || !(across > 0)) return null;
+  const cover = def.cover ?? def.width;
+  return 1 + Math.max(0, Math.ceil((across - def.width - 0.5) / cover));
+}
+
+/**
+ * Whether the frame under a sheet holds it: the gaps between the purlins (positions across, mm, edges included) against
+ * the maker's spans. A sheet can run either way, so the caller passes the purlins of one direction at a time.
+ */
+function purlinGap(key          , positions          )                                                     {
+  const def = sheetInfo(key);
+  if (!def?.purlin || positions.length < 2) return null;
+  const at = [...new Set(positions.map((p) => Math.round(p)))].sort((a, b) => a - b);
+  if (at.length < 2) return null;
+  let worst = { gap: 0, limit: def.purlin.mid, over: -Infinity };
+  for (let i = 1; i < at.length; i++) {
+    const gap = at[i] - at[i - 1];
+    const limit = i === 1 || i === at.length - 1 ? def.purlin.end : def.purlin.mid;
+    if (gap - limit > worst.over) worst = { gap, limit, over: gap - limit };
+  }
+  return { gap: worst.gap, limit: worst.limit, ok: worst.over <= 0 };
+}
+
+return { SHEETS, SHEET_KEYS, TINTS, isSheet, isTint, sheetInfo, sheetTint, sheetName, sheetCount, purlinGap };
+})();
+const __catalog = (() => {
+/**
+ * The built-in catalog: standard sizes per family and material, with weights.
+ * It is imported into the price list once (and again after new sizes are added here);
+ * prices come from the per-kg price of each material, or are set by the user.
+ *
+ * To add sizes: add them to the lists below. Keys must stay stable once released.
+ */
+const { kgFor } = __steel;
+const { BEAMS, beamSizes } = __sections;
+                                             
+                                                        
+const { SHEETS } = __sheets;
+                                          
+
+                                                                      
+
+const MATERIALS                                                                                       = [
+  { key: 'black', name: 'ברזל שחור', short: 'שחור', suffix: '', density: 7.85 },
+  { key: 'galv', name: 'ברזל מגולוון', short: 'מגולוון', suffix: ' מגולוון', density: 7.85 },
+  { key: 'stainless', name: 'נירוסטה 304', short: 'נירוסטה', suffix: ' נירוסטה', density: 7.93 },
+  { key: 'aluminum', name: 'אלומיניום', short: 'אלומיניום', suffix: ' אלומיניום', density: 2.7 },
+];
+const MATERIAL_KEYS = MATERIALS.map((m) => m.key);
+const materialInfo = (key                           ) => MATERIALS.find((m) => m.key === key) ?? null;
+
+                              
+                                            
+              
+                            
+                 
+               
+                                                                            
+                      
+             
+                               
+                                                 
+                        
+                       
+                                                         
+               
+ 
+
+/** Families in menu order. `shape` lets the "add size" form compute names and weights. */
+                            
+                            
+                 
+                           
+                                                            
+               
+             
+                       
+ 
+
+/**
+ * Dimensions are joined with "/" ("60/40/2"), as the trade writes them. Unlike "×", "/" between digits
+ * keeps the number in left-to-right order inside Hebrew text; no ″ ° ½ next to digits for the same reason.
+ */
+const x = (...n          ) => n.map((v) => String(v)).join('/');
+const keyDims = (...n          ) => n.map((v) => String(v)).join('x');
+
+const FAMILIES              = [
+  { category: 'profile', family: 'פרופיל מרובע', shape: 'rect_tube', base: 'פרופיל', unit: 'm', stock: 6000 },
+  { category: 'profile', family: 'פרופיל מלבני', shape: 'rect_tube', base: 'פרופיל', unit: 'm', stock: 6000 },
+  { category: 'profile', family: 'זוויתן', shape: 'angle', base: 'זוויתן', unit: 'm', stock: 6000 },
+  { category: 'profile', family: 'פלח', shape: 'flat', base: 'פלח', unit: 'm', stock: 6000 },
+  { category: 'profile', family: 'מוט עגול', shape: 'round_bar', base: 'מוט עגול', unit: 'm', stock: 6000 },
+  { category: 'profile', family: 'מוט מרובע', shape: 'square_bar', base: 'מוט מרובע', unit: 'm', stock: 6000 },
+  { category: 'profile', family: 'פרופיל U (UPN)', shape: null, base: 'פרופיל U', unit: 'm', stock: 6000 },
+  { category: 'profile', family: 'קורה IPE', shape: null, base: 'קורה IPE', unit: 'm', stock: 12000 },
+  { category: 'profile', family: 'קורה HEA', shape: null, base: 'קורה HEA', unit: 'm', stock: 12000 },
+  { category: 'pipe', family: 'צינור עגול לקונסטרוקציה', shape: 'round_tube', base: 'צינור', unit: 'm', stock: 6000 },
+  { category: 'pipe', family: 'צינור פלדה לקווי מים', shape: 'round_tube', base: 'צינור פלדה', unit: 'm', stock: 12000 },
+  { category: 'plate', family: 'פח חלק', shape: 'plate', base: 'פח', unit: 'm2', stock: null },
+  { category: 'plate', family: 'פח מרוג (דריכה)', shape: null, base: 'פח מרוג', unit: 'm2', stock: null },
+  { category: 'plate', family: 'קירוי: סנטף ופוליקרבונט', shape: null, base: '', unit: 'm2', stock: null },
+  { category: 'fitting', family: 'קשתות', shape: null, base: 'קשת', unit: 'unit', stock: null },
+  { category: 'fitting', family: 'הסתעפויות ומעברים', shape: null, base: '', unit: 'unit', stock: null },
+  { category: 'fitting', family: 'אוגנים ואטמים', shape: null, base: 'אוגן', unit: 'unit', stock: null },
+  { category: 'hardware', family: 'צירים', shape: null, base: '', unit: 'unit', stock: null },
+  { category: 'hardware', family: 'שער הזזה', shape: null, base: '', unit: 'unit', stock: null },
+  { category: 'hardware', family: 'מנעולים ובריחים', shape: null, base: '', unit: 'unit', stock: null },
+  { category: 'hardware', family: 'ידיות, עוצרים ומחזירים', shape: null, base: '', unit: 'unit', stock: null },
+  { category: 'hardware', family: 'עיגון וברגים', shape: null, base: '', unit: 'unit', stock: null },
+  { category: 'weld', family: 'ריתוך צנרת (לתפר)', shape: null, base: 'תפר ריתוך', unit: 'joint', stock: null },
+  { category: 'labor', family: 'עבודה', shape: null, base: '', unit: 'hour', stock: null },
+  { category: 'finish', family: 'צביעה', shape: null, base: '', unit: 'm2', stock: null },
+  { category: 'finish', family: 'גלוון וניקוי', shape: null, base: '', unit: 'kg', stock: null },
+  { category: 'finish', family: 'צבעים וחומרים', shape: null, base: '', unit: 'unit', stock: null },
+  { category: 'equipment', family: 'ציוד וכלים', shape: null, base: '', unit: 'day', stock: null },
+  { category: 'other', family: 'מתכלים לריתוך', shape: null, base: '', unit: 'unit', stock: null },
+  { category: 'other', family: 'דיסקים ומברשות', shape: null, base: '', unit: 'unit', stock: null },
+  { category: 'other', family: 'הובלה ושטח', shape: null, base: '', unit: 'unit', stock: null },
+];
+
+const familyDef = (family                           ) => FAMILIES.find((f) => f.family === family) ?? null;
+const familyOrder = (family                           ) => {
+  const i = FAMILIES.findIndex((f) => f.family === family);
+  return i < 0 ? FAMILIES.length : i;
+};
+
+/** "פרופיל 60/40/2 מגולוון" */
+function itemName(base        , size        , material                    )         {
+  return `${base} ${size}${materialInfo(material)?.suffix ?? ''}`;
+}
+
+// --- Sizes. [a, b, [thicknesses]] ---
+const SQUARE                       = [
+  [15, [1.5]], [20, [1.5, 2]], [25, [1.5, 2]], [30, [1.5, 2, 3]], [35, [2]], [40, [1.5, 2, 3]], [50, [2, 3, 4]],
+  [60, [2, 3, 4]], [70, [3]], [80, [2, 3, 4]], [100, [3, 4, 5]], [120, [4, 5]], [150, [4, 5, 6]],
+];
+const RECT                               = [
+  [20, 10, [1.5]], [30, 15, [1.5]], [30, 20, [1.5, 2]], [40, 20, [1.5, 2]], [40, 30, [2]], [50, 20, [2]], [50, 25, [2]],
+  [50, 30, [2, 3]], [60, 20, [2]], [60, 30, [2, 3]], [60, 40, [2, 3]], [80, 40, [2, 3]], [80, 60, [3]], [100, 40, [2, 3]],
+  [100, 50, [3, 4]], [100, 60, [3]], [120, 40, [3]], [120, 60, [3, 4]], [120, 80, [4]], [150, 50, [3, 4]],
+  [150, 100, [4, 5]], [200, 100, [5, 6]],
+];
+const SQUARE_STAINLESS                       = [[20, [1.5]], [25, [1.5]], [30, [1.5, 2]], [40, [1.5, 2]], [50, [2]], [60, [2]]];
+const RECT_STAINLESS                               = [[30, 20, [1.5]], [40, 20, [1.5, 2]], [50, 25, [1.5]], [60, 30, [2]], [60, 40, [2]], [80, 40, [2]]];
+const SQUARE_ALU                       = [[20, [2]], [25, [2]], [30, [2]], [40, [2]], [50, [3]]];
+const RECT_ALU                               = [[40, 20, [2]], [50, 25, [2]], [60, 30, [2]], [80, 40, [3]]];
+
+const ANGLE                     = [
+  [20, 3], [25, 3], [30, 3], [30, 4], [35, 4], [40, 4], [40, 5], [45, 5], [50, 5], [50, 6], [60, 6], [70, 7], [80, 8], [100, 10],
+];
+const ANGLE_STAINLESS                     = [[20, 3], [25, 3], [30, 3], [40, 4], [50, 5]];
+const ANGLE_ALU                     = [[20, 2], [25, 2], [30, 3], [40, 4]];
+
+const FLAT                     = [
+  [20, 3], [20, 5], [25, 3], [25, 5], [30, 3], [30, 5], [30, 8], [40, 4], [40, 5], [40, 8], [40, 10], [50, 5], [50, 8],
+  [50, 10], [60, 6], [60, 10], [80, 8], [80, 10], [100, 10], [100, 12], [120, 10], [150, 10],
+];
+const FLAT_STAINLESS                     = [[20, 3], [25, 3], [30, 3], [40, 4], [40, 5], [50, 5]];
+const FLAT_ALU                     = [[20, 3], [30, 3], [40, 4], [50, 5]];
+
+const ROUND_BAR = [6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 50];
+const ROUND_BAR_STAINLESS = [6, 8, 10, 12, 16, 20];
+const SQUARE_BAR = [10, 12, 14, 16, 20, 25];
+
+/** The standard sizes of a profile in a material, as layout sizes (for suggesting a stronger one) */
+function standardSizes(profile         , material             )             {
+  const st = material === 'stainless';
+  const al = material === 'aluminum';
+  switch (profile) {
+    case 'rect_tube':
+      return [
+        ...(st ? SQUARE_STAINLESS : al ? SQUARE_ALU : SQUARE).flatMap(([a, ts]) => ts.map((t) => [a, a, t])),
+        ...(st ? RECT_STAINLESS : al ? RECT_ALU : RECT).flatMap(([a, b, ts]) => ts.map((t) => [a, b, t])),
+      ];
+    case 'angle':
+      return (st ? ANGLE_STAINLESS : al ? ANGLE_ALU : ANGLE).map(([a, t]) => [a, a, t]);
+    case 'flat':
+      return (st ? FLAT_STAINLESS : al ? FLAT_ALU : FLAT).map(([w, t]) => [w, t]);
+    case 'round_bar':
+      return (st ? ROUND_BAR_STAINLESS : ROUND_BAR).map((d) => [d]);
+    case 'square_bar':
+      return SQUARE_BAR.map((a) => [a]);
+    case 'round_tube':
+      return (st ? ROUND_TUBE_STAINLESS : ROUND_TUBE).map(([d, t]) => [d, t]);
+    case 'upn':
+    case 'ipe':
+    case 'hea':
+      return beamSizes(profile).map((h) => [h]);
+  }
+}
+
+/** Outside diameter → nominal size in inches (צול) */
+const INCH                         = {
+  '21.3': '0.5', '26.9': '0.75', '33.7': '1', '42.4': '1.25', '48.3': '1.5', '60.3': '2', '76.1': '2.5', '88.9': '3',
+  '101.6': '3.5', '114.3': '4', '168.3': '6', '219.1': '8', '273': '10', '323.9': '12', '355.6': '14',
+  '406.4': '16', '508': '20', '609.6': '24',
+};
+const ROUND_TUBE                     = [
+  [21.3, 2], [26.9, 2], [33.7, 2], [33.7, 2.6], [42.4, 2], [42.4, 2.6], [48.3, 2], [48.3, 2.9], [60.3, 2], [60.3, 2.9],
+  [76.1, 2.9], [88.9, 3.2], [101.6, 3.6], [114.3, 3.6],
+];
+const ROUND_TUBE_STAINLESS                     = [[25.4, 1.5], [38.1, 1.5], [42.4, 2], [48.3, 2], [50.8, 2]];
+const WATER_PIPE                     = [
+  [60.3, 3.9], [88.9, 4], [114.3, 4], [168.3, 4.5], [219.1, 4.8], [219.1, 6.35], [273, 6.35], [323.9, 6.35],
+  [355.6, 6.35], [406.4, 6.35], [508, 7.92], [609.6, 7.92],
+];
+
+/** Table weights (kg/m) for rolled sections */
+const table = (t                       )                     => beamSizes(t).map((h) => [h, BEAMS[t][h].kg]);
+const UPN = table('upn');
+const IPE = table('ipe');
+const HEA = table('hea');
+
+const PLATE                                = {
+  black: [1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25],
+  galv: [0.5, 0.75, 1, 1.25, 1.5, 2, 3],
+  stainless: [0.8, 1, 1.5, 2, 3, 4, 5],
+  aluminum: [1, 1.5, 2, 3, 4, 5],
+};
+const TREAD_PLATE = [3, 4, 5, 6];
+
+/** Nominal pipe sizes for fittings */
+const FITTING_SIZES = ['2', '3', '4', '6', '8', '10', '12', '16'];
+
+function steel(
+  out               ,
+  family        ,
+  material             ,
+  keyPrefix        ,
+  size        ,
+  dimsKey        ,
+  weight        ,
+  nameOverride         ,
+)       {
+  const def = familyDef(family)             ;
+  out.push({
+    key: `${keyPrefix}:${material}:${dimsKey}`,
+    category: def.category,
+    family,
+    name: nameOverride ?? itemName(def.base, size, material),
+    size,
+    unit: def.unit,
+    material,
+    weight,
+    stock: def.stock,
+    by_kg: 1,
+  });
+}
+
+function plain(out               , family        , key        , name        , unit       )       {
+  const def = familyDef(family)             ;
+  out.push({ key: `item:${key}`, category: def.category, family, name, size: null, unit: unit ?? def.unit, material: null, weight: null, stock: null, by_kg: 0 });
+}
+
+const density = (m             ) => materialInfo(m)?.density ?? 7.85;
+
+function catalogItems()                {
+  const out                = [];
+
+  const tubes = (family        , prefix        , list                              , mats               , maxT = 99) => {
+    for (const m of mats) {
+      for (const [a, b, ts] of list) {
+        for (const t of ts) {
+          if (t > maxT && m === 'galv') continue;
+          steel(out, family, m, prefix, x(a, b, t), keyDims(a, b, t), kgFor('rect_tube', [a, b, t], density(m)));
+        }
+      }
+    }
+  };
+  const sq = (l                      ) => l.map(([a, ts]) => [a, a, ts]                              );
+  tubes('פרופיל מרובע', 'sq', sq(SQUARE), ['black', 'galv'], 4);
+  tubes('פרופיל מרובע', 'sq', sq(SQUARE_STAINLESS), ['stainless']);
+  tubes('פרופיל מרובע', 'sq', sq(SQUARE_ALU), ['aluminum']);
+  tubes('פרופיל מלבני', 'rect', RECT, ['black', 'galv'], 4);
+  tubes('פרופיל מלבני', 'rect', RECT_STAINLESS, ['stainless']);
+  tubes('פרופיל מלבני', 'rect', RECT_ALU, ['aluminum']);
+
+  const angles = (list                    , m             ) => {
+    for (const [a, t] of list) steel(out, 'זוויתן', m, 'angle', x(a, a, t), keyDims(a, a, t), kgFor('angle', [a, a, t], density(m)));
+  };
+  angles(ANGLE, 'black');
+  angles(ANGLE.filter(([a]) => a <= 60), 'galv');
+  angles(ANGLE_STAINLESS, 'stainless');
+  angles(ANGLE_ALU, 'aluminum');
+
+  const flats = (list                    , m             ) => {
+    for (const [w, t] of list) steel(out, 'פלח', m, 'flat', x(w, t), keyDims(w, t), kgFor('flat', [w, t], density(m)));
+  };
+  flats(FLAT, 'black');
+  flats(FLAT.filter(([w, t]) => w <= 100 && t <= 8), 'galv');
+  flats(FLAT_STAINLESS, 'stainless');
+  flats(FLAT_ALU, 'aluminum');
+
+  for (const d of ROUND_BAR) steel(out, 'מוט עגול', 'black', 'rbar', `Ø${d}`, keyDims(d), kgFor('round_bar', [d]));
+  for (const d of ROUND_BAR_STAINLESS) steel(out, 'מוט עגול', 'stainless', 'rbar', `Ø${d}`, keyDims(d), kgFor('round_bar', [d], 7.93));
+  for (const a of SQUARE_BAR) steel(out, 'מוט מרובע', 'black', 'sbar', x(a, a), keyDims(a), kgFor('square_bar', [a]));
+
+  for (const [h, kg] of UPN) steel(out, 'פרופיל U (UPN)', 'black', 'upn', String(h), keyDims(h), kg);
+  for (const [h, kg] of IPE) steel(out, 'קורה IPE', 'black', 'ipe', String(h), keyDims(h), kg);
+  for (const [h, kg] of HEA) steel(out, 'קורה HEA', 'black', 'hea', String(h), keyDims(h), kg);
+
+  // Size chip: "2 צול, 2.9" (nominal size, wall); name: "צינור 2 צול (60.3/2.9)"
+  const inchSize = (od        , t        ) => `${INCH[String(od)]} צול, ${t}`;
+  const inchName = (base        , od        , t        , m             ) =>
+    `${base} ${INCH[String(od)]} צול (${x(od, t)})${materialInfo(m)?.suffix ?? ''}`;
+  for (const m of ['black', 'galv']                 ) {
+    for (const [od, t] of ROUND_TUBE) {
+      steel(out, 'צינור עגול לקונסטרוקציה', m, 'tube', inchSize(od, t), keyDims(od, t), kgFor('round_tube', [od, t]), inchName('צינור', od, t, m));
+    }
+  }
+  for (const [od, t] of ROUND_TUBE_STAINLESS) {
+    steel(out, 'צינור עגול לקונסטרוקציה', 'stainless', 'tube', `Ø${x(od, t)}`, keyDims(od, t), kgFor('round_tube', [od, t], 7.93));
+  }
+  for (const [od, t] of WATER_PIPE) {
+    steel(out, 'צינור פלדה לקווי מים', 'black', 'water', inchSize(od, t), keyDims(od, t), kgFor('round_tube', [od, t]), inchName('צינור פלדה', od, t, 'black'));
+  }
+
+  for (const m of MATERIAL_KEYS) {
+    for (const t of PLATE[m]) steel(out, 'פח חלק', m, 'plate', `${t} מ״מ`, keyDims(t), kgFor('plate', [t], density(m)));
+  }
+  for (const t of TREAD_PLATE) {
+    steel(out, 'פח מרוג (דריכה)', 'black', 'tread', `${t} מ״מ`, keyDims(t), Math.round((t * 7.85 + 2) * 1000) / 1000);
+  }
+  // Roofing sheets (סנטף), priced per m² whatever the tint; the layout's plates find them by key (sheet:<key>)
+  for (const sh of SHEETS) {
+    out.push({ key: `sheet:${sh.key}`, category: 'plate', family: 'קירוי: סנטף ופוליקרבונט', name: sh.name, size: sh.short, unit: 'm2', material: null, weight: sh.kgPerM2, stock: null, by_kg: 0 });
+  }
+
+  // --- Pipe fittings for welding (price per piece, set by the user)
+  for (const s of FITTING_SIZES) {
+    const k = `${s}in`;
+    plain(out, 'קשתות', `elbow90:${k}`, `קשת 90 מעלות ${s} צול לריתוך`);
+    plain(out, 'קשתות', `elbow45:${k}`, `קשת 45 מעלות ${s} צול לריתוך`);
+    plain(out, 'הסתעפויות ומעברים', `tee:${k}`, `T שווה ${s} צול לריתוך`);
+    plain(out, 'הסתעפויות ומעברים', `cap:${k}`, `פקק (כיפה) ${s} צול לריתוך`);
+    plain(out, 'אוגנים ואטמים', `flange:${k}`, `אוגן ${s} צול לריתוך PN16`);
+    plain(out, 'אוגנים ואטמים', `blind:${k}`, `אוגן עיוור ${s} צול PN16`);
+    plain(out, 'אוגנים ואטמים', `gasket:${k}`, `אטם + ברגים לאוגן ${s} צול`);
+    plain(out, 'ריתוך צנרת (לתפר)', `joint:${k}`, `תפר ריתוך צנרת ${s} צול`);
+  }
+  for (const [a, b] of [[4, 3], [6, 4], [8, 6], [10, 8], [12, 10]]) {
+    plain(out, 'הסתעפויות ומעברים', `reducer:${a}in-${b}in`, `מעבר קונצנטרי ${x(a, b)} צול`);
+  }
+
+  // --- Hardware
+  const hw                             = [
+    ['צירים', 'hinge-weld-16', 'ציר ריתוך (חבית) 16 מ״מ'],
+    ['צירים', 'hinge-weld-20', 'ציר ריתוך (חבית) 20 מ״מ'],
+    ['צירים', 'hinge-weld-25', 'ציר ריתוך (חבית) 25 מ״מ'],
+    ['צירים', 'hinge-heavy', 'ציר כבד לשער'],
+    ['צירים', 'hinge-adjust', 'ציר מתכוונן לשער'],
+    ['צירים', 'hinge-bearing', 'ציר עם מיסב לשער כבד'],
+    ['שער הזזה', 'wheel-v-80', 'גלגל לשער הזזה 80 מ״מ (חריץ V)'],
+    ['שער הזזה', 'wheel-v-100', 'גלגל לשער הזזה 100 מ״מ (חריץ V)'],
+    ['שער הזזה', 'wheel-v-120', 'גלגל לשער הזזה 120 מ״מ (חריץ V)'],
+    ['שער הזזה', 'guide-top', 'מוביל עליון עם גלגלות'],
+    ['שער הזזה', 'stopper', 'עוצר סוף מסלול'],
+    ['שער הזזה', 'catcher', 'תופס קצה לשער הזזה'],
+    ['שער הזזה', 'motor', 'מנוע לשער הזזה (כולל שלטים)'],
+    ['מנעולים ובריחים', 'lock-gate', 'מנעול שער + ידית'],
+    ['מנעולים ובריחים', 'lock-weld', 'מנעול ריתוך למסגרות'],
+    ['מנעולים ובריחים', 'cylinder', 'צילינדר למנעול'],
+    ['מנעולים ובריחים', 'bolt-floor', 'בריח רצפה'],
+    ['מנעולים ובריחים', 'bolt-weld', 'בריח ריתוך'],
+    ['מנעולים ובריחים', 'latch', 'תפס סגירה לשער'],
+    ['מנעולים ובריחים', 'padlock-hasp', 'אוזן למנעול תלייה'],
+    ['ידיות, עוצרים ומחזירים', 'handle-pull', 'ידית משיכה'],
+    ['ידיות, עוצרים ומחזירים', 'stop-gate', 'עוצר שער לקרקע'],
+    ['ידיות, עוצרים ומחזירים', 'closer', 'מחזיר (סוגר) לשער'],
+    ['ידיות, עוצרים ומחזירים', 'cap-square', 'פקק פלסטיק לפרופיל'],
+    ['ידיות, עוצרים ומחזירים', 'cap-steel', 'כיפה (פקק פלדה) לעמוד'],
+    ['עיגון וברגים', 'anchor-m10', 'בורג עיגון (פריקה) M10'],
+    ['עיגון וברגים', 'anchor-m12', 'בורג עיגון (פריקה) M12'],
+    ['עיגון וברגים', 'chem-cartridge', 'דבק כימי לעיגון (מחסנית)'],
+    ['עיגון וברגים', 'threaded-rod', 'מוט הברגה M12 (1 מ׳)'],
+    ['עיגון וברגים', 'bolt-set-m12', 'בורג + אום + דסקית M12'],
+    ['עיגון וברגים', 'base-plate', 'פלטת בסיס לעמוד 200/200/10'],
+  ];
+  for (const [fam, key, name] of hw) plain(out, fam, key, name);
+
+  // --- Welding by the joint / labor / equipment
+  plain(out, 'עבודה', 'labor-hour', 'שעת עבודה');
+  plain(out, 'עבודה', 'labor-helper', 'שעת עוזר');
+  plain(out, 'עבודה', 'labor-site', 'שעת עבודה בשטח');
+  const eq                           = [
+    ['welder-trailer', 'רתכת נגררת + גנרטור – יום', 'day'],
+    ['crane-day', 'משאית מנוף – יום', 'day'],
+    ['lift-day', 'במת הרמה – יום', 'day'],
+    ['scaffold', 'פיגום – יום', 'day'],
+    ['excavator-day', 'מחפרון – יום', 'day'],
+  ];
+  for (const [key, name, unit] of eq) plain(out, 'ציוד וכלים', key, name, unit);
+
+  // --- Finishing
+  plain(out, 'צביעה', 'oven-paint', 'צביעה בתנור', 'm2');
+  plain(out, 'צביעה', 'site-paint', 'צביעה באתר (יסוד + 2 שכבות)', 'm2');
+  plain(out, 'צביעה', 'epoxy-paint', 'צביעה אפוקסית', 'm2');
+  plain(out, 'גלוון וניקוי', 'hot-dip', 'גלוון חם (לפי ק״ג ברזל)', 'kg');
+  plain(out, 'גלוון וניקוי', 'sandblast', 'התזת חול', 'm2');
+  plain(out, 'צבעים וחומרים', 'primer-4l', 'יסוד לברזל (4 ל׳)');
+  plain(out, 'צבעים וחומרים', 'topcoat-4l', 'צבע עליון לברזל (4 ל׳)');
+  plain(out, 'צבעים וחומרים', 'zinc-spray', 'ספריי אבץ (גלוון קר)');
+  plain(out, 'צבעים וחומרים', 'thinner', 'טינר (1 ל׳)');
+
+  // --- Consumables
+  const cons                             = [
+    ['מתכלים לריתוך', 'mig-08', 'חוט ריתוך MIG 0.8 מ״מ (סליל 15 ק״ג)'],
+    ['מתכלים לריתוך', 'mig-10', 'חוט ריתוך MIG 1.0 מ״מ (סליל 15 ק״ג)'],
+    ['מתכלים לריתוך', 'flux-08', 'חוט ריתוך עם ליבה (פלקס) 0.8 מ״מ'],
+    ['מתכלים לריתוך', 'electrode-25', 'אלקטרודות 2.5 מ״מ (חבילה)'],
+    ['מתכלים לריתוך', 'electrode-32', 'אלקטרודות 3.2 מ״מ (חבילה)'],
+    ['מתכלים לריתוך', 'electrode-ss', 'אלקטרודות נירוסטה 2.5 מ״מ (חבילה)'],
+    ['מתכלים לריתוך', 'tig-rod', 'מוטות TIG (חבילה)'],
+    ['מתכלים לריתוך', 'gas-co2', 'מילוי גז CO₂'],
+    ['מתכלים לריתוך', 'gas-mix', 'מילוי גז ארגון / מיקס'],
+    ['מתכלים לריתוך', 'tips', 'פיות ומגנים לאקדח ריתוך'],
+    ['מתכלים לריתוך', 'consumables-job', 'מתכלים: חוט ריתוך, דיסקים, גז'],
+    ['דיסקים ומברשות', 'cut-115', 'דיסק חיתוך 115 מ״מ'],
+    ['דיסקים ומברשות', 'cut-125', 'דיסק חיתוך 125 מ״מ'],
+    ['דיסקים ומברשות', 'cut-230', 'דיסק חיתוך 230 מ״מ'],
+    ['דיסקים ומברשות', 'cut-355', 'דיסק למשור 355 מ״מ'],
+    ['דיסקים ומברשות', 'grind-125', 'דיסק השחזה 125 מ״מ'],
+    ['דיסקים ומברשות', 'flap-125', 'דיסק פלאפ (ליטוש) 125 מ״מ'],
+    ['דיסקים ומברשות', 'wire-brush', 'מברשת פלדה לזווית'],
+    ['הובלה ושטח', 'delivery', 'הובלה'],
+    ['הובלה ושטח', 'site-arrival', 'הגעה לאתר'],
+    ['הובלה ושטח', 'concrete-bag', 'בטון מהיר (שק)'],
+    ['הובלה ושטח', 'concrete-m3', 'בטון מובא (קוב)'],
+  ];
+  for (const [fam, key, name] of cons) plain(out, fam, key, name);
+
+  return out;
+}
+
+return { MATERIALS, MATERIAL_KEYS, materialInfo, FAMILIES, familyDef, familyOrder, itemName, standardSizes, INCH, catalogItems };
+})();
+const __scene = (() => {
+/**
+ * 3D layout of a metalwork job ("scene"): what an AI (or a template) produces from a description and
+ * the bill of quantities, and what the viewer, the shop drawing and the cut list read.
+ *
+ * Data, not code: millimetres, Y up, ground at y = 0, X along the opening (left to right seen from the
+ * street), +Z towards the street. Members are pieces of profile between two points on their centre line,
+ * so a member's length is its cut length (butt joints).
+ */
+const { kgFor } = __steel;
+                                             
+const { BEAMS } = __sections;
+const { INCH, MATERIAL_KEYS, materialInfo } = __catalog;
+                                                
+const { TINTS, isSheet, sheetInfo, sheetName, sheetTint } = __sheets;
+                                                       
+
+                                            
+                                   
+
+                                                                                                                         
+const PROFILES                     = ['rect_tube', 'round_tube', 'round_bar', 'square_bar', 'flat', 'angle', 'upn', 'ipe', 'hea'];
+const SIZE_LEN                          = {
+  rect_tube: 3,
+  round_tube: 2,
+  round_bar: 1,
+  square_bar: 1,
+  flat: 2,
+  angle: 3,
+  upn: 1,
+  ipe: 1,
+  hea: 1,
+};
+
+                         
+                
+                           
+              
+                                                                             
+                             
+              
+ 
+
+                                               
+
+                         
+              
+                   
+                 
+                         
+             
+           
+                                                                           
+             
+                                            
+                
+                 
+                 
+                 
+                  
+                                                               
+                   
+                   
+ 
+
+/** Which way a sloped plate rises: toward +X (right), -X, +Z (the street) or -Z */
+                                                
+const SLOPE_UPS                     = ['+x', '-x', '+z', '-z'];
+
+                        
+              
+               
+                                                                                                              
+                         
+               
+                                                                                                             
+                                       
+                    
+                         
+                                                                                                               
+                   
+                   
+                 
+                 
+                 
+                  
+ 
+
+                      
+           
+           
+                  
+          
+            
+               
+             
+             
+           
+         
+            
+             
+const PART_KINDS                      = [
+  'hinge',
+  'wheel',
+  'guide_roller',
+  'lock',
+  'handle',
+  'drop_bolt',
+  'stopper',
+  'footing',
+  'motor',
+  'cap',
+  'finial',
+  'scroll',
+];
+const PART_LABELS                           = {
+  hinge: 'ציר',
+  wheel: 'גלגל',
+  guide_roller: 'מוביל עליון',
+  lock: 'מנעול',
+  handle: 'ידית',
+  drop_bolt: 'בריח רצפה',
+  stopper: 'עוצר',
+  footing: 'יסוד בטון',
+  motor: 'מנוע',
+  cap: 'כיפה',
+  finial: 'קישוט ראש',
+  scroll: 'סלסול',
+};
+
+                       
+              
+                 
+           
+                  
+              
+                 
+                 
+                  
+ 
+
+                                                                             
+                        
+                   
+               
+             
+                 
+ 
+
+                                                                                                     
+                        
+             
+                 
+                  
+ 
+
+                            
+             
+           
+                 
+     
+                                                                                                         
+                                                                                          
+     
+                             
+ 
+
+                        
+             
+                
+                         
+                                             
+                    
+                   
+                 
+                   
+                   
+                           
+                   
+                                          
+ 
+
+/** A scene after repeats, trims and defaults: every item has an id and a material. */
+                                                
+             
+                        
+ 
+                                                                                    
+                            
+                                                                         
+                                                                              
+                                   
+                  
+                  
+ 
+
+// --- Vector math -----------------------------------------------------------------------------------
+
+const add = (a      , b      )       => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const sub = (a      , b      )       => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const scale = (a      , s        )       => [a[0] * s, a[1] * s, a[2] * s];
+const dot = (a      , b      )         => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a      , b      )       => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const len = (a      )         => Math.hypot(a[0], a[1], a[2]);
+const norm = (a      )       => {
+  const l = len(a);
+  return l > 0 ? scale(a, 1 / l) : [0, 0, 0];
+};
+const AXIS_INDEX                          = { x: 0, y: 1, z: 2 };
+
+/**
+ * Cross-section axes of a straight member with direction d:
+ * f carries size[0] (the face you see), n carries size[1] (the depth).
+ * Vertical members: f = X, n = Z. Others: n is horizontal and square to the member, f is in the vertical
+ * plane through the member (so a horizontal rail's face is its height).
+ */
+function sectionAxes(direction      )                       {
+  const d = norm(direction);
+  if (Math.abs(d[1]) > 0.999) return { f: [1, 0, 0], n: [0, 0, 1] };
+  const n = norm(cross([0, 1, 0], d));
+  return { f: norm(cross(d, n)), n };
+}
+
+                      
+               
+                 
+                                                                                     
+               
+          
+          
+                                    
+                
+ 
+
+/** The circle through three points, or null if they are (nearly) in line. */
+function arcThrough(a      , b      , c      )             {
+  const ab = sub(b, a);
+  const ac = sub(c, a);
+  const n = cross(ab, ac);
+  const n2 = dot(n, n);
+  if (n2 < 1e-6 * dot(ab, ab) * dot(ac, ac)) return null;
+  const center = add(a, scale(add(scale(cross(n, ab), dot(ac, ac)), scale(cross(ac, n), dot(ab, ab))), 1 / (2 * n2)));
+  const radius = len(sub(a, center));
+  const normal = norm(n);
+  const u = norm(sub(a, center));
+  const v = cross(normal, u);
+  const angleOf = (p      ) => {
+    const w = sub(p, center);
+    const t = Math.atan2(dot(w, v), dot(w, u));
+    return t < 0 ? t + 2 * Math.PI : t;
+  };
+  return { center, radius, normal, u, v, sweep: angleOf(c) };
+}
+
+function arcPoint(arc     , t        )       {
+  const a = arc.sweep * t;
+  return add(arc.center, add(scale(arc.u, arc.radius * Math.cos(a)), scale(arc.v, arc.radius * Math.sin(a))));
+}
+
+function memberLength(m                                     )         {
+  if (m.via) {
+    const arc = arcThrough(m.from, m.via, m.to);
+    if (arc) return arc.radius * arc.sweep;
+  }
+  return len(sub(m.to, m.from));
+}
+
+/** Half the section's extent along a direction (for stopping a member at another one's face). */
+/** f and n turned by a roll (degrees about the member's own axis) */
+function rolledAxes(f      , n      , roll                    )                       {
+  if (!roll) return { f, n };
+  const a = (roll * Math.PI) / 180;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return { f: add(scale(f, c), scale(n, s)), n: sub(scale(n, c), scale(f, s)) };
+}
+
+function halfExtent(m                                           , f0      , n0      , along      )         {
+  const { f, n } = rolledAxes(f0, n0, m.roll);
+  const [s0 = 0, s1 = s0] = m.size;
+  const roundish = m.profile === 'round_tube' || m.profile === 'round_bar';
+  if (roundish) return s0 / 2;
+  const beam = m.profile === 'upn' || m.profile === 'ipe' || m.profile === 'hea' ? BEAMS[m.profile][s0] : null;
+  const face = beam ? beam.h : s0;
+  const depth = beam ? beam.b : m.profile === 'square_bar' ? s0 : s1;
+  return (Math.abs(dot(along, f)) * face + Math.abs(dot(along, n)) * depth) / 2;
+}
+
+// --- Preparing an AI's output: validate, expand repeats, apply trims ----------------------------------
+
+const finite = (v         )              => typeof v === 'number' && Number.isFinite(v);
+const MAX_COORD = 60_000;
+function vec(v         )              {
+  if (!Array.isArray(v) || v.length !== 3 || !v.every(finite)) return null;
+  return v.every((x) => Math.abs(x) <= MAX_COORD) ? [v[0], v[1], v[2]] : null;
+}
+const text = (v         , max = 80) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
+const isAxis = (v         )            => v === 'x' || v === 'y' || v === 'z';
+const isMaterial = (v         )                   => MATERIAL_KEYS.includes(v               );
+
+function repeatOffsets(r         , base      )                  {
+  if (r == null) return [[0, 0, 0]];
+  const rep = r          ;
+  const count = Math.round(Number(rep.count));
+  if (!(count >= 1 && count <= 400)) return 'repeat.count must be 1–400';
+  if (rep.between) {
+    const [a, b] = rep.between;
+    if (!finite(a) || !finite(b) || !isAxis(rep.axis)) return 'repeat.between needs [a, b] and axis';
+    const i0 = AXIS_INDEX[rep.axis];
+    return Array.from({ length: count }, (_, i) => {
+      const o       = [0, 0, 0];
+      o[i0] = a + ((i + 1) * (b - a)) / (count + 1) - base[i0];
+      return o;
+    });
+  }
+  const step = vec(rep.step);
+  if (!step) return 'repeat needs step [dx,dy,dz] or between + axis';
+  return Array.from({ length: count }, (_, i) => scale(step, i));
+}
+
+                           
+                       
+                     
+                   
+ 
+
+/** Turns raw JSON (from an AI or a file) into a scene the viewer can draw. Bad items are dropped with a warning. */
+function prepareScene(raw         )           {
+  const warnings           = [];
+  const errors           = [];
+  const src = (raw ?? {})                  ;
+  const defMaterial              = isMaterial(src.material) ? src.material : 'black';
+
+  const groups          = [];
+  for (const [i, g] of (Array.isArray(src.groups) ? src.groups : []).entries()) {
+    const id = text(g?.id, 40);
+    if (!id || groups.some((x) => x.id === id)) {
+      warnings.push(`groups[${i}]: id חסר או כפול`);
+      continue;
+    }
+    let motion                    ;
+    const m = g.motion                      ;
+    if (m?.type === 'swing') {
+      const pivot = vec(m.pivot);
+      if (pivot && finite(m.angle)) motion = { type: 'swing', pivot, angle: Math.max(-180, Math.min(180, m.angle)) };
+    } else if (m?.type === 'slide') {
+      const offset = vec(m.offset);
+      if (offset) motion = { type: 'slide', offset };
+    }
+    if (g.motion && !motion) warnings.push(`groups[${i}]: תנועה לא תקינה`);
+    groups.push({ id, label: text(g.label), motion });
+  }
+  const groupOk = (g         , where        ) => {
+    if (g == null) return undefined;
+    if (groups.some((x) => x.id === g)) return g          ;
+    warnings.push(`${where}: קבוצה "${String(g)}" לא קיימת`);
+    return undefined;
+  };
+
+  // Members
+  const members                   = [];
+  const rawMembers = Array.isArray(src.members) ? src.members : [];
+  let auto = 0;
+  for (const [i, m] of rawMembers.entries()) {
+    const where = `members[${i}]`;
+    if (!m || !PROFILES.includes(m.profile)) {
+      warnings.push(`${where}: פרופיל לא מוכר`);
+      continue;
+    }
+    const size = Array.isArray(m.size) ? m.size.slice(0, SIZE_LEN[m.profile]) : [];
+    if (size.length !== SIZE_LEN[m.profile] || !size.every((x) => finite(x) && x > 0 && x < 2000)) {
+      warnings.push(`${where}: מידות חתך לא תקינות`);
+      continue;
+    }
+    if ((m.profile === 'upn' || m.profile === 'ipe' || m.profile === 'hea') && !BEAMS[m.profile][size[0]]) {
+      warnings.push(`${where}: אין ${m.profile.toUpperCase()} ${size[0]} בטבלה`);
+      continue;
+    }
+    const from = vec(m.from);
+    const to = vec(m.to);
+    if (!from || !to || len(sub(to, from)) < 1) {
+      warnings.push(`${where}: נקודות התחלה וסוף לא תקינות`);
+      continue;
+    }
+    let via = m.via == null ? undefined : (vec(m.via) ?? undefined);
+    if (via && !arcThrough(from, via, to)) {
+      warnings.push(`${where}: הקשת ישרה, צוירה כקו`);
+      via = undefined;
+    }
+    const offsets = repeatOffsets(m.repeat, from);
+    if (typeof offsets === 'string') {
+      warnings.push(`${where}: ${offsets}`);
+      continue;
+    }
+    const id = text(m.id, 40) ?? `m${++auto}`;
+    const base = {
+      profile: m.profile,
+      size,
+      material: isMaterial(m.material) ? m.material : defMaterial,
+      roll: finite(m.roll) ? m.roll : undefined,
+      group: groupOk(m.group, where),
+      label: text(m.label),
+      color: typeof m.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(m.color) ? m.color : undefined,
+      trim_to: text(m.trim_to, 40),
+      end_cap: m.end_cap === 'finial' || m.end_cap === 'ball' || m.end_cap === 'cap' ? m.end_cap : undefined,
+    };
+    offsets.forEach((o, k) => {
+      members.push({
+        ...base,
+        id: offsets.length > 1 ? `${id}#${k + 1}` : id,
+        from: add(from, o),
+        to: add(to, o),
+        via: via ? add(via, o) : undefined,
+      });
+    });
+  }
+  if (members.length > 4000) {
+    errors.push('יותר מדי חלקים במודל');
+    members.length = 4000;
+  }
+
+  // Trims: stop a member where it meets another one's face
+  const byId = new Map(members.map((m) => [m.id, m]));
+  for (const m of members) {
+    if (!m.trim_to) continue;
+    const target = byId.get(m.trim_to);
+    if (!target || target === m || m.via) {
+      warnings.push(`${m.id}: אי אפשר לחתוך אל "${m.trim_to}"`);
+      continue;
+    }
+    const s = trimDistance(m, target);
+    if (s === null) warnings.push(`${m.id}: לא פוגש את "${m.trim_to}"`);
+    else m.to = add(m.from, scale(norm(sub(m.to, m.from)), s));
+  }
+
+  // Plates
+  const plates                          = [];
+  for (const [i, p] of (Array.isArray(src.plates) ? src.plates : []).entries()) {
+    const where = `plates[${i}]`;
+    const center = vec(p?.center);
+    const size = Array.isArray(p?.size) && p.size.length === 2 && p.size.every((x) => finite(x) && x > 0) ? p.size : null;
+    const sheet = isSheet(p?.sheet) ? p.sheet : undefined;
+    // A sheet's thickness is its profile's depth when none is given
+    const thickness = finite(p?.thickness) ? p.thickness : sheet ? (sheetInfo(sheet)?.depth ?? 0) : NaN;
+    if (!center || !size || !isAxis(p.normal) || !(thickness > 0 && thickness < 200)) {
+      warnings.push(`${where}: פח לא תקין`);
+      continue;
+    }
+    const offsets = repeatOffsets(p.repeat, center);
+    if (typeof offsets === 'string') {
+      warnings.push(`${where}: ${offsets}`);
+      continue;
+    }
+    const id = text(p.id, 40) ?? `p${i + 1}`;
+    const tint = sheet ? sheetTint(sheet, p.tint) : undefined;
+    const slope =
+      p.normal === 'y' && p.slope && SLOPE_UPS.includes(p.slope.up) && finite(p.slope.deg) && Math.abs(p.slope.deg) > 0.01 && Math.abs(p.slope.deg) <= 75
+        ? { up: p.slope.up, deg: p.slope.deg }
+        : undefined;
+    const color = typeof p.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(p.color) ? p.color : undefined;
+    offsets.forEach((o, k) =>
+      plates.push({
+        id: offsets.length > 1 ? `${id}#${k + 1}` : id,
+        center: add(center, o),
+        size: [size[0], size[1]],
+        normal: p.normal,
+        ...(slope ? { slope } : {}),
+        thickness,
+        material: isMaterial(p.material) ? p.material : defMaterial,
+        ...(sheet && tint ? { sheet, tint, color: color ?? TINTS[tint].color, opacity: TINTS[tint].opacity } : { color }),
+        group: groupOk(p.group, where),
+        label: text(p.label),
+      }),
+    );
+  }
+
+  // Parts
+  const parts                         = [];
+  for (const [i, p] of (Array.isArray(src.parts) ? src.parts : []).entries()) {
+    const where = `parts[${i}]`;
+    const at = vec(p?.at);
+    if (!at || !PART_KINDS.includes(p.kind)) {
+      warnings.push(`${where}: חלק לא מוכר`);
+      continue;
+    }
+    const offsets = repeatOffsets(p.repeat, at);
+    if (typeof offsets === 'string') {
+      warnings.push(`${where}: ${offsets}`);
+      continue;
+    }
+    const size = Array.isArray(p.size) && p.size.every((x) => finite(x) && x > 0) ? p.size.slice(0, 3) : undefined;
+    offsets.forEach((o, k) =>
+      parts.push({
+        id: `${text(p.id, 40) ?? `x${i + 1}`}${offsets.length > 1 ? `#${k + 1}` : ''}`,
+        kind: p.kind,
+        at: add(at, o),
+        size,
+        axis: isAxis(p.axis) ? p.axis : undefined,
+        group: groupOk(p.group, where),
+        label: text(p.label),
+      }),
+    );
+  }
+
+  const solids          = [];
+  for (const s of Array.isArray(src.solids) ? src.solids : []) {
+    const center = vec(s?.center);
+    const size = vec(s?.size);
+    if (center && size && size.every((x) => x > 0)) solids.push({ kind: s.kind, center, size, label: text(s.label) });
+  }
+
+  const dimensions              = [];
+  for (const [i, d] of (Array.isArray(src.dimensions) ? src.dimensions : []).entries()) {
+    const label = text(d?.label, 30);
+    const ids = Array.isArray(d?.between) ? d.between.map((x         ) => text(x, 40)) : null;
+    if (ids) {
+      const line = ids.length === 2 && ids[0] && ids[1] ? gapLine(members, ids[0], ids[1]) : null;
+      if (line) dimensions.push({ ...line, label, between: [ids[0]          , ids[1]          ] });
+      else warnings.push(`dimensions[${i}]: אין רווח למדוד בין ${ids.filter(Boolean).join(' ו־')}`);
+      continue;
+    }
+    const from = vec(d?.from);
+    const to = vec(d?.to);
+    if (from && to) dimensions.push({ from, to, label });
+  }
+
+  // A box of sheet alone (a tank) is a model too
+  if (members.length === 0 && plates.length === 0) errors.push('אין במודל אף פרופיל תקין');
+
+  return {
+    scene: {
+      version: 1,
+      title: text(src.title, 120) ?? 'הדמיה',
+      material: defMaterial,
+      finish: src.finish && typeof src.finish === 'object' ? { color: text(src.finish.color, 20), name: text(src.finish.name) } : undefined,
+      members,
+      plates,
+      parts,
+      solids,
+      groups,
+      dimensions,
+      notes: Array.isArray(src.notes) ? src.notes.map((n) => text(n, 300)).filter((n)              => Boolean(n)).slice(0, 12) : [],
+      source: src.source && text(src.source.url, 300) ? { title: text(src.source.title, 120) ?? '', url: text(src.source.url, 300)           } : undefined,
+    },
+    warnings: warnings.slice(0, 40),
+    errors,
+  };
+}
+
+/** Distance along member m (from its `from` end) to the near face of target, or null if it never meets it. */
+function trimDistance(m                                                  , target        )                {
+  const d = norm(sub(m.to, m.from));
+  if (target.via) {
+    const arc = arcThrough(target.from, target.via, target.to);
+    if (!arc) return null;
+    const half = target.size[0] / 2; // radial extent of the arc's section
+    const w = sub(m.from, arc.center);
+    let best                = null;
+    for (const r of [arc.radius - half, arc.radius + half]) {
+      const b = dot(w, d);
+      const disc = b * b - (dot(w, w) - r * r);
+      if (disc < 0) continue;
+      for (const s of [-b - Math.sqrt(disc), -b + Math.sqrt(disc)]) {
+        if (s <= 1) continue;
+        // Only where the arc actually is
+        const p = sub(add(m.from, scale(d, s)), arc.center);
+        let t = Math.atan2(dot(p, arc.v), dot(p, arc.u));
+        if (t < 0) t += 2 * Math.PI;
+        if (t > arc.sweep + 1e-6) continue;
+        if (best === null || s < best) best = s;
+      }
+    }
+    return best;
+  }
+  const e = norm(sub(target.to, target.from));
+  const b = dot(d, e);
+  const denom = 1 - b * b;
+  if (denom < 1e-6) return null;
+  const w0 = sub(m.from, target.from);
+  const s = (b * dot(e, w0) - dot(d, w0)) / denom;
+  const t = (dot(e, w0) - b * dot(d, w0)) / denom;
+  const tl = len(sub(target.to, target.from));
+  if (t < -1 || t > tl + 1) return null;
+  const { f, n } = sectionAxes(e);
+  const hit = s - halfExtent(target, f, n, d);
+  return hit > 1 ? hit : null;
+}
+
+// --- Cut list --------------------------------------------------------------------------------------
+
+const PROFILE_SHAPE                                       = {
+  rect_tube: 'rect_tube',
+  round_tube: 'round_tube',
+  round_bar: 'round_bar',
+  square_bar: 'square_bar',
+  flat: 'flat',
+  angle: 'angle',
+};
+
+const j = (...n          ) => n.join('/');
+
+/** Same naming as the price-list catalog, so cut-list rows can be matched to price-list items. */
+function sectionName(profile         , size          , material             )         {
+  const suffix = materialInfo(material)?.suffix ?? '';
+  const [a = 0, b = 0, t = 0] = size;
+  switch (profile) {
+    case 'rect_tube':
+      return `פרופיל ${j(Math.max(a, b), Math.min(a, b), t)}${suffix}`;
+    case 'angle':
+      return `זוויתן ${j(Math.max(a, b), Math.min(a, b), t)}${suffix}`;
+    case 'round_tube':
+      return INCH[String(a)] ? `צינור ${INCH[String(a)]} צול (${j(a, b)})${suffix}` : `צינור Ø${j(a, b)}${suffix}`;
+    case 'round_bar':
+      return `מוט עגול Ø${a}${suffix}`;
+    case 'square_bar':
+      return `מוט מרובע ${j(a, a)}${suffix}`;
+    case 'flat':
+      return `פלח ${j(a, b)}${suffix}`;
+    case 'upn':
+      return `פרופיל U ${a}${suffix}`;
+    case 'ipe':
+      return `קורה IPE ${a}${suffix}`;
+    case 'hea':
+      return `קורה HEA ${a}${suffix}`;
+  }
+}
+
+function kgPerMetre(profile         , size          , material             )         {
+  const density = materialInfo(material)?.density ?? 7.85;
+  const shape = PROFILE_SHAPE[profile];
+  if (shape) return kgFor(shape, size, density);
+  const beam = BEAMS[profile                         ][size[0]];
+  return beam ? Math.round(((beam.kg * density) / 7.85) * 1000) / 1000 : 0;
+}
+
+                           
+               
+               
+                   
+                 
+                        
+                         
+                 
+                
+                
+             
+                
+ 
+
+                          
+                     
+                                         
+                                                                            
+                                                                                                             
+                                                                                                                
+                                                            
+                  
+                                 
+ 
+
+/** A, B, … Z, AA, AB … */
+function markLabel(i        )         {
+  let s = '';
+  let n = i + 1;
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+function cutList(scene               )          {
+  const groups = new Map                  ();
+  for (const m of scene.members) {
+    const length = Math.round(memberLength(m));
+    const name = sectionName(m.profile, m.size, m.material);
+    const key = `${name}|${length}|${m.via ? 'bent' : 'straight'}`;
+    let piece = groups.get(key);
+    if (!piece) {
+      piece = { mark: '', name, profile: m.profile, size: m.size, material: m.material, length, count: 0, bent: Boolean(m.via), kg: 0, ids: [] };
+      groups.set(key, piece);
+    }
+    piece.count++;
+    piece.ids.push(m.id);
+    piece.kg += (kgPerMetre(m.profile, m.size, m.material) * length) / 1000;
+  }
+  const pieces = [...groups.values()].sort(
+    (a, b) => PROFILES.indexOf(a.profile) - PROFILES.indexOf(b.profile) || a.name.localeCompare(b.name, 'he', { numeric: true }) || b.length - a.length,
+  );
+  const markOf                         = {};
+  pieces.forEach((p, i) => {
+    p.mark = markLabel(i);
+    p.kg = Math.round(p.kg * 10) / 10;
+    for (const id of p.ids) markOf[id] = p.mark;
+  });
+
+  const sections = new Map                                                                       ();
+  for (const p of pieces) {
+    const s = sections.get(p.name) ?? { name: p.name, totalMm: 0, kg: 0, pieces: 0 };
+    s.totalMm += p.length * p.count;
+    s.kg = Math.round((s.kg + p.kg) * 10) / 10;
+    s.pieces += p.count;
+    sections.set(p.name, s);
+  }
+
+  const plateRows = new Map                                   ();
+  for (const p of scene.plates) {
+    const name = p.sheet ? sheetName(p.sheet, p.tint) : `פח ${p.thickness} מ״מ${materialInfo(p.material)?.suffix ?? ''}`;
+    const [w, h] = [Math.round(Math.max(...p.size)), Math.round(Math.min(...p.size))];
+    const key = `${name}|${w}|${h}`;
+    const row = plateRows.get(key) ?? { name, w, h, count: 0, areaM2: 0, kg: 0, ...(p.sheet ? { sheet: p.sheet } : {}) };
+    row.count++;
+    row.areaM2 = Math.round(((row.count * w * h) / 1e6) * 100) / 100;
+    const perM2 = p.sheet ? (sheetInfo(p.sheet)?.kgPerM2 ?? 0) : kgFor('plate', [p.thickness], materialInfo(p.material)?.density ?? 7.85);
+    row.kg = Math.round(row.areaM2 * perM2 * 10) / 10;
+    plateRows.set(key, row);
+  }
+
+  const partRows = new Map                                  ();
+  for (const p of scene.parts) {
+    if (p.kind === 'footing') continue;
+    const label = p.label ?? PART_LABELS[p.kind];
+    const row = partRows.get(label) ?? { kind: p.kind, label, count: 0 };
+    row.count++;
+    partRows.set(label, row);
+  }
+
+  const plateList = [...plateRows.values()];
+  const totalKg = Math.round((pieces.reduce((s, p) => s + p.kg, 0) + plateList.reduce((s, p) => s + (p.sheet ? 0 : p.kg), 0)) * 10) / 10;
+  return { pieces, sections: [...sections.values()], plates: plateList, parts: [...partRows.values()], totalKg, markOf };
+}
+
+/** Metal extent (mm) – walls, paving and footings left out. */
+function metalBounds(scene               )                           {
+  return boundsOf(scene.members, scene.plates);
+}
+
+/** The fabricated work: moving leaves and anything standing up. A long ground track is left out. */
+function workBounds(scene               )                           {
+  const focus = scene.members.filter((m) => m.group || Math.max(m.from[1], m.to[1], m.via?.[1] ?? -Infinity) > 100);
+  return boundsOf(focus.length > 0 ? focus : scene.members, scene.plates);
+}
+
+/** Extent of some members (and plates), padded across each member only. */
+/** The two directions a plate spans, as unit vectors: the first along its size[0], the second along size[1] */
+function plateAxes(p                                                       )                                {
+  if (p.normal === 'z') return { u: [1, 0, 0], v: [0, 1, 0], n: [0, 0, 1] };
+  if (p.normal === 'x') return { u: [0, 0, 1], v: [0, 1, 0], n: [1, 0, 0] };
+  if (!p.slope) return { u: [1, 0, 0], v: [0, 0, 1], n: [0, 1, 0] };
+  const t = (p.slope.deg * Math.PI) / 180;
+  const [c, s] = [Math.cos(t), Math.sin(t)];
+  switch (p.slope.up) {
+    case '+x':
+      return { u: [c, s, 0], v: [0, 0, 1], n: [-s, c, 0] };
+    case '-x':
+      return { u: [c, -s, 0], v: [0, 0, 1], n: [s, c, 0] };
+    case '+z':
+      return { u: [1, 0, 0], v: [0, s, c], n: [0, c, -s] };
+    default:
+      return { u: [1, 0, 0], v: [0, -s, c], n: [0, c, s] };
+  }
+}
+
+/** A plate's four corners, on its middle plane */
+function plateCorners(p                                                                           )         {
+  const { u, v } = plateAxes(p);
+  const [a, b] = [p.size[0] / 2, p.size[1] / 2];
+  return (
+    [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ]         
+  ).map(([i, j]) => add(add(p.center, scale(u, i * a)), scale(v, j * b)));
+}
+
+function boundsOf(members          , plates                                                                                              = [])                           {
+  const scene = { members, plates };
+  const min       = [Infinity, Infinity, Infinity];
+  const max       = [-Infinity, -Infinity, -Infinity];
+  const grow = (p      , r = 0) => {
+    for (let i = 0; i < 3; i++) {
+      min[i] = Math.min(min[i], p[i] - r);
+      max[i] = Math.max(max[i], p[i] + r);
+    }
+  };
+  for (const m of scene.members) {
+    const r = Math.max(...m.size.slice(0, 2)) / 2;
+    if (m.via) {
+      const arc = arcThrough(m.from, m.via, m.to);
+      for (let i = 0; i <= 16; i++) grow(arc ? arcPoint(arc, i / 16) : m.from, r);
+      continue;
+    }
+    // Pad across the member only, so a post's bottom is where it really ends
+    const { f, n } = sectionAxes(sub(m.to, m.from));
+    for (const end of [m.from, m.to]) {
+      for (const sf of [-r, r]) for (const sn of [-r, r]) grow(add(end, add(scale(f, sf), scale(n, sn))));
+    }
+  }
+  for (const p of scene.plates) {
+    if (!p.normal) {
+      grow(p.center, Math.max(...p.size) / 2);
+      continue;
+    }
+    if (p.slope) {
+      const { n } = plateAxes({ normal: p.normal, slope: p.slope });
+      const t = (p.thickness ?? 0) / 2;
+      for (const c of plateCorners({ center: p.center, size: p.size, normal: p.normal, slope: p.slope })) {
+        grow(add(c, scale(n, t)));
+        grow(sub(c, scale(n, t)));
+      }
+      continue;
+    }
+    // Half sizes along X, Y, Z: the plate's thickness across its normal, its size in its plane
+    const [a, b] = [p.size[0] / 2, p.size[1] / 2];
+    const t = (p.thickness ?? 0) / 2;
+    const h       = p.normal === 'y' ? [a, t, b] : p.normal === 'x' ? [t, b, a] : [a, b, t];
+    grow(sub(p.center, h));
+    grow(add(p.center, h));
+  }
+  return { min, max };
+}
+
+/** Members with this id (repeats: "pickets#3" belongs to "pickets") or in the group with this id */
+function membersById(members                  , id        )                   {
+  return members.filter((m) => m.id === id || m.id.startsWith(`${id}#`) || m.group === id);
+}
+
+/**
+ * The line measuring the clear gap between two members or groups: along the axis where they stand apart,
+ * from one's facing side to the other's, drawn low and just in front of them. Null when they touch or overlap.
+ */
+function gapLine(members                  , a        , b        )                                  {
+  const ma = membersById(members, a);
+  const mb = membersById(members, b);
+  if (ma.length === 0 || mb.length === 0) return null;
+  const A = boundsOf(ma);
+  const B = boundsOf(mb);
+  let best                                                  = null;
+  for (const i of [0, 1, 2]         ) {
+    const gapAB = B.min[i] - A.max[i];
+    const gapBA = A.min[i] - B.max[i];
+    const gap = Math.max(gapAB, gapBA);
+    if (gap > 1 && (!best || gap > best.hi - best.lo)) {
+      best = gapAB >= gapBA ? { i, lo: A.max[i], hi: B.min[i] } : { i, lo: B.max[i], hi: A.min[i] };
+    }
+  }
+  if (!best) return null;
+  const front = Math.max(A.max[2], B.max[2]) + 150;
+  const base       =
+    best.i === 1 ? [Math.max(A.max[0], B.max[0]) + 150, 0, (A.min[2] + A.max[2]) / 2] : [0, Math.max(0, Math.min(A.min[1], B.min[1])) + 15, front];
+  const from       = [...base];
+  const to       = [...base];
+  from[best.i] = best.lo;
+  to[best.i] = best.hi;
+  return { from, to };
+}
+
+/**
+ * Ties the layout's own measurements to the parts they measure: a from/to measurement whose two ends sit on the
+ * facing sides of two members (along its direction) becomes { between: [those members] }, so it follows them
+ * when the layout changes. Anything else is left as it is. Works on the raw layout and returns a new one.
+ */
+/**
+ * A layout made or changed outside the builder (AI, pasted): without the builder's `design` inside it, which would
+ * describe the model before the change; and with its measurements tied to their parts (`anchorDimensions`).
+ */
+function outsideLayout(raw         )          {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const { design: _design, ...rest } = raw                           ;
+  return anchorDimensions(rest);
+}
+
+function anchorDimensions(raw         )          {
+  if (!raw || typeof raw !== 'object' || !Array.isArray((raw         ).dimensions)) return raw;
+  const prepared = prepareScene(raw);
+  if (prepared.errors.length) return raw;
+  const members = prepared.scene.members;
+  const baseId = (id        ) => id.replace(/#\d+$/, '');
+  const dims = ((raw         ).dimensions             ).map((d) => {
+    const dim = d                      ;
+    if (dim.between || !Array.isArray(dim.from) || !Array.isArray(dim.to)) return d;
+    const from = dim.from        ;
+    const to = dim.to        ;
+    const v = sub(to, from);
+    const i = ([0, 1, 2]         ).reduce((a, b) => (Math.abs(v[b]) > Math.abs(v[a]) ? b : a));
+    const [lo, hi] = v[i] >= 0 ? [from[i], to[i]] : [to[i], from[i]];
+    // The member whose far side (max) is at the low end, and the one whose near side (min) is at the high end;
+    // whole members only (a repeat or a group member is ambiguous), the closest fit wins
+    const near = (side               , at        ) => {
+      let pick                                     = null;
+      for (const m of members) {
+        if (m.id.includes('#') || m.group) continue;
+        const b = boundsOf([m]);
+        const off = Math.abs(b[side][i] - at);
+        if (off <= 3 && (!pick || off < pick.off)) pick = { id: m.id, off };
+      }
+      return pick?.id ?? null;
+    };
+    const a = near('max', lo);
+    const b = near('min', hi);
+    if (!a || !b || a === b) return d;
+    const line = gapLine(members, a, b);
+    if (!line || Math.abs(len(sub(line.to, line.from)) - (hi - lo)) > 3) return d;
+    return { between: [baseId(a), baseId(b)], ...(dim.label ? { label: dim.label } : {}) };
+  });
+  return { ...(raw          ), dimensions: dims };
+}
+
+/** A dimension's label is a name ("פתח", "קטע מוחלף"); a number in it would go stale when the layout changes. */
+function dimensionName(label                           )                {
+  const t = label?.trim();
+  return t && !/\d/.test(t) ? t : null;
+}
+
+                                
+             
+           
+                            
+             
+                      
+             
+ 
+
+/**
+ * What the 3D view measures, always from the geometry: each moving leaf, the overall width and height,
+ * and the layout's own extra dimensions.
+ */
+function dimensionLines(scene               )                  {
+  const b = workBounds(scene);
+  const out                  = [];
+  const front = b.max[2] + 350;
+  const leaves = scene.groups
+    .map((g) => scene.members.filter((m) => m.group === g.id))
+    .filter((ms) => ms.length > 0)
+    .map((ms) => boundsOf(ms));
+  for (const lb of leaves) {
+    out.push({ from: [lb.min[0], 15, front], to: [lb.max[0], 15, front], mm: Math.round(lb.max[0] - lb.min[0]), name: null, axis: 'x' });
+  }
+  const overallZ = leaves.length > 0 ? front + 400 : front;
+  out.push({ from: [b.min[0], 15, overallZ], to: [b.max[0], 15, overallZ], mm: Math.round(b.max[0] - b.min[0]), name: null, axis: 'x' });
+  out.push({ from: [b.max[0] + 350, 0, 0], to: [b.max[0] + 350, b.max[1], 0], mm: Math.round(b.max[1]), name: null, axis: 'y' });
+  for (const d of scene.dimensions ?? []) {
+    const v = sub(d.to, d.from);
+    const axis       = Math.abs(v[1]) >= Math.abs(v[0]) && Math.abs(v[1]) >= Math.abs(v[2]) ? 'y' : Math.abs(v[0]) >= Math.abs(v[2]) ? 'x' : 'z';
+    out.push({ from: d.from, to: d.to, mm: Math.round(len(v)), name: dimensionName(d.label), axis });
+  }
+  return out;
+}
+
+return { PROFILES, SLOPE_UPS, PART_KINDS, PART_LABELS, add, sub, scale, dot, cross, len, norm, sectionAxes, arcThrough, arcPoint, memberLength, rolledAxes, halfExtent, prepareScene, trimDistance, sectionName, kgPerMetre, markLabel, cutList, metalBounds, workBounds, plateAxes, plateCorners, boundsOf, gapLine, outsideLayout, anchorDimensions, dimensionName, dimensionLines };
+})();
+const __drawing = (() => {
+/**
+ * Shop drawing from a 3D layout: front elevation (seen from the street) with dimensions, piece marks
+ * and the cut list, on an A3 sheet. Pure string output (SVG), so it works in the app, on the server and
+ * in tests. A fabrication aid, not an engineered drawing.
+ */
+const { add, arcPoint, arcThrough, boundsOf, cutList, dimensionName, memberLength, norm, plateCorners, rolledAxes, scale, sectionAxes, sub, workBounds } = __scene;
+                                                                               
+const { BEAMS } = __sections;
+
+                           
+
+const SHEET_W = 420;
+const SHEET_H = 297;
+const AREA = { x: 12, y: 12, w: 268, h: 228 };
+const TABLE = { x: 290, w: 120 };
+const SCALES = [1, 2, 5, 10, 20, 25, 50, 100, 200];
+
+const esc = (s        ) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const r1 = (n        ) => Math.round(n * 100) / 100;
+
+/** Half extents of a member's section along its face (f) and depth (n) axes. */
+function halfSection(m                )                   {
+  const [a = 0, b = a] = m.size;
+  switch (m.profile) {
+    case 'round_tube':
+    case 'round_bar':
+      return [a / 2, a / 2];
+    case 'square_bar':
+      return [a / 2, a / 2];
+    case 'upn':
+    case 'ipe':
+    case 'hea': {
+      const s = BEAMS[m.profile][a];
+      return [s.h / 2, s.b / 2];
+    }
+    default:
+      return [a / 2, b / 2];
+  }
+}
+
+function hull(points      )       {
+  const pts = [...points].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  if (pts.length < 3) return pts;
+  const crossZ = (o    , a    , b    ) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower       = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && crossZ(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper       = [];
+  for (const p of pts.reverse()) {
+    while (upper.length >= 2 && crossZ(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
+/** Outline of a member in the front view (model mm, X right, Y up). */
+function memberOutline(m                )       {
+  const [hf, hn] = halfSection(m);
+  if (m.via) {
+    const arc = arcThrough(m.from, m.via, m.to);
+    if (arc) {
+      const outer       = [];
+      const inner       = [];
+      for (let i = 0; i <= 32; i++) {
+        const p = arcPoint(arc, i / 32);
+        const radial = norm(sub(p, arc.center));
+        const o = add(p, scale(radial, hf));
+        const n = sub(p, scale(radial, hf));
+        outer.push([o[0], o[1]]);
+        inner.push([n[0], n[1]]);
+      }
+      return [...outer, ...inner.reverse()];
+    }
+  }
+  const axes = sectionAxes(sub(m.to, m.from));
+  const { f, n } = rolledAxes(axes.f, axes.n, m.roll);
+  const corners       = [];
+  for (const end of [m.from, m.to]) {
+    for (const sf of [-1, 1]) {
+      for (const sn of [-1, 1]) {
+        const p = add(end, add(scale(f, sf * hf), scale(n, sn * hn)));
+        corners.push([p[0], p[1]]);
+      }
+    }
+  }
+  return hull(corners);
+}
+
+function midpoint(m                )       {
+  if (m.via) {
+    const arc = arcThrough(m.from, m.via, m.to);
+    if (arc) return arcPoint(arc, 0.5);
+  }
+  return scale(add(m.from, m.to), 0.5);
+}
+
+                                 
+                
+                    
+                
+                                                                                                         
+                     
+ 
+
+function shopDrawingSvg(scene               , opts                 = {})         {
+  const cut = opts.cut ?? cutList(scene);
+  // Frame the fabricated work. A long ground track would otherwise shrink the drawing; it stays in the
+  // cut list and is clipped at the sheet's edge.
+  const b = workBounds(scene);
+  const footings = scene.parts.filter(
+    (p) => p.kind === 'footing' && p.at[0] > b.min[0] - 500 && p.at[0] < b.max[0] + 500 && (p.size?.[0] ?? 0) < 3000,
+  );
+  let minY = Math.min(b.min[1], 0);
+  for (const f of footings) minY = Math.min(minY, f.at[1] - (f.size?.[1] ?? 600) / 2);
+  const modelW = Math.max(b.max[0] - b.min[0], 1);
+  const modelH = Math.max(b.max[1] - minY, 1);
+
+  // Largest standard scale that fits, leaving room for dimensions
+  const fit = Math.min((AREA.w - 40) / modelW, (AREA.h - 36) / modelH);
+  const denom = SCALES.find((d) => 1 / d <= fit) ?? Math.ceil(1 / fit);
+  const s = 1 / denom;
+  const ox = AREA.x + 20 + (AREA.w - 40 - modelW * s) / 2 - b.min[0] * s;
+  const oy = AREA.y + 14 + (AREA.h - 36 - modelH * s) / 2 + b.max[1] * s;
+  const X = (x        ) => r1(ox + x * s);
+  const Y = (y        ) => r1(oy - y * s);
+  const poly = (pts      ) => pts.map(([x, y]) => `${X(x)},${Y(y)}`).join(' ');
+
+  const out           = [];
+  out.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${SHEET_W}mm" height="${SHEET_H}mm" viewBox="0 0 ${SHEET_W} ${SHEET_H}" font-family="IBM Plex Sans Hebrew, Arial, sans-serif">`,
+    `<rect width="${SHEET_W}" height="${SHEET_H}" fill="#fff"/>`,
+    `<rect x="6" y="6" width="${SHEET_W - 12}" height="${SHEET_H - 12}" fill="none" stroke="#111" stroke-width="0.5"/>`,
+    `<defs><clipPath id="area"><rect x="${AREA.x}" y="${AREA.y}" width="${AREA.w}" height="${AREA.h}"/></clipPath>`,
+    `<pattern id="hatch" width="2" height="2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="2" stroke="#999" stroke-width="0.25"/></pattern></defs>`,
+    `<g clip-path="url(#area)">`,
+  );
+
+  // Surroundings and footings, dashed
+  for (const so of scene.solids) {
+    const [cx, cy] = so.center;
+    const [w, h] = so.size;
+    out.push(
+      `<rect x="${X(cx - w / 2)}" y="${Y(cy + h / 2)}" width="${r1(w * s)}" height="${r1(h * s)}" fill="none" stroke="#aaa" stroke-width="0.25" stroke-dasharray="1.5 1"/>`,
+    );
+  }
+  for (const f of footings) {
+    const [w = 400, h = 600] = f.size ?? [];
+    out.push(
+      `<rect x="${X(f.at[0] - w / 2)}" y="${Y(f.at[1] + h / 2)}" width="${r1(w * s)}" height="${r1(h * s)}" fill="url(#hatch)" stroke="#888" stroke-width="0.25" stroke-dasharray="1.5 1"/>`,
+    );
+  }
+  // Ground
+  out.push(
+    `<line x1="${AREA.x}" y1="${Y(0)}" x2="${AREA.x + AREA.w}" y2="${Y(0)}" stroke="#555" stroke-width="0.35"/>`,
+  );
+
+  // Plates behind, then members far to near
+  for (const p of scene.plates) {
+    if (p.slope) {
+      // A sloped roof seen from the front: its corners, projected
+      const pts = plateCorners(p).map((c) => `${X(c[0])},${Y(c[1])}`).join(' ');
+      out.push(`<polygon points="${pts}" fill="#f2f2f2" stroke="#444" stroke-width="0.2" stroke-linejoin="round"/>`);
+      continue;
+    }
+    const [a, c] = p.size;
+    const [w, h] = p.normal === 'z' ? [a, c] : p.normal === 'x' ? [p.thickness, c] : [a, p.thickness];
+    out.push(
+      `<rect x="${X(p.center[0] - w / 2)}" y="${Y(p.center[1] + h / 2)}" width="${r1(w * s)}" height="${r1(h * s)}" fill="#f2f2f2" stroke="#444" stroke-width="0.2"/>`,
+    );
+  }
+  const members = [...scene.members].sort((a, c) => (a.from[2] + a.to[2]) / 2 - (c.from[2] + c.to[2]) / 2);
+  for (const m of members) {
+    out.push(`<polygon points="${poly(memberOutline(m))}" fill="#e6e6e6" stroke="#111" stroke-width="0.22" stroke-linejoin="round"/>`);
+  }
+
+  // Hardware as simple symbols
+  for (const p of scene.parts) {
+    const [x, y] = p.at;
+    if (p.kind === 'footing') continue;
+    if (p.kind === 'wheel' || p.kind === 'scroll' || p.kind === 'guide_roller') {
+      const r = ((p.size?.[0] ?? (p.kind === 'scroll' ? 120 : 100)) / 2) * s;
+      out.push(`<circle cx="${X(x)}" cy="${Y(y)}" r="${r1(Math.max(r, 0.8))}" fill="none" stroke="#111" stroke-width="0.25"/>`);
+    } else {
+      const [w, h] = p.kind === 'hinge' ? [30, 120] : p.kind === 'lock' ? [100, 160] : p.kind === 'motor' ? [300, 300] : [40, 40];
+      out.push(
+        `<rect x="${X(x - w / 2)}" y="${Y(y + h / 2)}" width="${r1(Math.max(w * s, 0.8))}" height="${r1(Math.max(h * s, 0.8))}" fill="#333"/>`,
+      );
+    }
+  }
+  out.push('</g>');
+
+  // Dimensions
+  const text = (x        , y        , t        , size = 2.8, extra = '') =>
+    `<text x="${r1(x)}" y="${r1(y)}" font-size="${size}" text-anchor="middle" fill="#111"${extra}>${esc(t)}</text>`;
+  const tick = (x        , y        ) => `<line x1="${r1(x - 0.9)}" y1="${r1(y + 0.9)}" x2="${r1(x + 0.9)}" y2="${r1(y - 0.9)}" stroke="#111" stroke-width="0.3"/>`;
+  const dimH = (x1        , x2        , y        , objY        , label        ) => {
+    out.push(
+      `<line x1="${X(x1)}" y1="${r1(Math.min(objY, y) - 0)}" x2="${X(x1)}" y2="${r1(y + 1.5)}" stroke="#666" stroke-width="0.15"/>`,
+      `<line x1="${X(x2)}" y1="${r1(Math.min(objY, y))}" x2="${X(x2)}" y2="${r1(y + 1.5)}" stroke="#666" stroke-width="0.15"/>`,
+      `<line x1="${X(x1)}" y1="${r1(y)}" x2="${X(x2)}" y2="${r1(y)}" stroke="#111" stroke-width="0.2"/>`,
+      tick(X(x1), y),
+      tick(X(x2), y),
+      text((X(x1) + X(x2)) / 2, y - 1, label),
+    );
+  };
+  const dimV = (y1        , y2        , x        , objX        , label        ) => {
+    out.push(
+      `<line x1="${r1(objX)}" y1="${Y(y1)}" x2="${r1(x + 1.5)}" y2="${Y(y1)}" stroke="#666" stroke-width="0.15"/>`,
+      `<line x1="${r1(objX)}" y1="${Y(y2)}" x2="${r1(x + 1.5)}" y2="${Y(y2)}" stroke="#666" stroke-width="0.15"/>`,
+      `<line x1="${r1(x)}" y1="${Y(y1)}" x2="${r1(x)}" y2="${Y(y2)}" stroke="#111" stroke-width="0.2"/>`,
+      tick(x, Y(y1)),
+      tick(x, Y(y2)),
+      text(x - 1, (Y(y1) + Y(y2)) / 2, label, 2.8, ` transform="rotate(-90 ${r1(x - 1)} ${r1((Y(y1) + Y(y2)) / 2)})"`),
+    );
+  };
+
+  const groundY = Y(Math.min(minY, 0));
+  const leafRows = scene.groups
+    .map((g) => {
+      const ms = scene.members.filter((m) => m.group === g.id);
+      if (ms.length === 0) return null;
+      const lb = boundsOf(ms);
+      return { label: g.label ?? g.id, minX: lb.min[0], maxX: lb.max[0], minY: lb.min[1], maxY: lb.max[1] };
+    })
+    .filter((x)                             => x !== null);
+
+  let dimY = groundY + 6;
+  if (leafRows.length > 0) {
+    for (const l of leafRows) dimH(l.minX, l.maxX, dimY, Y(l.minY), String(Math.round(l.maxX - l.minX)));
+    dimY += 7;
+  }
+  dimH(b.min[0], b.max[0], dimY, Y(b.min[1]), String(Math.round(b.max[0] - b.min[0])));
+
+  const rightX = X(b.max[0]);
+  dimV(0, b.max[1], rightX + 8, rightX + 1, String(Math.round(b.max[1])));
+  if (leafRows[0]) {
+    const l = leafRows[0];
+    dimV(l.minY, l.maxY, rightX + 15, rightX + 1, String(Math.round(l.maxY - l.minY)));
+    if (l.minY > 5) dimV(0, l.minY, rightX + 15, rightX + 1, String(Math.round(l.minY)));
+  }
+  if (b.min[1] < -5) dimV(b.min[1], 0, X(b.min[0]) - 8, X(b.min[0]) - 1, String(Math.round(-b.min[1])));
+  // The layout's own dimensions: measured here, the label is only a name
+  for (const d of scene.dimensions ?? []) {
+    const name = dimensionName(d.label);
+    const horizontal = Math.abs(d.to[0] - d.from[0]) >= Math.abs(d.to[1] - d.from[1]);
+    const mm = Math.round(horizontal ? Math.abs(d.to[0] - d.from[0]) : Math.abs(d.to[1] - d.from[1]));
+    const label = name ? `${name} ${mm}` : String(mm);
+    if (horizontal) dimH(Math.min(d.from[0], d.to[0]), Math.max(d.from[0], d.to[0]), Y(Math.max(d.from[1], d.to[1])) - 6, Y(d.from[1]), label);
+    else dimV(Math.min(d.from[1], d.to[1]), Math.max(d.from[1], d.to[1]), X(Math.min(d.from[0], d.to[0])) - 6, X(d.from[0]), label);
+  }
+
+  // Piece marks: one bubble per mark, beside its first piece, nudged until it doesn't cover another bubble
+  const placed       = [];
+  for (const piece of cut.pieces) {
+    const m = scene.members.find((x) => x.id === piece.ids[0]);
+    if (!m) continue;
+    const mid = midpoint(m);
+    const dir = norm(sub(m.to, m.from));
+    const vertical = Math.abs(dir[1]) > 0.7 && !m.via;
+    const [hf] = halfSection(m);
+    const off = hf * s + 3.2;
+    let bx = vertical ? X(mid[0]) + off : X(mid[0]);
+    let by = vertical ? Y(mid[1]) : Y(mid[1]) - off;
+    for (let k = 0; k < 12 && placed.some(([px, py]) => Math.hypot(px - bx, py - by) < 5.2); k++) {
+      if (vertical) by -= 5.4;
+      else bx += 5.4;
+    }
+    placed.push([bx, by]);
+    out.push(
+      `<line x1="${X(mid[0])}" y1="${Y(mid[1])}" x2="${r1(bx)}" y2="${r1(by)}" stroke="#111" stroke-width="0.15"/>`,
+      `<circle cx="${r1(bx)}" cy="${r1(by)}" r="2.4" fill="#fff" stroke="#111" stroke-width="0.25"/>`,
+      text(bx, by + 1, piece.mark, 2.6, ' font-weight="bold"'),
+    );
+  }
+
+  // Cut list table (right side, Hebrew, right-aligned)
+  const right = TABLE.x + TABLE.w;
+  const col = { mark: right - 2, desc: right - 12, qty: TABLE.x + 30, len: TABLE.x + 16 };
+  let ty = 18;
+  // Hebrew lines: right-to-left paragraphs anchored at their right edge
+  const rt = (x        , y        , t        , size = 2.6, extra = '') =>
+    `<text x="${r1(x)}" y="${r1(y)}" font-size="${size}" direction="rtl" text-anchor="start" fill="#111"${extra}>${esc(t)}</text>`;
+  out.push(rt(right - 2, ty, 'רשימת חיתוך', 4, ' font-weight="bold"'));
+  ty += 6;
+  out.push(
+    rt(col.mark, ty, 'סימון', 2.4, ' font-weight="bold"'),
+    rt(col.desc, ty, 'תיאור', 2.4, ' font-weight="bold"'),
+    rt(col.qty, ty, 'כמות', 2.4, ' font-weight="bold"'),
+    rt(col.len, ty, 'אורך', 2.4, ' font-weight="bold"'),
+    `<line x1="${TABLE.x}" y1="${ty + 1.4}" x2="${right}" y2="${ty + 1.4}" stroke="#111" stroke-width="0.25"/>`,
+  );
+  ty += 5;
+  const maxRows = 30;
+  for (const p of cut.pieces.slice(0, maxRows)) {
+    out.push(
+      rt(col.mark, ty, p.mark, 2.6, ' font-weight="bold"'),
+      rt(col.desc, ty, `${p.name}${p.bent ? ' (מכופף)' : ''}`),
+      rt(col.qty, ty, String(p.count)),
+      rt(col.len, ty, String(p.length)),
+      `<line x1="${TABLE.x}" y1="${ty + 1.4}" x2="${right}" y2="${ty + 1.4}" stroke="#ccc" stroke-width="0.15"/>`,
+    );
+    ty += 4.6;
+  }
+  if (cut.pieces.length > maxRows) {
+    out.push(rt(right - 2, ty, `ועוד ${cut.pieces.length - maxRows} שורות ברשימה המלאה`, 2.4));
+    ty += 4.6;
+  }
+  for (const p of cut.plates) {
+    out.push(rt(col.desc, ty, `${p.name} ${p.w}/${p.h}`), rt(col.qty, ty, String(p.count)));
+    ty += 4.6;
+  }
+  if (cut.parts.length > 0) {
+    ty += 1.5;
+    out.push(rt(right - 2, ty, cut.parts.map((p) => `${p.label} ${p.count}`).join(', '), 2.4));
+    ty += 4.6;
+  }
+  out.push(rt(right - 2, ty + 1.5, `משקל ברזל משוער: ${Math.round(cut.totalKg)} ק״ג`, 2.6, ' font-weight="bold"'));
+
+  // Assumptions under the drawing
+  const notes = (scene.notes ?? []).slice(0, 4);
+  notes.forEach((n, i) => out.push(rt(AREA.x + AREA.w, AREA.y + AREA.h + 8 + i * 4, `• ${n}`, 2.4)));
+
+  // Title block
+  const tb = { x: TABLE.x, y: 247, w: TABLE.w, h: 44 };
+  out.push(
+    `<rect x="${tb.x}" y="${tb.y}" width="${tb.w}" height="${tb.h}" fill="none" stroke="#111" stroke-width="0.4"/>`,
+    rt(right - 3, tb.y + 7, scene.title, 4, ' font-weight="bold"'),
+    rt(right - 3, tb.y + 13.5, 'שרטוט ייצור: חזית, מבט מהרחוב', 2.8),
+    rt(right - 3, tb.y + 19, opts.page === 'A4' ? `מידות במ״מ. על A4 מוקטן (1:${denom} על A3): מודדים לפי המספרים` : `מידות במ״מ. קנה מידה 1:${denom} בהדפסה על A3`, 2.6),
+    rt(right - 3, tb.y + 24.5, scene.finish?.name ? `גמר: ${scene.finish.name}` : 'גמר: לפי הצעת המחיר', 2.6),
+    rt(right - 3, tb.y + 30, 'אורכים לחיתוך לפי מרכז הפרופיל, חיבורי קצה ישרים. לבדוק לפני חיתוך.', 2.3),
+    rt(right - 3, tb.y + 38.5, `${opts.business ?? 'גץ ועפר'}${opts.date ? `, ${opts.date}` : ''}`, 2.8, ' font-weight="bold"'),
+  );
+  out.push('</svg>');
+  return out.join('\n');
+}
+
+/** Total length (m) of all members, for quick checks against the bill of quantities. */
+function totalMetres(scene               )         {
+  return Math.round(scene.members.reduce((sum, m) => sum + memberLength(m), 0)) / 1000;
+}
+
+
+return { memberOutline, shopDrawingSvg, totalMetres };
+})();
+const __layoutPrompt = (() => {
+/**
+ * Instructions that turn a description (+ bill of quantities, photo or sketch) into layout JSON
+ * (see scene.ts), and the prompt around them. Shared by the app (Gemini) and the prototype (Claude).
+ */
+const { SHEETS } = __sheets;
+
+const LAYOUT_INSTRUCTIONS = `You turn a metalwork job (gate, fence, railing, pergola, stairs, pipe work) into a 3D layout that a viewer draws.
+The input is a description, usually in Hebrew and often dictated, and sometimes a bill of quantities.
+Reply with ONE JSON object and nothing else: no prose, no code fences.
+
+AXES AND UNITS
+- Millimetres. Y is up and the ground is y = 0 (anything set in concrete goes below 0).
+- X runs along the opening, left to right as seen from the street. Start the work at x = 0.
+- Z is depth: +Z faces the street, -Z is inside the property. The gate or fence plane is z = 0.
+
+MEMBERS: every piece of profile, tube or bar. "members": [ ... ]
+{ "id": "post-l", "profile": "rect_tube", "size": [100, 100, 4], "material": "black", "from": [50, -600, 0], "to": [50, 1900, 0], "label": "עמוד" }
+- from and to are the real ends of the piece on its centre line, so the distance between them is the cut length.
+- Butt joints, no mitres: posts and stiles run the full height; rails sit between the stiles, face to face;
+  pickets sit between the rails. A rail between stiles centred at x=140 and x=2530 (50 wide) runs from x=165 to x=2505.
+- profile and size:
+  rect_tube [face, depth, wall]  square or rectangular tube. face = the width you see from the street
+                                 (for a horizontal member: its height); depth = across the gate (along Z).
+  round_tube [outside diameter, wall]   round_bar [diameter]   square_bar [side]
+  flat [width, thickness] (the width faces the street)   angle [leg, leg, thickness]
+  upn [height]  ipe [height]  hea [height]   (standard tables: upn 50–200, ipe 80–300, hea 100–240)
+- Use sizes that exist in Israel: square 20/20 to 150/150, rectangular 30/20, 40/20, 50/25, 50/30, 60/30, 60/40, 80/40,
+  100/50, 120/60; walls 1.5, 2, 3, 4 mm; flats 20/3 to 100/10; bars Ø8 to Ø25; tubes ½ to 4 inch
+  (outside 21.3, 26.9, 33.7, 42.4, 48.3, 60.3, 76.1, 88.9, 114.3).
+- material: black (painted steel, the default), galv, stainless, aluminum.
+- Arcs: add "via", a point on the curve between from and to (for an arch: the top middle point).
+- Many identical pieces: "repeat": { "count": N, "between": [a, b], "axis": "x" } puts N copies evenly spaced strictly between
+  coordinates a and b on that axis (the member's own coordinate on that axis is ignored). Or "repeat": { "count": N, "step": [dx, dy, dz] }.
+  For "every 12 cm" between a and b: N = round((b - a) / 120) - 1.
+- "trim_to": "<member id>" stops a member where it meets that member's face. Pickets under an arched top: give them a
+  generous "to" height and "trim_to" the arch.
+- "end_cap": "finial" | "ball" | "cap" decorates the "to" end (spear tops, ball tops, post caps).
+- "roll": degrees about the member's own axis (rarely needed; e.g. 45 for a V track made of angle).
+- "group": "<group id>" on everything that moves together (a gate leaf).
+
+PLATES: sheets, cladding, base plates, closing plates. "plates": [ { "center": [x, y, z], "size": [a, b], "normal": "z", "thickness": 2 } ]
+  normal "z": size = [width along x, height along y]. normal "x": [along z, along y]. normal "y": [along x, along z].
+  Roofing of a canopy or pergola (סנטף, פוליקרבונט, פוליגל) is a plate with "sheet" and "tint" instead of steel:
+  "sheet": ${SHEETS.map((s) => `${s.key} (${s.short})`).join(', ')}.
+  "tint": clear | bronze | opal | gray. "thickness" is the profile's depth (${SHEETS.map((s) => `${s.key} ${s.depth}`).join(', ')}).
+  Put it on top of the purlins (normal "y"); purlins under trapeze or corrugated sheets at most 1000 mm apart.
+  A sloped plate (a lean-to or pitched roof) has normal "y" and "slope": { "up": "+x" | "-x" | "+z" | "-z", "deg": 10 }:
+  "up" is the direction it rises towards, "center" is the middle of the sheet, "size" is its true size along the slope
+  (the plan length divided by the cosine of the angle). Trapeze sheets need at least 5 degrees.
+
+PARTS: hardware. "parts": [ { "kind": "hinge", "at": [x, y, z] } ]
+  kinds: hinge, wheel, guide_roller, lock, handle, drop_bolt, stopper, footing, motor, cap, finial, scroll.
+  footing has "size": [x, y, z] of the concrete block. wheel "size": [diameter, width]. Parts may have "group" and "repeat".
+
+SURROUNDINGS (not steel, not in the cut list): "solids": [ { "kind": "stone", "center": [x, y, z], "size": [x, y, z] } ]
+  kinds: concrete, stone, plaster, wood, paving. Use them for existing walls, pillars and paving the work attaches to.
+
+MEASUREMENTS (optional): "dimensions": [ { "between": ["post-l", "post-r"], "label": "פתח" } ]
+  Extra measurements the client cares about that the overall size does not show: the opening between two posts, a
+  replaced pipe segment, a step height. Prefer "between" with two member or group ids: the clear gap between them is
+  measured from the geometry, so it stays right when they move. Only for something with no member at its ends (a gap
+  between walls) use { "from": [x, y, z], "to": [x, y, z], "label": "..." }, and move those points with the geometry
+  when you change it. "label" is a short NAME only, never a number. Overall width, height and each leaf are measured
+  automatically: do not add those. Keep the "between" entries of the current layout as they are.
+
+MOVING PARTS: "groups": [ { "id": "leaf-l", "label": "כנף שמאל", "motion": { "type": "swing", "pivot": [x, 0, z], "angle": 90 } } ]
+  swing: about a vertical axis through pivot (the hinge line). Opening inward, away from the street:
+         a leaf hinged on its LEFT side uses +90, a leaf hinged on its RIGHT side uses -90.
+  slide: { "type": "slide", "offset": [dx, 0, 0] } = how far the leaf travels to open.
+
+TOP LEVEL
+{ "version": 1, "title": "...", "material": "black",
+  "finish": { "color": "#2f3337", "name": "צביעה בתנור אפור גרפיט" },
+  "members": [...], "plates": [...], "parts": [...], "solids": [...], "groups": [...], "dimensions": [...], "notes": ["..."] }
+- title, labels and notes in Hebrew. Write sizes as 60/40/2, never with ×. Never names, phone numbers or addresses of people.
+- notes: the assumptions you made (sizes you chose, measurements that were missing). Keep them short.
+- Realistic details: 10–20 mm between a leaf and its post on the hinge side, 10–15 mm between two leaves,
+  50–80 mm under a swing gate; posts 500–700 mm into a concrete footing; at least two hinges per leaf
+  (three above 2 m tall or 150 kg); a sliding gate needs wheels on a ground track and a guide roller at the top.
+- If a bill of quantities is given, use exactly those profiles and sizes.
+
+CHANGES
+If you get a current layout and a request, apply the request and return the COMPLETE updated layout under the same
+rules, keeping everything else as it was. Recompute whatever depends on the change (positions, lengths, repeats, trims).`;
+
+                                
+                      
+                               
+                   
+               
+                         
+                            
+ 
+
+                                    
+                                                                      
+                        
+                                                                         
+                    
+                                              
+                      
+                                         
+                  
+                     
+ 
+
+function boqLine(l               )         {
+  const what = l.element_name && l.element_name !== l.description ? `${l.description} [${l.element_name}]` : l.description;
+  if (l.pieces && l.length_mm) return `- ${what}: ${l.pieces} pieces of ${l.length_mm} mm`;
+  return `- ${what}: ${l.quantity} ${l.unit}`;
+}
+
+/** The whole prompt: instructions, job, bill of quantities, current layout, the request. Never client details. */
+function buildLayoutPrompt(input                   )         {
+  const parts = [LAYOUT_INSTRUCTIONS];
+  if (input.job) {
+    parts.push(
+      [`JOB: ${input.job.title}`, input.job.kind ? `Type: ${input.job.kind}` : '', input.job.description ? `Notes: ${input.job.description}` : '']
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+  if (input.boq && input.boq.length > 0) {
+    parts.push(`BILL OF QUANTITIES (use these profiles and sizes):\n${input.boq.slice(0, 80).map(boqLine).join('\n')}`);
+  }
+  if (input.current) {
+    parts.push(`CURRENT LAYOUT:\n${JSON.stringify(input.current)}`);
+    const reqs = (input.requests ?? []).slice(-10);
+    if (reqs.length > 0) parts.push(`Changes already applied, oldest first:\n${reqs.map((r) => `- ${r}`).join('\n')}`);
+    parts.push(`REQUEST (Hebrew):\n${input.request}`);
+  } else {
+    parts.push(`DESCRIPTION (Hebrew):\n${input.request}`);
+  }
+  if (input.hasImage) {
+    parts.push('An image is attached: a photo or a hand sketch of the work. Follow its design and proportions; measurements in the text win.');
+  }
+  parts.push('Reply with the complete layout as ONE JSON object, nothing else.');
+  return parts.join('\n\n');
+}
+
+/** Requests that built the current design, oldest first: newest version back to the one that started it. */
+function designRequests(history                                                    )           {
+  const out           = [];
+  for (const v of history) {
+    if (v.request) out.unshift(v.request);
+    if (v.mode === 'new') break;
+  }
+  return out;
+}
+
+/** Pulls the JSON object out of a model reply (code fences or a sentence around it are tolerated). */
+function parseLayoutReply(text        )          {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end <= start) throw new Error('no_json');
+  return JSON.parse(text.slice(start, end + 1));
+}
+
+return { LAYOUT_INSTRUCTIONS, buildLayoutPrompt, designRequests, parseLayoutReply };
+})();
+window.GVA_CORE = Object.freeze({ ...__steel, ...__sections, ...__sheets, ...__catalog, ...__scene, ...__drawing, ...__layoutPrompt });
+
+</script>
+<script>
+window.GVA_EXAMPLES = {"double-gate":{"label":"שער כנף כפולה","layout":{"version":1,"title":"שער כנף כפולה לחניה, 4.9 מ׳","material":"black","finish":{"color":"#3b4045","name":"צביעה בתנור אפור גרפיט"},"members":[{"id":"post-l","label":"עמוד שמאל","profile":"rect_tube","size":[100,100,4],"from":[50,-600,0],"to":[50,1900,0],"end_cap":"cap"},{"id":"post-r","label":"עמוד ימין","profile":"rect_tube","size":[100,100,4],"from":[5072,-600,0],"to":[5072,1900,0],"end_cap":"cap"},{"id":"l-hinge-stile","label":"עמוד כנף (צירים)","group":"leaf-l","profile":"rect_tube","size":[50,50,3],"from":[140,60,0],"to":[140,1860,0]},{"id":"l-latch-stile","label":"עמוד כנף (סגירה)","group":"leaf-l","profile":"rect_tube","size":[50,50,3],"from":[2530,60,0],"to":[2530,1860,0]},{"id":"l-bottom","label":"משקוף תחתון","group":"leaf-l","profile":"rect_tube","size":[50,50,3],"from":[165,85,0],"to":[2505,85,0]},{"id":"l-top","label":"משקוף עליון","group":"leaf-l","profile":"rect_tube","size":[50,50,3],"from":[165,1835,0],"to":[2505,1835,0]},{"id":"l-pickets","label":"שבכה","group":"leaf-l","profile":"rect_tube","size":[20,20,1.5],"from":[0,110,0],"to":[0,1810,0],"repeat":{"count":19,"between":[165,2505],"axis":"x"}},{"id":"r-latch-stile","label":"עמוד כנף (סגירה)","group":"leaf-r","profile":"rect_tube","size":[50,50,3],"from":[2592,60,0],"to":[2592,1860,0]},{"id":"r-hinge-stile","label":"עמוד כנף (צירים)","group":"leaf-r","profile":"rect_tube","size":[50,50,3],"from":[4982,60,0],"to":[4982,1860,0]},{"id":"r-bottom","label":"משקוף תחתון","group":"leaf-r","profile":"rect_tube","size":[50,50,3],"from":[2617,85,0],"to":[4957,85,0]},{"id":"r-top","label":"משקוף עליון","group":"leaf-r","profile":"rect_tube","size":[50,50,3],"from":[2617,1835,0],"to":[4957,1835,0]},{"id":"r-pickets","label":"שבכה","group":"leaf-r","profile":"rect_tube","size":[20,20,1.5],"from":[0,110,0],"to":[0,1810,0],"repeat":{"count":19,"between":[2617,4957],"axis":"x"}}],"parts":[{"kind":"hinge","at":[107.5,250,0],"group":"leaf-l","repeat":{"count":2,"step":[0,1400,0]}},{"kind":"hinge","at":[5014.5,250,0],"group":"leaf-r","repeat":{"count":2,"step":[0,1400,0]}},{"kind":"lock","at":[2530,1000,-45],"group":"leaf-l"},{"kind":"handle","at":[2490,1000,45],"group":"leaf-l"},{"kind":"drop_bolt","at":[2650,300,-35],"group":"leaf-r"},{"kind":"footing","at":[50,-350,0],"size":[400,700,400]},{"kind":"footing","at":[5072,-350,0],"size":[400,700,400]}],"solids":[{"kind":"stone","label":"קיר אבן","center":[-900,750,0],"size":[1800,1500,300]},{"kind":"stone","label":"קיר אבן","center":[6022,750,0],"size":[1800,1500,300]},{"kind":"paving","label":"שביל גישה","center":[2561,-25,0],"size":[5022,50,6000]}],"groups":[{"id":"leaf-l","label":"כנף שמאל","motion":{"type":"swing","pivot":[107.5,0,0],"angle":90}},{"id":"leaf-r","label":"כנף ימין","motion":{"type":"swing","pivot":[5014.5,0,0],"angle":-90}}],"notes":["שתי כנפיים של 2.44 מ׳ (8 רגל) לפי הפרויקט","מסגרת 50/50/3 ושבכה 20/20/1.5 לפי ההמלצה בדיון","גובה 1.80 מ׳ לא צוין ונבחר גובה מקובל","עמודים 100/100/4, 60 ס״מ בתוך יסוד בטון"],"source":{"title":"Garage Journal: steel driveway gate, two 8 ft leaves","url":"https://www.garagejournal.com/forum/posts/11638319/"}}},"sliding-gate":{"label":"שער הזזה","layout":{"version":1,"title":"שער הזזה לחניה, 6.13 מ׳","material":"black","finish":{"color":"#383e42","name":"יסוד אבץ וצבע תעשייתי אפור (RAL 7016)"},"members":[{"id":"stile-l","label":"עמוד קצה","group":"leaf","profile":"rect_tube","size":[80,40,3],"from":[40,110,0],"to":[40,1949,0]},{"id":"stile-r","label":"עמוד קצה","group":"leaf","profile":"rect_tube","size":[80,40,3],"from":[6088,110,0],"to":[6088,1949,0]},{"id":"bottom","label":"קורה תחתונה","group":"leaf","profile":"rect_tube","size":[80,40,3],"from":[80,150,0],"to":[6048,150,0]},{"id":"top","label":"קורה עליונה","group":"leaf","profile":"rect_tube","size":[80,40,3],"from":[80,1909,0],"to":[6048,1909,0]},{"id":"middle","label":"עמוד אמצעי","group":"leaf","profile":"rect_tube","size":[80,40,3],"from":[3064,190,0],"to":[3064,1869,0]},{"id":"infill","label":"מילוי","group":"leaf","profile":"rect_tube","size":[50,25,2],"from":[0,190,0],"to":[0,1869,0],"repeat":{"count":24,"between":[80,6048],"axis":"x"}},{"id":"track","label":"מסילה","profile":"angle","size":[40,40,4],"from":[-6400,20,0],"to":[6300,20,0],"roll":225},{"id":"post-close","label":"עמוד סגירה","profile":"rect_tube","size":[150,150,5],"from":[6223,-800,0],"to":[6223,1950,0],"end_cap":"cap"},{"id":"post-guide","label":"עמוד מוביל","profile":"rect_tube","size":[100,100,4],"from":[-150,-600,-120],"to":[-150,2050,-120],"end_cap":"cap"}],"plates":[{"label":"פח תחתון","group":"leaf","center":[1552,759.5,-16],"size":[2944,1139],"normal":"z","thickness":2},{"label":"פח תחתון","group":"leaf","center":[4576,759.5,-16],"size":[2944,1139],"normal":"z","thickness":2}],"parts":[{"kind":"wheel","at":[600,55,0],"size":[100,30],"axis":"z","group":"leaf","repeat":{"count":4,"step":[1640,0,0]}},{"kind":"guide_roller","at":[-150,1985,0]},{"kind":"stopper","at":[6150,1000,0]},{"kind":"motor","at":[-500,200,-260]},{"kind":"footing","at":[6223,-450,0],"size":[450,900,450]},{"kind":"footing","at":[-150,-350,-120],"size":[400,700,400]},{"kind":"footing","label":"קורת בטון למסילה","at":[-50,-150,0],"size":[12800,300,400]}],"solids":[{"kind":"plaster","label":"קיר","center":[-3500,900,-320],"size":[6400,1800,200]},{"kind":"plaster","label":"קיר","center":[7048,900,0],"size":[1500,1800,250]},{"kind":"paving","label":"שביל גישה","center":[3064,-25,900],"size":[6128,50,4000]}],"groups":[{"id":"leaf","label":"שער","motion":{"type":"slide","offset":[-6250,0,0]}}],"notes":["6128 על 1839 מ״מ לפי התכנון","מסגרת 80/40/3 כקרוב לפרופיל של 3 אינץ׳ שבמקור","24 פרופילי מילוי 50/25/2 לכל הגובה ופח 2 מ״מ עד 1.22 מ׳","האלכסון לא צויר; הפח התחתון מקשיח את המסגרת","4 גלגלי V בקוטר 100 על מסילה מזוויתן מעל קורת בטון"],"source":{"title":"KN Metal Welding Fabrication: 6 ft sliding gate design","url":"https://knmetalweldingfabrication.blogspot.com/2025/09/engineering-grand-sliding-gate.html"}}},"arch-gate":{"label":"שער עם קשת","layout":{"version":1,"title":"שער חצר עם קשת, 4.57 מ׳","material":"black","finish":{"color":"#1f2124","name":"צבע שחור מחוספס"},"members":[{"id":"post-hinge","label":"עמוד צירים","profile":"rect_tube","size":[150,150,5],"from":[75,-800,0],"to":[75,1950,0],"end_cap":"cap"},{"id":"post-latch","label":"עמוד סגירה","profile":"rect_tube","size":[150,150,5],"from":[4825,-800,0],"to":[4825,1950,0],"end_cap":"cap"},{"id":"hinge-stile","label":"עמוד כנף (צירים), דופן עבה","group":"leaf","profile":"rect_tube","size":[50,50,4],"from":[190,70,0],"to":[190,1530,0]},{"id":"latch-stile","label":"עמוד כנף (סגירה)","group":"leaf","profile":"rect_tube","size":[50,50,3],"from":[4710,70,0],"to":[4710,1530,0]},{"id":"bottom","label":"משקוף תחתון, דופן עבה","group":"leaf","profile":"rect_tube","size":[50,50,4],"from":[215,95,0],"to":[4685,95,0]},{"id":"arch","label":"קשת עליונה","group":"leaf","profile":"rect_tube","size":[50,50,3],"from":[190,1530,0],"via":[2450,1830,0],"to":[4710,1530,0]},{"id":"pickets","label":"שבכה","group":"leaf","profile":"rect_tube","size":[20,20,1.5],"from":[0,120,0],"to":[0,2300,0],"trim_to":"arch","repeat":{"count":36,"between":[215,4685],"axis":"x"}}],"parts":[{"kind":"hinge","at":[157.5,200,0],"group":"leaf","repeat":{"count":3,"step":[0,600,0]}},{"kind":"lock","at":[4710,1000,-45],"group":"leaf"},{"kind":"footing","at":[75,-450,0],"size":[450,900,450]},{"kind":"footing","at":[4825,-450,0],"size":[450,900,450]}],"solids":[{"kind":"plaster","label":"קיר","center":[-750,800,0],"size":[1500,1600,250]},{"kind":"plaster","label":"קיר","center":[5650,800,0],"size":[1500,1600,250]},{"kind":"paving","label":"חצץ","center":[2450,-25,0],"size":[4900,50,5000]}],"groups":[{"id":"leaf","label":"כנף","motion":{"type":"swing","pivot":[157.5,0,0],"angle":90}}],"notes":["כנף אחת 4.57 מ׳ על 1.83 מ׳ כולל הקשת","קשת מוכנה מהמסגרייה, חץ של 30 ס״מ","צד הצירים והתחתית בדופן 4 מ״מ נגד שקיעה, בלי אלכסון כי השער ארוך מגובהו","גודל המסגרת 50/50 ושבכה 20/20 לפי מה שמקובל בפרויקט"],"source":{"title":"Wilker Do's: 15 ft metal property gate with an arch","url":"https://wilkerdos.com/?p=23657"}}},"garden-gate":{"label":"פשפש מעוטר","layout":{"version":1,"title":"פשפש מעוטר לגינה, 1.00 מ׳","material":"black","finish":{"color":"#151617","name":"שחור מט"},"members":[{"id":"stile-l","label":"עמוד כנף","group":"leaf","profile":"rect_tube","size":[25,25,2],"from":[24.5,80,0],"to":[24.5,1480,0]},{"id":"stile-r","label":"עמוד כנף","group":"leaf","profile":"rect_tube","size":[25,25,2],"from":[999.5,80,0],"to":[999.5,1480,0]},{"id":"bottom","label":"משקוף תחתון","group":"leaf","profile":"rect_tube","size":[25,25,2],"from":[37,92.5,0],"to":[987,92.5,0]},{"id":"top","label":"משקוף עליון","group":"leaf","profile":"rect_tube","size":[25,25,2],"from":[37,1467.5,0],"to":[987,1467.5,0]},{"id":"bars","label":"מוט עם ראש חנית","group":"leaf","profile":"square_bar","size":[10],"from":[0,105,0],"to":[0,1505,0],"end_cap":"finial","repeat":{"count":9,"between":[37,987],"axis":"x"}},{"id":"cross","label":"מוט רוחב","group":"leaf","profile":"square_bar","size":[10],"from":[37,520,0],"to":[987,520,0]}],"parts":[{"kind":"hinge","at":[6,250,0],"group":"leaf","repeat":{"count":2,"step":[0,1050,0]}},{"kind":"scroll","at":[179.5,1380,0],"size":[80],"group":"leaf"},{"kind":"scroll","at":[844.5,1380,0],"size":[80],"group":"leaf"},{"kind":"handle","at":[975,950,30],"group":"leaf"},{"kind":"lock","at":[999.5,900,-35],"group":"leaf"}],"solids":[{"kind":"stone","label":"עמוד אבן","center":[-200,800,0],"size":[400,1600,400]},{"kind":"stone","label":"עמוד אבן","center":[1224,800,0],"size":[400,1600,400]},{"kind":"paving","label":"שביל","center":[512,-25,0],"size":[1024,50,3000]}],"groups":[{"id":"leaf","label":"כנף","motion":{"type":"swing","pivot":[6,0,0],"angle":90}}],"notes":["רוחב 1000 וגובה 1400 לפי אורכי הצינורות 25/25 ברשימה","9 מוטות 10/10 באורך 1400 עם ראש חנית, ומוט רוחב אחד","המוטות עוברים דרך המשקוף העליון, כמקובל בשער מעוטר","מקום הסלסולים משוער"],"source":{"title":"Baker's Gas: how to weld an ornamental gate","url":"https://bakersgas.com/blogs/weld-my-world/how-to-weld-an-ornamental-gate"}}}};
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+// 3D viewer for layouts (src/core/scene.ts). Plain JavaScript so the app (bundled with Vite) and the
+// standalone prototype page (three.js from a CDN via an import map) share one implementation.
+// Types: viewer.d.ts. Geometry is built in metres from the millimetre layout.
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+
+const MM = 0.001;
+const SKY = '#d9dee2';
+const SOLID_COLORS = { concrete: '#a8a59c', stone: '#c3b59b', plaster: '#e4ddd0', wood: '#8b5e3c', paving: '#9f9b93' };
+
+function createViewer(container, { core: C, onPick, onOpenChange } = {}) {
+  const v3 = (p) => new THREE.Vector3(p[0] * MM, p[1] * MM, p[2] * MM);
+  const fmt = (n) => new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 }).format(n);
+  const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // --- renderer, scene, camera ---------------------------------------------------------------------
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.domElement.style.display = 'block';
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
+  renderer.domElement.style.touchAction = 'none';
+  container.prepend(renderer.domElement);
+  const labelRenderer = new CSS2DRenderer();
+  Object.assign(labelRenderer.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none', direction: 'ltr' });
+  container.appendChild(labelRenderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(SKY);
+  scene.fog = new THREE.Fog(SKY, 40, 120);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTexture;
+  scene.environmentIntensity = 0.55;
+
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 400);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.screenSpacePanning = true;
+  controls.maxPolarAngle = Math.PI / 2 - 0.02;
+
+  scene.add(new THREE.HemisphereLight('#ffffff', '#8b8578', 0.85));
+  const sun = new THREE.DirectionalLight('#fff4e3', 2.3);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.02;
+  scene.add(sun, sun.target);
+
+  const groundMat = new THREE.MeshStandardMaterial({ color: '#bdb7aa', roughness: 0.95, metalness: 0 });
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(80, 72), groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.002;
+  ground.receiveShadow = true;
+  scene.add(ground);
+  const grid = new THREE.GridHelper(40, 40, '#9f998d', '#aaa497');
+  grid.position.y = -0.001;
+  grid.material.transparent = true;
+  grid.material.opacity = 0.35;
+  scene.add(grid);
+
+  let model = new THREE.Group();
+  scene.add(model);
+  let dims = new THREE.Group();
+  scene.add(dims);
+  let movers = [];
+  let current = null; // { prepared, cut }
+  let openT = 0;
+  let showDims = true;
+  let underground = false;
+
+  // --- materials -----------------------------------------------------------------------------------
+  const owned = new Set();
+  const track = (m) => (owned.add(m), m);
+  const matCache = new Map();
+  function steelMaterial(material, color) {
+    const key = `${material}|${color || ''}`;
+    if (matCache.has(key)) return matCache.get(key);
+    const spec = {
+      black: { color: color || '#2b2f33', metalness: 0.45, roughness: 0.48 },
+      galv: { color: color || '#a6adb1', metalness: 0.85, roughness: 0.38 },
+      stainless: { color: color || '#d6dadd', metalness: 1, roughness: 0.18 },
+      aluminum: { color: color || '#c4c8cb', metalness: 0.9, roughness: 0.3 },
+    }[material] || { color: '#2b2f33', metalness: 0.45, roughness: 0.48 };
+    const m = track(new THREE.MeshStandardMaterial(spec));
+    matCache.set(key, m);
+    return m;
+  }
+  const solidMats = new Map();
+  const solidMat = (kind) => {
+    if (!solidMats.has(kind)) solidMats.set(kind, track(new THREE.MeshStandardMaterial({ color: SOLID_COLORS[kind] || SOLID_COLORS.concrete, roughness: 0.92 })));
+    return solidMats.get(kind);
+  };
+  const footingMat = track(new THREE.MeshStandardMaterial({ color: '#9d9a92', roughness: 1, transparent: true, opacity: 0.55 }));
+  const darkMetal = track(new THREE.MeshStandardMaterial({ color: '#2a2d30', metalness: 0.7, roughness: 0.35 }));
+  const rubber = track(new THREE.MeshStandardMaterial({ color: '#c7951a', roughness: 0.7 }));
+  const motorMat = track(new THREE.MeshStandardMaterial({ color: '#2d3236', roughness: 0.6 }));
+  const highlight = track(new THREE.MeshStandardMaterial({ color: '#f3b61f', emissive: '#a5740a', emissiveIntensity: 0.6, metalness: 0.3, roughness: 0.4 }));
+  // The strength check's colours (the app's ok, accent and danger)
+  const TINTS = {
+    ok: track(new THREE.MeshStandardMaterial({ color: '#1f7a47', roughness: 0.55 })),
+    close: track(new THREE.MeshStandardMaterial({ color: '#c2410c', roughness: 0.55 })),
+    fail: track(new THREE.MeshStandardMaterial({ color: '#b42318', emissive: '#5a0d08', emissiveIntensity: 0.5, roughness: 0.5 })),
+  };
+  let tints = null;
+  function applyTints() {
+    if (!model) return;
+    model.traverse((o) => {
+      if (!o.isMesh || !o.userData.info) return;
+      if (!o.userData.base) o.userData.base = o === picked ? o.userData.mat : o.material;
+      const v = tints && o.userData.info.id ? tints[o.userData.info.id] : null;
+      const mat = v && TINTS[v] ? TINTS[v] : o.userData.base;
+      if (o === picked) o.userData.mat = mat;
+      else o.material = mat;
+    });
+    needsRender = true;
+  }
+  const dimLineMat = track(new THREE.LineBasicMaterial({ color: '#1b2025' }));
+  const finishColor = () => {
+    const c = current?.prepared.scene.finish?.color;
+    return c && /^#[0-9a-f]{3,8}$/i.test(c) ? c : null;
+  };
+
+  // --- section outlines (metres; x along the face axis f, y along the depth axis n) ---------------
+  const circlePts = (r, n = 28) => Array.from({ length: n }, (_, i) => [r * Math.cos((i / n) * Math.PI * 2), r * Math.sin((i / n) * Math.PI * 2)]);
+  function rectPts(w, h, r = 0) {
+    if (r <= 0.0001) return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
+    const pts = [];
+    const corners = [[w / 2 - r, -h / 2 + r, -Math.PI / 2], [w / 2 - r, h / 2 - r, 0], [-w / 2 + r, h / 2 - r, Math.PI / 2], [-w / 2 + r, -h / 2 + r, Math.PI]];
+    for (const [cx, cy, a0] of corners) for (let k = 0; k <= 3; k++) pts.push([cx + r * Math.cos(a0 + (k / 3) * (Math.PI / 2)), cy + r * Math.sin(a0 + (k / 3) * (Math.PI / 2))]);
+    return pts;
+  }
+  function sectionPts(profile, size) {
+    const s = size.map((v) => v * MM);
+    switch (profile) {
+      case 'rect_tube': {
+        const [b, h, t] = s;
+        return { outer: rectPts(b, h, Math.min(t * 1.5, b / 4)), holes: [rectPts(b - 2 * t, h - 2 * t, Math.max(t * 0.5, 0))] };
+      }
+      case 'round_tube':
+        return { outer: circlePts(s[0] / 2), holes: [circlePts(s[0] / 2 - s[1])] };
+      case 'round_bar':
+        return { outer: circlePts(s[0] / 2, 20), holes: [] };
+      case 'square_bar':
+        return { outer: rectPts(s[0], s[0]), holes: [] };
+      case 'flat':
+        return { outer: rectPts(s[0], s[1]), holes: [] };
+      case 'angle': {
+        const [a, b, t] = s;
+        return { outer: [[0, 0], [a, 0], [a, t], [t, t], [t, b], [0, b]].map(([x, y]) => [x - a / 2, y - b / 2]), holes: [] };
+      }
+      default: {
+        const beam = C.BEAMS[profile][size[0]];
+        const [h, b, tw, tf] = [beam.h, beam.b, beam.tw, beam.tf].map((v) => v * MM);
+        if (profile === 'upn') {
+          return { outer: [[-h / 2, -b / 2], [h / 2, -b / 2], [h / 2, b / 2], [h / 2 - tf, b / 2], [h / 2 - tf, -b / 2 + tw], [-h / 2 + tf, -b / 2 + tw], [-h / 2 + tf, b / 2], [-h / 2, b / 2]], holes: [] };
+        }
+        return {
+          outer: [[-h / 2, -b / 2], [-h / 2 + tf, -b / 2], [-h / 2 + tf, -tw / 2], [h / 2 - tf, -tw / 2], [h / 2 - tf, -b / 2], [h / 2, -b / 2], [h / 2, b / 2], [h / 2 - tf, b / 2], [h / 2 - tf, tw / 2], [-h / 2 + tf, tw / 2], [-h / 2 + tf, b / 2], [-h / 2, b / 2]],
+          holes: [],
+        };
+      }
+    }
+  }
+  function toShape({ outer, holes }, rollDeg) {
+    const a = ((rollDeg || 0) * Math.PI) / 180;
+    const rot = ([x, y]) => new THREE.Vector2(x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a));
+    const shape = new THREE.Shape(outer.map(rot));
+    for (const h of holes) shape.holes.push(new THREE.Path(h.map(rot)));
+    return shape;
+  }
+  function faceDepth(m) {
+    if (m.profile === 'upn' || m.profile === 'ipe' || m.profile === 'hea') {
+      const beam = C.BEAMS[m.profile][m.size[0]];
+      return [beam.h, beam.b];
+    }
+    if (m.profile === 'round_tube' || m.profile === 'round_bar' || m.profile === 'square_bar') return [m.size[0], m.size[0]];
+    return [m.size[0], m.size[1] ?? m.size[0]];
+  }
+  function basisFor(from, to) {
+    const d = C.norm(C.sub(to, from));
+    const { f, n } = C.sectionAxes(d);
+    const fv = new THREE.Vector3(...f);
+    const nv = new THREE.Vector3(...n);
+    const dv = new THREE.Vector3(...d);
+    const yv = new THREE.Vector3().crossVectors(fv, nv).dot(dv) > 0 ? nv : nv.clone().negate();
+    return { fv, yv, dv };
+  }
+
+  // --- meshes ---------------------------------------------------------------------------------------
+  function memberMeshes(m, info) {
+    const mat = steelMaterial(m.material, m.color || (m.material === 'black' ? finishColor() : null));
+    // Along a curve three.js maps the shape's x to the out-of-plane normal and y to the in-plane binormal,
+    // so swap the axes there to keep the face (f) in the arc's plane.
+    const pts = sectionPts(m.profile, m.size);
+    const swap = (list) => list.map(([x, y]) => [y, x]);
+    const shape = toShape(m.via ? { outer: swap(pts.outer), holes: pts.holes.map(swap) } : pts, m.roll);
+    const out = [];
+    let geo;
+    if (m.via) {
+      const arc = C.arcThrough(m.from, m.via, m.to);
+      const arcPts = Array.from({ length: 41 }, (_, i) => v3(C.arcPoint(arc, i / 40)));
+      geo = new THREE.ExtrudeGeometry(shape, { steps: 60, bevelEnabled: false, extrudePath: new THREE.CatmullRomCurve3(arcPts) });
+    } else {
+      geo = new THREE.ExtrudeGeometry(shape, { depth: C.len(C.sub(m.to, m.from)) * MM, bevelEnabled: false, steps: 1 });
+      const { fv, yv, dv } = basisFor(m.from, m.to);
+      geo.applyMatrix4(new THREE.Matrix4().makeBasis(fv, yv, dv).setPosition(v3(m.from)));
+    }
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.info = info;
+    out.push(mesh);
+
+    if (m.end_cap && !m.via) {
+      const [face, depth] = faceDepth(m).map((v) => v * MM);
+      const { fv, yv, dv } = basisFor(m.from, m.to);
+      const end = v3(m.to);
+      let cap;
+      if (m.end_cap === 'finial') {
+        const h = Math.max(face, depth) * 4.5;
+        cap = new THREE.Mesh(new THREE.ConeGeometry(Math.max(face, depth) * 0.95, h, 4), mat);
+        cap.position.copy(end).addScaledVector(dv, h / 2);
+        cap.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dv);
+        cap.rotateY(Math.PI / 4);
+      } else if (m.end_cap === 'ball') {
+        const r = Math.max(face, depth) * 0.85;
+        cap = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 12), mat);
+        cap.position.copy(end).addScaledVector(dv, r * 0.8);
+      } else {
+        const g = new THREE.BoxGeometry(face + 0.008, depth + 0.008, 0.006);
+        g.applyMatrix4(new THREE.Matrix4().makeBasis(fv, yv, dv).setPosition(end.clone().addScaledVector(dv, 0.003)));
+        cap = new THREE.Mesh(g, mat);
+      }
+      cap.userData.info = info;
+      out.push(cap);
+    }
+    return out;
+  }
+
+  // A roofing sheet (סנטף, polycarbonate): its tint, see-through, no shadow of its own
+  function sheetMaterial(color, opacity) {
+    const key = `sheet|${color}|${opacity}`;
+    if (matCache.has(key)) return matCache.get(key);
+    const m = track(
+      new THREE.MeshStandardMaterial({ color: color || '#dfeef5', transparent: true, opacity: opacity ?? 0.4, roughness: 0.25, metalness: 0, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    matCache.set(key, m);
+    return m;
+  }
+
+  function plateMesh(p) {
+    const [a, b] = p.size.map((v) => v * MM);
+    const t = p.thickness * MM;
+    const dimsArr = p.normal === 'z' ? [a, b, t] : p.normal === 'x' ? [t, b, a] : [a, t, b];
+    const mat = p.sheet ? sheetMaterial(p.color, p.opacity) : steelMaterial(p.material, p.color || (p.material === 'black' ? finishColor() : null));
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...dimsArr), mat);
+    mesh.position.copy(v3(p.center));
+    // A sloped roof: tilted about its centre so it rises toward p.slope.up
+    if (p.normal === 'y' && p.slope) {
+      const t = (p.slope.deg * Math.PI) / 180;
+      if (p.slope.up === '+x') mesh.rotation.z = t;
+      else if (p.slope.up === '-x') mesh.rotation.z = -t;
+      else if (p.slope.up === '+z') mesh.rotation.x = -t;
+      else mesh.rotation.x = t;
+    }
+    return mesh;
+  }
+
+  function partObject(p) {
+    const g = new THREE.Group();
+    const s = (p.size || []).map((v) => v * MM);
+    const add = (geom, mat, x = 0, y = 0, z = 0) => {
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.position.set(x, y, z);
+      g.add(mesh);
+      return mesh;
+    };
+    switch (p.kind) {
+      case 'hinge':
+        add(new THREE.CylinderGeometry(0.016, 0.016, s[1] || 0.12, 16), darkMetal);
+        add(new THREE.CylinderGeometry(0.019, 0.019, 0.012, 16), darkMetal, 0, (s[1] || 0.12) / 2);
+        break;
+      case 'wheel': {
+        const d = s[0] || 0.1;
+        const wheel = add(new THREE.CylinderGeometry(d / 2, d / 2, s[1] || 0.03, 28), darkMetal);
+        if ((p.axis || 'z') === 'z') wheel.rotation.x = Math.PI / 2;
+        else if (p.axis === 'x') wheel.rotation.z = Math.PI / 2;
+        break;
+      }
+      case 'guide_roller':
+        add(new THREE.BoxGeometry(0.06, 0.04, 0.24), darkMetal, 0, 0.05, -0.08);
+        for (const z of [-0.045, 0.045]) add(new THREE.CylinderGeometry(0.025, 0.025, 0.06, 18), rubber, 0, 0, z);
+        break;
+      case 'lock':
+        add(new THREE.BoxGeometry(s[0] || 0.1, s[1] || 0.16, s[2] || 0.04), darkMetal);
+        break;
+      case 'handle':
+        add(new THREE.CylinderGeometry(0.01, 0.01, 0.14, 12), darkMetal, -0.06).rotation.z = Math.PI / 2;
+        add(new THREE.BoxGeometry(0.03, 0.06, 0.02), darkMetal);
+        break;
+      case 'drop_bolt':
+        add(new THREE.CylinderGeometry(0.008, 0.008, s[1] || 0.45, 12), darkMetal);
+        break;
+      case 'stopper':
+        add(new THREE.BoxGeometry(0.06, 0.12, 0.06), rubber);
+        break;
+      case 'motor':
+        add(new THREE.BoxGeometry(s[0] || 0.3, s[1] || 0.28, s[2] || 0.2), motorMat);
+        add(new THREE.BoxGeometry(0.12, 0.02, 0.005), rubber, 0, 0.06, (s[2] || 0.2) / 2 + 0.003);
+        break;
+      case 'cap':
+        add(new THREE.BoxGeometry(s[0] || 0.12, 0.006, s[0] || 0.12), darkMetal);
+        break;
+      case 'finial':
+        add(new THREE.ConeGeometry(s[0] || 0.015, (s[0] || 0.015) * 5, 4), darkMetal);
+        break;
+      case 'scroll': {
+        const r = (s[0] || 0.12) / 2;
+        const mat = steelMaterial(current.prepared.scene.material || 'black', finishColor());
+        add(new THREE.TorusGeometry(r, 0.005, 8, 32, Math.PI * 1.6), mat).rotation.z = Math.PI * 0.2;
+        add(new THREE.TorusGeometry(r * 0.45, 0.005, 8, 24, Math.PI * 1.5), mat, r * 0.4, -r * 0.2).rotation.z = Math.PI * 1.1;
+        break;
+      }
+      case 'footing':
+        add(new THREE.BoxGeometry(s[0] || 0.4, s[1] || 0.6, s[2] || 0.4), footingMat).userData.footing = true;
+        break;
+    }
+    g.position.copy(v3(p.at));
+    const label = p.label || C.PART_LABELS[p.kind];
+    g.traverse((o) => (o.userData.info = { mark: null, text: label }));
+    return g;
+  }
+
+  function disposeTree(obj) {
+    obj.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.element) o.element.remove();
+    });
+  }
+
+  function build() {
+    const { prepared, cut } = current;
+    const sc = prepared.scene;
+    scene.remove(model);
+    disposeTree(model);
+    model = new THREE.Group();
+    movers = [];
+    const containers = new Map();
+    for (const g of sc.groups) {
+      const pivot = new THREE.Group();
+      const inner = new THREE.Group();
+      if (g.motion?.type === 'swing') {
+        pivot.position.copy(v3(g.motion.pivot));
+        inner.position.copy(pivot.position).negate();
+      }
+      pivot.add(inner);
+      model.add(pivot);
+      containers.set(g.id, inner);
+      if (g.motion) movers.push({ pivot, motion: g.motion });
+    }
+    const holder = (gid) => containers.get(gid) || model;
+
+    for (const m of sc.members) {
+      const info = {
+        id: m.id ?? null,
+        mark: cut.markOf[m.id] || null,
+        text: `${C.sectionName(m.profile, m.size, m.material)}, ${fmt(Math.round(C.memberLength(m)))} מ״מ${m.via ? ' (מכופף)' : ''}${m.label ? `, ${m.label}` : ''}`,
+      };
+      for (const mesh of memberMeshes(m, info)) {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        holder(m.group).add(mesh);
+      }
+    }
+    for (const p of sc.plates) {
+      const mesh = plateMesh(p);
+      mesh.castShadow = !p.sheet;
+      mesh.receiveShadow = !p.sheet;
+      const size = `${fmt(Math.max(...p.size))}/${fmt(Math.min(...p.size))}`;
+      const text = p.sheet ? `${p.label || 'סנטף'}, ${size}` : `${p.label || 'פח'} ${p.thickness} מ״מ, ${size}`;
+      mesh.userData.info = { id: p.id ?? null, mark: null, text };
+      holder(p.group).add(mesh);
+    }
+    for (const p of sc.parts) {
+      const obj = partObject(p);
+      obj.traverse((o) => {
+        if (o.isMesh && !o.userData.footing) o.castShadow = true;
+      });
+      holder(p.group).add(obj);
+    }
+    for (const s of sc.solids) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(...s.size.map((v) => v * MM)), solidMat(s.kind));
+      mesh.position.copy(v3(s.center));
+      mesh.castShadow = s.kind !== 'paving';
+      mesh.receiveShadow = true;
+      mesh.userData.info = { mark: null, text: s.label || 'סביבה קיימת' };
+      model.add(mesh);
+    }
+    scene.add(model);
+    setOpen(0);
+    buildDims();
+    if (tints) applyTints();
+  }
+
+  // --- dimensions -----------------------------------------------------------------------------------
+  function dimLabel(text, pos) {
+    const el = document.createElement('div');
+    Object.assign(el.style, {
+      background: 'rgb(27 32 37 / .82)',
+      color: '#fff',
+      font: '600 12px system-ui, sans-serif',
+      padding: '2px 7px',
+      borderRadius: '6px',
+      whiteSpace: 'nowrap',
+      direction: 'rtl',
+      top: '0',
+      left: '0',
+    });
+    el.textContent = text;
+    const o = new CSS2DObject(el);
+    o.position.copy(pos);
+    return o;
+  }
+  function dimLine(a, b, normal, text) {
+    const tick = normal.clone().multiplyScalar(0.06);
+    const geom = new THREE.BufferGeometry().setFromPoints([a, b, a.clone().add(tick), a.clone().sub(tick), b.clone().add(tick), b.clone().sub(tick)]);
+    const grp = new THREE.Group();
+    grp.add(new THREE.LineSegments(geom, dimLineMat), dimLabel(text, a.clone().add(b).multiplyScalar(0.5)));
+    return grp;
+  }
+  function buildDims() {
+    scene.remove(dims);
+    disposeTree(dims);
+    dims = new THREE.Group();
+    // Always measured from the geometry (C.dimensionLines): each leaf, overall width and height, extra dimensions
+    const NORMAL = { x: new THREE.Vector3(0, 1, 0), y: new THREE.Vector3(1, 0, 0), z: new THREE.Vector3(1, 0, 0) };
+    for (const d of C.dimensionLines(current.prepared.scene)) {
+      dims.add(dimLine(v3(d.from), v3(d.to), NORMAL[d.axis], `${d.name ? `${d.name} ` : ''}${fmt(d.mm)} מ״מ`));
+    }
+    dims.visible = showDims;
+    scene.add(dims);
+  }
+
+  // --- camera, rendering ----------------------------------------------------------------------------
+  let needsRender = true;
+  controls.addEventListener('change', () => (needsRender = true));
+  // While the user hasn't moved the camera since the last framing, keep the work fitted when the view
+  // changes size (full screen, rotating the phone). Touching the view hands the camera over.
+  let fitKind = null;
+  controls.addEventListener('start', () => (fitKind = null));
+  function frame(kind = '3d') {
+    if (!current) return;
+    fitKind = kind;
+    applySize();
+    fit(kind);
+  }
+  function fit(kind) {
+    const wb = C.workBounds(current.prepared.scene);
+    const min = v3(wb.min);
+    const max = v3(wb.max);
+    const center = min.clone().add(max).multiplyScalar(0.5);
+    center.y = Math.max(center.y, (max.y - Math.max(min.y, 0)) / 2);
+    const size = max.clone().sub(min);
+    const fov = (camera.fov * Math.PI) / 180;
+    // Room for the dimension labels and the swing of open leaves
+    const need = Math.max(size.y * 1.45, (size.x * 1.3) / camera.aspect);
+    const dist = need / 2 / Math.tan(fov / 2) + size.z;
+    const dir = kind === 'front' ? new THREE.Vector3(0, 0.05, 1) : new THREE.Vector3(0.55, 0.32, 1);
+    camera.position.copy(center).addScaledVector(dir.normalize(), dist * (kind === 'front' ? 1.05 : 1.12));
+    controls.target.copy(center);
+    controls.maxDistance = dist * 6;
+    controls.minDistance = 0.3;
+    controls.update();
+    const span = Math.max(size.x, size.y, size.z) * 0.75 + 2;
+    sun.position.copy(center).add(new THREE.Vector3(span * 0.6, span * 1.4, span));
+    sun.target.position.copy(center);
+    Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 0.1, far: span * 5 });
+    sun.shadow.camera.updateProjectionMatrix();
+    needsRender = true;
+  }
+  /** Matches the canvas to the container; false while the container has no size (hidden, mid-layout) */
+  function applySize() {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (!w || !h) return false;
+    renderer.setSize(w, h, false);
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
+    labelRenderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    needsRender = true;
+    return true;
+  }
+  function resize() {
+    if (applySize() && fitKind && current) fit(fitKind);
+  }
+  const ro = new ResizeObserver(resize);
+  ro.observe(container);
+
+  let anim = null;
+  function setOpen(t) {
+    openT = t;
+    for (const { pivot, motion } of movers) {
+      if (motion.type === 'swing') pivot.rotation.y = THREE.MathUtils.degToRad(motion.angle) * t;
+      else pivot.position.copy(v3(motion.offset)).multiplyScalar(t);
+    }
+    needsRender = true;
+    if (onOpenChange) onOpenChange(t);
+  }
+  function animateOpen(target) {
+    if (reduceMotion) return setOpen(target);
+    anim = { from: openT, to: target, start: performance.now(), ms: 1400 };
+  }
+  let raf = 0;
+  function loop(now) {
+    raf = requestAnimationFrame(loop);
+    if (anim) {
+      const k = Math.min(1, (now - anim.start) / anim.ms);
+      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+      setOpen(anim.from + (anim.to - anim.from) * e);
+      if (k >= 1) anim = null;
+    }
+    const moved = controls.update();
+    if (needsRender || moved) {
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+      needsRender = false;
+    }
+  }
+  raf = requestAnimationFrame(loop);
+
+  // --- picking --------------------------------------------------------------------------------------
+  const ray = new THREE.Raycaster();
+  let downAt = null;
+  let picked = null;
+  const onDown = (e) => (downAt = [e.clientX, e.clientY]);
+  const onUp = (e) => {
+    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+    const hit = ray.intersectObject(model, true).find((h) => h.object.userData.info && !(h.object.userData.footing && !underground));
+    select(hit ? hit.object : null);
+  };
+  renderer.domElement.addEventListener('pointerdown', onDown);
+  renderer.domElement.addEventListener('pointerup', onUp);
+  function select(mesh) {
+    if (picked) picked.material = picked.userData.mat;
+    picked = null;
+    if (mesh && mesh.isMesh && !mesh.userData.footing) {
+      mesh.userData.mat = mesh.material;
+      mesh.material = highlight;
+      picked = mesh;
+    }
+    needsRender = true;
+    if (onPick) onPick(mesh ? mesh.userData.info : null);
+  }
+
+  return {
+    setTints(map) {
+      tints = map || null;
+      applyTints();
+    },
+    show(prepared, cut, { keepCamera = false } = {}) {
+      select(null);
+      current = { prepared, cut };
+      build();
+      if (!keepCamera) frame('3d');
+    },
+    setOpen(t) {
+      anim = null;
+      setOpen(t);
+    },
+    animateOpen,
+    get open() {
+      return openT;
+    },
+    get hasMovers() {
+      return movers.length > 0;
+    },
+    setDims(on) {
+      showDims = on;
+      dims.visible = on;
+      needsRender = true;
+    },
+    setUnderground(on) {
+      underground = on;
+      groundMat.transparent = on;
+      groundMat.opacity = on ? 0.25 : 1;
+      groundMat.depthWrite = !on;
+      controls.maxPolarAngle = on ? Math.PI : Math.PI / 2 - 0.02;
+      needsRender = true;
+    },
+    frame,
+    clearSelection: () => select(null),
+    screenshot() {
+      renderer.render(scene, camera);
+      return new Promise((resolve) => renderer.domElement.toBlob((b) => resolve(b), 'image/png'));
+    },
+    resize,
+    dispose() {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      renderer.domElement.removeEventListener('pointerdown', onDown);
+      renderer.domElement.removeEventListener('pointerup', onUp);
+      controls.dispose();
+      disposeTree(model);
+      disposeTree(dims);
+      ground.geometry.dispose();
+      grid.geometry.dispose();
+      for (const m of owned) m.dispose();
+      groundMat.dispose();
+      envTexture.dispose();
+      pmrem.dispose();
+      renderer.dispose();
+      renderer.domElement.remove();
+      labelRenderer.domElement.remove();
+    },
+  };
+}
+
+// Prototype page: examples, AI chat (Claude, when the page runs as an artifact), cut list, drawing
+// and JSON paste. The 3D view is the shared viewer (src/viewer3d/viewer.js), inlined before this by
+// scripts/build-3d-prototype.ts, so createViewer is in scope.
+const C = window.GVA_CORE;
+const EXAMPLES = window.GVA_EXAMPLES;
+const INSTRUCTIONS = C.LAYOUT_INSTRUCTIONS;
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => new Intl.NumberFormat('he-IL', { maximumFractionDigits: 0 }).format(n);
+
+// ---------------------------------------------------------------------------------------------- state
+const STORE = 'gva3d.mine';
+const state = {
+  key: null,
+  raw: null,
+  prepared: null,
+  cut: null,
+  mode: 'new', // 'new' = describe a job, 'edit' = change the current model
+  requests: [],
+  undo: [],
+  open: 0,
+  dims: true,
+  under: false,
+};
+function loadMine() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE) || 'null');
+    return s && s.raw ? s : null;
+  } catch {
+    return null;
+  }
+}
+function saveMine() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify({ raw: state.raw, requests: state.requests, undo: state.undo.slice(-5) }));
+  } catch {
+    /* private mode: fine */
+  }
+}
+
+// --------------------------------------------------------------------------------------------- viewer
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const viewer = createViewer($('view'), {
+  core: C,
+  onPick(info) {
+    $('info').hidden = !info;
+    if (info) $('info-text').innerHTML = `${info.mark ? `<b>${info.mark}</b> ` : ''}${esc(info.text)}`;
+  },
+  onOpenChange(t) {
+    state.open = t;
+    $('open').value = String(Math.round(t * 100));
+    $('open-btn').textContent = t > 0.5 ? 'סגור' : 'פתח';
+  },
+});
+$('info-close').onclick = () => viewer.clearSelection();
+$('placeholder').remove();
+
+// ------------------------------------------------------------------------------------------- toolbar
+// ------------------------------------------------------------------------------------------- toolbar
+$('open').addEventListener('input', (e) => viewer.setOpen(Number(e.target.value) / 100));
+$('open-btn').onclick = () => viewer.animateOpen(state.open > 0.5 ? 0 : 1);
+$('t-dims').onclick = (e) => {
+  state.dims = !state.dims;
+  viewer.setDims(state.dims);
+  e.currentTarget.setAttribute('aria-pressed', String(state.dims));
+};
+$('t-front').onclick = () => viewer.frame('front');
+$('t-reset').onclick = () => viewer.frame('3d');
+$('t-under').onclick = (e) => {
+  state.under = !state.under;
+  viewer.setUnderground(state.under);
+  e.currentTarget.setAttribute('aria-pressed', String(state.under));
+};
+$('t-full').onclick = () => {
+  const stage = $('stage');
+  const on = !stage.classList.contains('is-full');
+  stage.classList.toggle('is-full', on);
+  document.body.classList.toggle('no-scroll', on);
+  $('t-full-label').textContent = on ? 'יציאה' : 'מסך מלא';
+  try {
+    if (on && stage.requestFullscreen) stage.requestFullscreen().catch(() => {});
+    else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  } catch {
+    /* the in-page layer is enough */
+  }
+};
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('stage').classList.contains('is-full')) $('t-full').click();
+});
+
+// ------------------------------------------------------------------------------------- page content
+function toast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (t.hidden = true), 2600);
+}
+
+function renderInfo() {
+  const { scene: sc, warnings } = state.prepared;
+  const cut = state.cut;
+  $('title').textContent = sc.title;
+  const pieces = cut.pieces.reduce((s, p) => s + p.count, 0);
+  $('summary').textContent = `${pieces} חלקי פרופיל, ${cut.pieces.length} סוגי חיתוך, בערך ${fmt(cut.totalKg)} ק״ג ברזל${sc.finish?.name ? `. גמר: ${sc.finish.name}` : ''}`;
+  $('notes').innerHTML = (sc.notes || []).map((n) => `<li>${esc(n)}</li>`).join('');
+  $('warnings').hidden = warnings.length === 0;
+  $('warnings').textContent = warnings.length ? `בדיקת הפריסה: ${warnings.slice(0, 4).join('; ')}` : '';
+  $('source').innerHTML = sc.source ? `מבוסס על פרויקט מהרשת: <a href="${esc(sc.source.url)}" target="_blank" rel="noreferrer">${esc(sc.source.title || sc.source.url)}</a>` : '';
+
+  const rows = cut.pieces
+    .map((p) => `<tr><td class="mark">${p.mark}</td><td>${esc(p.name)}${p.bent ? ' <span class="muted">(מכופף)</span>' : ''}</td><td class="num">${p.count}</td><td class="num">${fmt(p.length)}</td></tr>`)
+    .join('');
+  const buy = cut.sections.map((s) => `<tr><td>${esc(s.name)}</td><td class="num">${(s.totalMm / 1000).toFixed(2)} מ׳</td><td class="num">${fmt(s.kg)} ק״ג</td></tr>`).join('');
+  const plates = cut.plates.map((p) => `<tr><td>${esc(p.name)} ${fmt(p.w)}/${fmt(p.h)}</td><td class="num">${p.count}</td><td class="num">${p.areaM2} מ״ר</td></tr>`).join('');
+  const parts = cut.parts.map((p) => `${esc(p.label)} ${p.count}`).join(', ');
+  $('panel-cut').innerHTML = `
+    <table><thead><tr><th>סימון</th><th>תיאור</th><th class="num">כמות</th><th class="num">אורך (מ״מ)</th></tr></thead><tbody>${rows}</tbody></table>
+    <h2 style="margin-top:22px">מה לקנות</h2>
+    <table><thead><tr><th>פרופיל</th><th class="num">סה״כ</th><th class="num">משקל</th></tr></thead><tbody>${buy}</tbody></table>
+    ${plates ? `<h2 style="margin-top:22px">פחים</h2><table><tbody>${plates}</tbody></table>` : ''}
+    ${parts ? `<p><b>פרזול:</b> ${parts}</p>` : ''}
+    <p class="small muted">אורכי חיתוך לפי מרכז הפרופיל, חיבורי קצה ישרים. משקל משוער: ${fmt(cut.totalKg)} ק״ג.</p>`;
+  state.svg = C.shopDrawingSvg(sc, { cut, date: new Intl.DateTimeFormat('he-IL').format(new Date()) });
+  $('drawing').innerHTML = state.svg;
+  $('json').value = JSON.stringify(state.raw, null, 2);
+}
+
+function show(raw, { key, keepCamera = false } = {}) {
+  const prepared = C.prepareScene(raw);
+  if (prepared.errors.length) return prepared;
+  state.raw = raw;
+  state.prepared = prepared;
+  state.cut = C.cutList(prepared.scene);
+  state.key = key;
+  viewer.show(prepared, state.cut, { keepCamera });
+  $('open-row').hidden = !viewer.hasMovers;
+  renderInfo();
+  renderChips();
+  updateChat();
+  return prepared;
+}
+
+// --------------------------------------------------------------------------------- examples and hash
+const KEYS = Object.keys(EXAMPLES);
+function renderChips() {
+  const mine = loadMine();
+  const chips = [...KEYS.map((k) => [k, EXAMPLES[k].label]), ...(mine ? [['mine', 'שלי']] : [])];
+  $('examples').innerHTML = chips
+    .map(([k, label]) => `<button type="button" class="chip" data-key="${k}" aria-pressed="${state.key === k}">${esc(label)}</button>`)
+    .join('');
+}
+$('examples').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-key]');
+  if (b) location.hash = b.dataset.key;
+});
+function openFromHash() {
+  const key = location.hash.slice(1);
+  if (key === 'mine') {
+    const mine = loadMine();
+    if (mine) {
+      state.requests = mine.requests || [];
+      state.undo = mine.undo || [];
+      state.mode = 'edit';
+      show(mine.raw, { key: 'mine' });
+      return;
+    }
+  }
+  const k = EXAMPLES[key] ? key : KEYS[0];
+  state.requests = [];
+  state.undo = [];
+  state.mode = 'edit';
+  show(EXAMPLES[k].layout, { key: k });
+}
+addEventListener('hashchange', openFromHash);
+
+// ----------------------------------------------------------------------------------------- AI chat
+let sample = null;
+let dictation = null;
+let downloads = null;
+let image = null;
+let ctl = null;
+
+function updateChat() {
+  const editing = state.mode === 'edit' && state.raw;
+  $('chat-title').textContent = editing ? 'מה לשנות?' : 'ספר על העבודה';
+  $('ask').placeholder = editing
+    ? 'למשל: להגביה ב־20 ס״מ, שבכה כל 10 ס״מ, להוסיף משקוף באמצע, להחליף לשער הזזה'
+    : 'למשל: שער כנף כפולה לחניה, פתח 4 מטר, גובה 1.80. עמודים 100/100, מסגרת 60/40, שבכה 20/20 כל 12 ס״מ, צבע אפור. אפשר להדביק כתב כמויות.';
+  $('send').textContent = editing ? 'עדכן את המודל' : 'צור הדמיה';
+  $('undo').hidden = !(state.key === 'mine' && state.undo.length);
+  $('history').innerHTML = state.key === 'mine' ? state.requests.slice(-8).map((r) => `<span>${esc(r)}</span>`).join('') : '';
+}
+
+function busy(on, text = 'חושב...') {
+  $('busy').hidden = !on;
+  $('busy-text').textContent = text;
+  $('send').disabled = on;
+}
+function chatError(text) {
+  $('chat-error').hidden = !text;
+  $('chat-error').textContent = text || '';
+}
+const ERRORS = {
+  not_granted: 'לא אושר שימוש ב־Claude בדף הזה.',
+  rate_limited: 'יותר מדי בקשות כרגע. נסה שוב בעוד דקה.',
+  invalid_json: 'התשובה לא הייתה פריסה תקינה. נסה שוב או נסח אחרת.',
+  refused: 'הבקשה נדחתה. נסח אחרת.',
+  session_expired: 'צריך להתחבר מחדש ל־Claude.',
+  prompt_too_large: 'הבקשה ארוכה מדי.',
+};
+
+function buildPrompt(request) {
+  const editing = state.mode === 'edit' && state.raw;
+  return C.buildLayoutPrompt({
+    current: editing ? state.raw : undefined,
+    requests: editing ? state.requests : [],
+    request,
+    hasImage: Boolean(image),
+  });
+}
+
+async function send() {
+  const request = $('ask').value.trim();
+  if (request.length < 3) return chatError('כתוב מה לבנות או מה לשנות.');
+  if (!sample) return;
+  chatError('');
+  ctl = new AbortController();
+  const started = performance.now();
+  const tick = setInterval(() => {
+    const s = Math.round((performance.now() - started) / 1000);
+    if ($('busy-text').dataset.streaming !== '1') $('busy-text').textContent = `חושב על הפריסה... ${s} שנ׳`;
+  }, 1000);
+  $('busy-text').dataset.streaming = '0';
+  busy(true);
+  try {
+    const opts = {
+      modelTier: 'complex',
+      cache: false,
+      signal: ctl.signal,
+      onText: ({ text }) => {
+        $('busy-text').dataset.streaming = '1';
+        $('busy-text').textContent = `כותב את המודל... ${fmt(text.length)} תווים`;
+      },
+    };
+    if (image) opts.images = [image];
+    const layout = await sample.json(buildPrompt(request), opts);
+    const previous = state.raw;
+    const wasEdit = state.mode === 'edit' && previous;
+    const prepared = C.prepareScene(layout);
+    if (prepared.errors.length) throw { code: 'layout', message: prepared.errors.join(', ') };
+    if (state.key !== 'mine') {
+      state.requests = [];
+      state.undo = [];
+    }
+    if (wasEdit) state.undo.push(previous);
+    state.requests = wasEdit ? [...state.requests, request] : [request];
+    state.mode = 'edit';
+    show(layout, { key: 'mine', keepCamera: Boolean(wasEdit) });
+    saveMine();
+    history.replaceState(null, '', '#mine');
+    renderChips();
+    updateChat();
+    $('ask').value = '';
+    clearImage();
+    toast(wasEdit ? 'המודל עודכן' : 'ההדמיה מוכנה');
+  } catch (e) {
+    if (e?.code === 'cancelled') return;
+    if (e?.code === 'layout') chatError(`הפריסה שהתקבלה לא תקינה (${e.message}). נסה לנסח אחרת.`);
+    else chatError(ERRORS[e?.code] || 'משהו השתבש. אפשר לנסות שוב.');
+    if (e?.code === 'not_granted' || e?.code === 'sampling_disabled') hideChat('השימוש ב־Claude לא אושר בתצוגה הזו. אפשר לעבוד עם Gemini לפי ההסבר למטה.');
+  } finally {
+    clearInterval(tick);
+    busy(false);
+    ctl = null;
+  }
+}
+$('send').onclick = send;
+$('stop').onclick = () => ctl?.abort();
+$('new').onclick = () => {
+  state.mode = 'new';
+  updateChat();
+  $('ask').focus();
+};
+$('undo').onclick = () => {
+  const prev = state.undo.pop();
+  if (!prev) return;
+  state.requests.pop();
+  show(prev, { key: 'mine', keepCamera: true });
+  saveMine();
+  updateChat();
+  toast('השינוי האחרון בוטל');
+};
+
+function hideChat(text) {
+  $('chat-body').hidden = true;
+  $('chat-hint').textContent = text;
+}
+
+// Photo or sketch
+function clearImage() {
+  image = null;
+  $('photo').value = '';
+  $('image-name').hidden = true;
+}
+$('photo').addEventListener('change', (e) => {
+  image = e.target.files?.[0] || null;
+  $('image-name').hidden = !image;
+  $('image-name').textContent = image ? `מצורף: ${image.name}` : '';
+});
+
+// Dictation
+let listening = false;
+$('mic').onclick = () => {
+  if (!dictation) return;
+  if (listening) {
+    dictation.stop().catch(() => {});
+    return;
+  }
+  dictation.start().catch((e) => {
+    if (e?.code === 'not_granted') $('mic').hidden = true;
+  });
+};
+
+// Capabilities light up when the viewer answers (null outside Claude)
+const use = (name) => (window.claude?.use ? window.claude.use(name).catch(() => null) : Promise.resolve(null));
+use('sample').then(async (s) => {
+  sample = s;
+  if (!s) {
+    hideChat('הצ׳אט פועל כשהדף פתוח בתוך Claude. בינתיים אפשר לעבוד עם Gemini לפי ההסבר למטה.');
+    return;
+  }
+  $('chat-body').hidden = false;
+  $('chat-hint').textContent = 'כותבים או מכתיבים. Claude בונה את המודל, והשרטוט ורשימת החיתוך מתעדכנים איתו. כל עדכון לוקח בערך דקה.';
+  const limits = await s.limits().catch(() => null);
+  $('photo-label').hidden = !limits?.images;
+});
+use('dictation').then((d) => {
+  dictation = d;
+  if (!d) return;
+  $('mic').hidden = false;
+  let base = '';
+  d.onState(({ state: st }) => {
+    listening = st === 'listening';
+    $('mic').setAttribute('aria-pressed', String(listening));
+    $('mic-label').textContent = listening ? 'מקשיב...' : 'הכתבה';
+    if (listening) base = $('ask').value ? `${$('ask').value.trim()} ` : '';
+  });
+  d.onPartial(({ text }) => ($('ask').value = base + text));
+  d.onFinal(({ text }) => {
+    base += `${text} `;
+    $('ask').value = base;
+  });
+});
+use('downloads').then((d) => {
+  downloads = d;
+  $('dl-svg').hidden = !d;
+  $('dl-csv').hidden = !d;
+  $('t-shot').hidden = !d;
+});
+
+async function save(filename, data) {
+  if (!downloads) return;
+  try {
+    await downloads.save({ filename, data });
+  } catch (e) {
+    if (e?.code !== 'declined') toast('ההורדה לא זמינה כאן');
+  }
+}
+const slug = () => (state.key === 'mine' ? 'my-design' : state.key);
+$('dl-svg').onclick = () => save(`shop-drawing-${slug()}.svg`, state.svg);
+$('dl-csv').onclick = () => {
+  const rows = [['סימון', 'תיאור', 'כמות', 'אורך מ״מ'], ...state.cut.pieces.map((p) => [p.mark, p.name, p.count, p.length])];
+  save(`cut-list-${slug()}.csv`, `﻿${rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n')}`);
+};
+$('t-shot').onclick = () => viewer.screenshot().then((blob) => blob && save(`${slug()}.png`, blob));
+
+// Tabs
+for (const id of ['cut', 'draw', 'json']) {
+  $(`tab-${id}`).onclick = () => {
+    for (const other of ['cut', 'draw', 'json']) {
+      $(`tab-${other}`).setAttribute('aria-selected', String(other === id));
+      $(`panel-${other}`).hidden = other !== id;
+    }
+  };
+}
+
+// JSON paste
+$('json-apply').onclick = () => {
+  $('json-error').hidden = true;
+  let raw;
+  try {
+    const t = $('json').value;
+    raw = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1));
+  } catch {
+    $('json-error').hidden = false;
+    $('json-error').textContent = 'זה לא JSON תקין. העתק את כל התשובה, מהסוגריים הראשונים עד האחרונים.';
+    return;
+  }
+  const previous = state.raw;
+  const p = show(raw, { key: 'mine' });
+  if (p.errors.length) {
+    $('json-error').hidden = false;
+    $('json-error').textContent = p.errors.join(', ');
+    return;
+  }
+  if (previous && state.key === 'mine') state.undo.push(previous);
+  state.mode = 'edit';
+  saveMine();
+  history.replaceState(null, '', '#mine');
+  renderChips();
+  toast('הפריסה הוצגה');
+};
+$('json-copy').onclick = () => navigator.clipboard.writeText($('json').value).then(() => toast('הועתק'), () => toast('לא הצלחתי להעתיק'));
+$('instructions').textContent = INSTRUCTIONS;
+$('copy-instructions').onclick = () =>
+  navigator.clipboard.writeText(INSTRUCTIONS).then(() => toast('ההנחיות הועתקו'), () => toast('לא הצלחתי להעתיק. אפשר לסמן ולהעתיק מהטקסט'));
+
+openFromHash();
+
+</script>
+</body>
+</html>
