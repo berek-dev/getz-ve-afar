@@ -4,7 +4,7 @@
  * so a piece keeps its size wherever it goes. Turning is by 90 degrees in the plane of the view, about the piece's
  * first point; a member can also be turned about its own axis (`roll`: a 60/40 tube laid on its side).
  */
-import { elementOf, gridLines, insertGridLine, nodePosition, plateError, wallBox, wallError } from './design.ts';
+import { elementOf, gridLines, insertGridLine, nodePosition, plateError, removeGridLine, wallBox, wallError } from './design.ts';
 import type { Design, DesignNode, GridAxis } from './design.ts';
 import { placementError } from './blocks.ts';
 import { SLOPE_UPS, add, dot, halfExtent, len, norm, plateAxes, plateCorners, scale, sectionAxes, sub } from './scene.ts';
@@ -49,8 +49,40 @@ export function elementPoints(design: Design, el: Element): Vec3[] {
   return endsOf(design, el).map((e) => nodePosition(design.grid, nodeAt(design, e)));
 }
 
+/** Where things stand along each axis (mm), to see which lines a change left empty */
+function usedLines(design: Design): Record<GridAxis, Set<number>> {
+  const nodes = [...design.members, ...design.plates, ...design.blocks, ...(design.walls ?? [])].flatMap((x) => [x.a, x.b]);
+  const out = { x: new Set<number>(), y: new Set<number>(), z: new Set<number>() };
+  for (const axis of AXES) {
+    const lines = gridLines(design.grid[axis]);
+    for (const n of nodes) out[axis].add(Math.round(lines[n[IDX[axis]]] ?? 0));
+  }
+  return out;
+}
+
+/** The lines a move left empty (something stood on them before, nothing now) go, so the grid doesn't fill with strays */
+function dropVacated(before: Design, after: Design): Design {
+  const was = usedLines(before);
+  let d = after;
+  for (const axis of AXES) {
+    const now = usedLines(d)[axis];
+    const lines = gridLines(d.grid[axis]);
+    for (let i = lines.length - 2; i >= 1; i--) {
+      const at = Math.round(lines[i]);
+      if (!was[axis].has(at) || now.has(at)) continue;
+      d = removeGridLine(d, axis, i) ?? d;
+    }
+  }
+  return d;
+}
+
 /** Puts each end at its position (whole mm), adding grid lines where needed; checks the element still makes sense */
 function place(design: Design, el: Element, ends: End[], targets: Vec3[]): Result {
+  const r = placeOn(design, el, ends, targets);
+  return 'design' in r ? { design: dropVacated(design, r.design) } : r;
+}
+
+function placeOn(design: Design, el: Element, ends: End[], targets: Vec3[]): Result {
   if (ends.length === 0) return { error: 'החלק לא נמצא.' };
   let d = design;
   const pos = targets.map((t) => t.map(Math.round) as Vec3);

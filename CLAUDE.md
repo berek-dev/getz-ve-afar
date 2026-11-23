@@ -75,7 +75,8 @@ Private internal tool for "גץ ועפר" (Yaal Hagai's metalwork/welding busine
   made on that same version (`{ base, design }` in `gva:design-draft:<job>`).
   Moving and turning (`src/core/move.ts`, "הזזה וסיבוב" on a piece's sheet): one finger drags the piece, snapping an
   end onto a grid line when near one, or the arrows step it line to line; it keeps its size, and a grid line is added
-  where an end lands between lines (`insertGridLine`). "סובב 90 מעלות" turns it clockwise on screen about its first
+  where an end lands between lines (`insertGridLine`); a line the move left empty (something stood on it before,
+  nothing now) is removed and its spacings merge (`removeGridLine`). "סובב 90 מעלות" turns it clockwise on screen about its first
   point (the other way if that leaves the grid); blocks always turn in plan. "הצמד" then a tap on another piece
   (`snapTo`) brings it up against that one without turning: a member whose line meets the target (a member's centre
   line, a wall's or plate's face) is stretched or shortened at its nearer end, the other end staying put; anything else

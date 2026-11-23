@@ -68,7 +68,8 @@ test('an infill moves with its two members; a block and a plate move whole', () 
   d = addInfill(high.design, [low.id as string, high.id as string], { profile: 'square_bar', size: [12] }, 100).design;
   const fill = d.infills[0].id;
   const up = ok(moveElement(d, { kind: 'infill', id: fill }, [0, 400, 0]));
-  assert.deepEqual(gridLines(up.grid.y), [0, 100, 500, 1100, 1500]);
+  // The lines the rails left (100 and 1,100) go with them
+  assert.deepEqual(gridLines(up.grid.y), [0, 500, 1500]);
   assert.deepEqual(elementPoints(up, { kind: 'member', id: high.id as string })[0], [0, 1500, 0]);
 
   let s: Design = { ...newDesign(), grid: { x: [3000], y: [1200], z: [1000] } };
@@ -234,4 +235,23 @@ test('pieces that run side by side slide until their faces touch', () => {
   assert.deepEqual([r.how, r.mm], ['move', 900]);
   assert.equal(elementPoints(r.design, memberEl(b.id))[0][0], 100);
   assert.ok('error' in snapTo(d, sceneOfDesign(d), memberEl(b.id), memberEl(b.id), FRONT));
+});
+
+test('a move takes away the grid lines it left empty, so measurements stay clean', () => {
+  // A middle post at 1,200 between posts at 0 and 3,000; lines at 0, 1,200, 1,500, 3,000
+  let d: Design = { ...newDesign(), grid: { x: [1200, 300, 1500], y: [2400], z: [] } };
+  const left = addMember(d, [0, 0, 0], [0, 1, 0], rect(100, 100, 3));
+  const mid = addMember(left.design, [1, 0, 0], [1, 1, 0], rect(100, 100, 3));
+  const right = addMember(mid.design, [3, 0, 0], [3, 1, 0], rect(100, 100, 3));
+  d = right.design;
+  const el = { kind: 'member' as const, id: mid.id as string };
+  // Dragged by eye to 840: 1,200 is left empty and goes; 840 is new
+  const dragged = ok(moveElement(d, el, [-360, 0, 0]));
+  assert.deepEqual(gridLines(dragged.grid.x), [0, 840, 1500, 3000]);
+  // Centred: 840 goes too, and the measured 1,500 and 1,500 are back
+  const scene = prepareScene(JSON.parse(JSON.stringify(compileDesign(dragged, 'x')))).scene;
+  const r = centerBetween(dragged, scene, el, { kind: 'member', id: left.id as string }, { kind: 'member', id: right.id as string }, FRONT);
+  if ('error' in r) assert.fail(r.error);
+  assert.deepEqual(r.design.grid.x, [1500, 1500]);
+  assert.equal(r.design.guess, undefined);
 });

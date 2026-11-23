@@ -1081,6 +1081,39 @@ export function insertGridLine(design: Design, axis: GridAxis, pos: number): { d
   };
 }
 
+/**
+ * Removes a grid line nothing stands on (not the first or the last): its two spacings become one, measured unless both
+ * were guesses, and every point beyond it moves down one line. Null when something uses it.
+ */
+export function removeGridLine(design: Design, axis: GridAxis, index: number): Design | null {
+  const i = AXIS_INDEX[axis];
+  const spacings = design.grid[axis];
+  if (index <= 0 || index >= spacings.length) return null;
+  const nodes = [...design.members, ...design.plates, ...design.blocks, ...(design.walls ?? [])].flatMap((x) => [x.a, x.b]);
+  if (nodes.some((n) => n[i] === index)) return null;
+  const was = guesses(design, axis);
+  const list = [...spacings.slice(0, index - 1), spacings[index - 1] + spacings[index], ...spacings.slice(index + 1)];
+  const flags = [...was.slice(0, index - 1), was[index - 1] && was[index], ...was.slice(index + 1)];
+  const move = (n: DesignNode): DesignNode => {
+    if (n[i] <= index) return n;
+    const out: DesignNode = [n[0], n[1], n[2]];
+    out[i] -= 1;
+    return out;
+  };
+  return withGuess(
+    {
+      ...design,
+      grid: { ...design.grid, [axis]: list },
+      members: design.members.map((m) => ({ ...m, a: move(m.a), b: move(m.b) })),
+      plates: design.plates.map((p) => ({ ...p, a: move(p.a), b: move(p.b) })),
+      blocks: design.blocks.map((k) => ({ ...k, a: move(k.a), b: move(k.b) })),
+      ...(design.walls ? { walls: design.walls.map((w) => ({ ...w, a: move(w.a), b: move(w.b) })) } : {}),
+    },
+    axis,
+    flags,
+  );
+}
+
 /** Removes the last bay of an axis; members and blocks on its far line go too. Returns how many were removed. */
 export function removeLastBay(design: Design, axis: GridAxis): { design: Design; removed: number } {
   const list = design.grid[axis];
