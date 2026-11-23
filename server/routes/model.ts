@@ -9,7 +9,7 @@ import { buildLayoutPrompt, designRequests, parseLayoutReply } from '../../src/c
 import { buildDesignPrompt, designFromReply } from '../../src/core/designPrompt.ts';
 import type { ReadDesign } from '../../src/core/designPrompt.ts';
 import type { PromptBoqLine } from '../../src/core/layoutPrompt.ts';
-import { MODEL_GROUP, linesFromModel } from '../../src/core/modelBoq.ts';
+import { MODEL_GROUP, keepTypedPrices, linesFromModel } from '../../src/core/modelBoq.ts';
 import type { PriceListItem } from '../../src/core/modelBoq.ts';
 import { anchorDimensions, cutList, prepareScene } from '../../src/core/scene.ts';
 import { isCutLine } from '../../src/core/quantities.ts';
@@ -380,11 +380,18 @@ export function registerModel(app: App): void {
         .bind(jobId)
         .all<JobItem>(),
     ]);
-    const items: ItemInput[] = [];
-    for (const line of linesFromModel(prepared.scene, cutList(prepared.scene), priceList)) {
+    const cut = cutList(prepared.scene);
+    let items: ItemInput[] = [];
+    for (const line of linesFromModel(prepared.scene, cut, priceList)) {
       const v = validateItem({ ...line, description: line.description.slice(0, 200) });
       if (v.ok) items.push(v.item);
     }
+    // Prices typed on the lines this replaces stay, where the price list has none
+    items = keepTypedPrices(
+      items,
+      existing.filter((l) => l.group_name === MODEL_GROUP),
+      new Set(cut.pieces.map((p) => p.name)),
+    );
     const covered = new Set(items.map((i) => i.element_id).filter((id): id is number => id !== null));
     const conflicts = existing.filter(
       (l) => l.group_name !== MODEL_GROUP && (isCutLine(l) || (l.element_id !== null && covered.has(l.element_id))),

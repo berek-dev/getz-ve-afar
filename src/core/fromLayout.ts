@@ -186,7 +186,11 @@ export function designFromLayout(layout: unknown): { design: Design; notes: stri
     const zs = linesOf(points.map((p) => p[2] - minZ));
     const node = (p: Vec3): DesignNode => [nearest(xs, p[0] - minX), nearest(ys, Math.max(0, p[1])), nearest(zs, p[2] - minZ)];
 
-    const design: Design = { ...newDesign(scene.material), grid: { x: spacings(xs), y: spacings(ys), z: spacings(zs) } };
+    // The material most of the pieces are made of (the builder has one for the whole design)
+    const counts = new Map<string, number>();
+    for (const i of kept) counts.set(pieces[i].m.material, (counts.get(pieces[i].m.material) ?? 0) + 1);
+    const material = [...counts].sort((x, y) => y[1] - x[1])[0]?.[0] ?? scene.material;
+    const design: Design = { ...newDesign(material as Design['material']), grid: { x: spacings(xs), y: spacings(ys), z: spacings(zs) } };
     if (design.grid.x.length === 0) design.grid.x = [1000];
     if (design.grid.y.length === 0) design.grid.y = [1000];
 

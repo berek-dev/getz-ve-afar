@@ -141,3 +141,26 @@ export function linesFromModel(scene: ResolvedScene, cut: CutList, priceList: Pr
   }
   return lines;
 }
+
+interface Priced {
+  description: string;
+  unit: string;
+  unit_cost: number;
+  length_mm: number | null;
+}
+
+/**
+ * Prices typed by hand on the model's lines, kept when the lines are made again (approving a changed model) and the
+ * price list has no price for them: the same profile, plate or part, by its description without the cut mark. A
+ * line named by a label ("קורה") keeps its price only at the same length, since the label alone doesn't say the profile.
+ */
+export function keepTypedPrices<T extends Priced>(lines: T[], before: Priced[], sectionNames: Set<string>): T[] {
+  const base = (d: string) => d.replace(/ \([A-Z]{1,3}\)$/, '');
+  return lines.map((l) => {
+    if (l.unit_cost > 0) return l;
+    const b = base(l.description);
+    const plain = sectionNames.has(b.replace(/ \(מכופף\)$/, ''));
+    const old = before.find((o) => o.unit === l.unit && o.unit_cost > 0 && base(o.description) === b && (plain || l.unit !== 'm' || o.length_mm === l.length_mm));
+    return old ? { ...l, unit_cost: old.unit_cost } : l;
+  });
+}

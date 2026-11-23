@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cutList, prepareScene } from './scene.ts';
-import { checkModelAgainstBoq, linesFromModel } from './modelBoq.ts';
+import { checkModelAgainstBoq, keepTypedPrices, linesFromModel } from './modelBoq.ts';
 
 const { scene } = prepareScene({
   members: [
@@ -70,4 +70,24 @@ test('the demo gate model matches the demo job BOQ', async () => {
     { element_id: 9003, element_name: 'פרופיל 40/20/1.5', description: 'מילוי', quantity: 50.1, unit: 'm', unit_cost: 10, length_mm: 1670, pieces: 30 },
   ]);
   assert.deepEqual(rows.map((r) => r.status), ['match', 'match', 'match']);
+});
+
+test('approving a changed model keeps the prices typed on its lines where the price list has none', () => {
+  const before = [
+    { description: 'פרופיל 60/40/2 (A)', unit: 'm', unit_cost: 38, length_mm: 3000 },
+    { description: 'קורה (B)', unit: 'm', unit_cost: 95, length_mm: 4000 },
+    { description: 'פח 3 מ״מ 1,000/500', unit: 'm2', unit_cost: 210, length_mm: null },
+    { description: 'פרופיל 100/100/3 (C)', unit: 'm', unit_cost: 0, length_mm: 2500 },
+  ];
+  const lines = [
+    // The same profile cut to another length and marked differently: its price stays
+    { description: 'פרופיל 60/40/2 (C)', unit: 'm' as const, unit_cost: 0, length_mm: 3200 },
+    // A labelled piece at another length might be another profile now: no price carried
+    { description: 'קורה (A)', unit: 'm' as const, unit_cost: 0, length_mm: 4200 },
+    { description: 'פח 3 מ״מ 1,000/500', unit: 'm2' as const, unit_cost: 0, length_mm: null },
+    // Priced by the price list: left as it is
+    { description: 'פרופיל 100/100/3 (B)', unit: 'm' as const, unit_cost: 61, length_mm: 2500 },
+  ];
+  const kept = keepTypedPrices(lines, before, new Set(['פרופיל 60/40/2', 'פרופיל 100/100/3']));
+  assert.deepEqual(kept.map((l) => l.unit_cost), [38, 0, 210, 61]);
 });

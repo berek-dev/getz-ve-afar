@@ -128,3 +128,13 @@ test('a wall in the AI model becomes a builder wall, its face towards the work',
   assert.ok(r.notes.some((n) => /הקיר מההדמיה עבר/.test(n)));
   assert.ok(!r.notes.some((n) => /בטון/.test(n)));
 });
+
+test('the design takes the material most pieces are made of, so their prices still match', () => {
+  const r = designFromLayout({
+    members: [
+      { id: 'post', profile: 'rect_tube', size: [80, 80, 3], from: [0, 0, 0], to: [0, 2000, 0], material: 'galv', repeat: { count: 2, step: [2000, 0, 0] } },
+      { id: 'rail', profile: 'rect_tube', size: [40, 40, 2], from: [40, 1000, 0], to: [1960, 1000, 0], material: 'galv' },
+    ],
+  });
+  assert.equal(r?.design.material, 'galv');
+});

@@ -58,6 +58,10 @@ test('a drawing built by hand is saved, approved into the price, and a later cha
   const job = db.sqlite.prepare('SELECT model_approved_id AS a, (SELECT MAX(id) FROM job_models) AS l FROM jobs WHERE id = 1').get() as { a: number; l: number };
   assert.equal(job.a, job.l);
 
+  // Yaal types a price on one of the model's lines (nothing in the price list prices it)
+  const typed = db.sqlite.prepare(`SELECT id, description FROM job_items WHERE group_name = '${MODEL_GROUP}' AND unit = 'm' AND description LIKE 'פרופיל 80/80/3%'`).get() as { id: number; description: string };
+  db.sqlite.prepare('UPDATE job_items SET unit_cost = 44 WHERE id = ?').run(typed.id);
+
   // A change saves a new version: the approved one is no longer the newest
   const wider = { ...design, grid: { ...design.grid, x: [3500, 2000] } };
   assert.equal((await api.call('POST', '/jobs/1/model', { layout: compileDesign(wider, 'במה'), source: 'builder', mode: 'edit' })).status, 201);
@@ -66,6 +70,9 @@ test('a drawing built by hand is saved, approved into the price, and a later cha
   // Approving again replaces the model's lines rather than adding to them
   const again = await json(await api.call('POST', '/jobs/1/model/approve', {}));
   assert.equal(count(db, `SELECT count(*) AS n FROM job_items WHERE group_name = '${MODEL_GROUP}'`), again.lines);
+  // ...and keeps the price typed on the post
+  const post = db.sqlite.prepare(`SELECT unit_cost FROM job_items WHERE group_name = '${MODEL_GROUP}' AND description LIKE 'פרופיל 80/80/3%'`).get() as { unit_cost: number };
+  assert.equal(post.unit_cost, 44);
 
   // Undo goes back to the first version
   const undone = await json(await api.call('POST', '/jobs/1/model/undo'));
